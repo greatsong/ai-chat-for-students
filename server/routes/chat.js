@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { queryOne, queryAll, run, getSetting } from '../db/database.js';
 import crypto from 'crypto';
-import { PROVIDERS } from 'ai-chat-for-students-shared';
+import { PROVIDERS } from '../../shared/index.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
