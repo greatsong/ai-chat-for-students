@@ -1,0 +1,23 @@
+{
+  "name": "ai-chat-for-students",
+  "version": "1.0.0",
+  "description": "수업용 AI 채팅 도구 — 프리미엄 AI + 교육적 모니터링",
+  "private": true,
+  "workspaces": [
+    "client",
+    "server",
+    "shared"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
+    "dev:client": "npm run dev --workspace=client",
+    "dev:server": "npm run dev --workspace=server",
+    "build": "npm run build --workspace=client"
+  },
+  "keywords": [],
+  "author": "greatsong",
+  "license": "ISC",
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  }
+}

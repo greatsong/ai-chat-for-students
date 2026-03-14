@@ -1,0 +1,6 @@
+{
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "RAILWAY_BACKEND_URL/api/$1" },
+    { "source": "/(.*)", "destination": "/index.html" }
+  ]
+}

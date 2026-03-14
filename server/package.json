@@ -1,0 +1,24 @@
+{
+  "name": "ai-chat-for-students-server",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "dev": "nodemon index.js",
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "latest",
+    "@google/generative-ai": "latest",
+    "sql.js": "^1",
+    "cors": "^2",
+    "dotenv": "^16",
+    "express": "^5",
+    "jsonwebtoken": "^9",
+    "multer": "^2",
+    "openai": "latest",
+    "uuid": "^11"
+  },
+  "devDependencies": {
+    "nodemon": "^3"
+  }
+}
