@@ -35,6 +35,13 @@ router.post('/google', async (req, res) => {
       return res.status(401).json({ error: 'Google 토큰에서 사용자 정보를 추출할 수 없습니다.' });
     }
 
+    // 이메일 도메인 제한: @danggok.hs.kr 또는 교사 이메일만 허용
+    const isAllowedDomain = email.endsWith('@danggok.hs.kr');
+    const isTeacherEmail = TEACHER_EMAILS.includes(email);
+    if (!isAllowedDomain && !isTeacherEmail) {
+      return res.status(403).json({ error: '@danggok.hs.kr 이메일만 사용할 수 있습니다.' });
+    }
+
     // 2. 기존 사용자 확인
     let user = queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
 

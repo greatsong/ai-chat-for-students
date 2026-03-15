@@ -109,7 +109,8 @@ export default function LoginPage() {
 
         {/* 타이틀 */}
         <h1 className="text-2xl font-bold text-gray-900">AI Chat for Students</h1>
-        <p className="mt-2 text-gray-500">수업용 AI 채팅 도구</p>
+        <p className="mt-1 text-indigo-600 font-medium">당곡고등학교 학생들을 위한</p>
+        <p className="mt-1 text-gray-500">수업용 AI 채팅 도구</p>
 
         {/* 구분선 */}
         <div className="my-8 border-t border-gray-200" />
@@ -146,7 +147,7 @@ export default function LoginPage() {
 
         {/* 안내 문구 */}
         <p className="mt-8 text-xs text-gray-400">
-          Google 계정으로 로그인하면 수업용 AI 채팅을 이용할 수 있습니다.
+          @danggok.hs.kr 계정으로 로그인하면 수업용 AI 채팅을 이용할 수 있습니다.
           <br />
           학생은 교사 승인 후 사용 가능합니다.
         </p>
