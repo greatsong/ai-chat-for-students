@@ -108,8 +108,7 @@ export default function LoginPage() {
         </div>
 
         {/* 타이틀 */}
-        <h1 className="text-2xl font-bold text-gray-900">AI Chat for Students</h1>
-        <p className="mt-1 text-indigo-600 font-medium">당곡고등학교 학생들을 위한</p>
+        <h1 className="text-2xl font-bold text-gray-900">당곡고 학생을 위한 AI 채팅</h1>
         <p className="mt-1 text-gray-500">수업용 AI 채팅 도구</p>
 
         {/* 구분선 */}

@@ -89,10 +89,10 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage }) {
             <span className="text-3xl">💬</span>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            AI와 대화를 시작하세요
+            당곡고 학생 여러분!
           </h1>
           <p className="text-gray-500 text-sm">
-            학습에 도움이 되는 질문을 해보세요. 아래 추천 주제를 눌러 바로 시작할 수도 있습니다.
+            AI와 학습과 관련된 대화를 시작하세요! 아래 추천 주제를 눌러 바로 시작할 수도 있습니다.
           </p>
         </div>
 

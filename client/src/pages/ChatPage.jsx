@@ -204,7 +204,12 @@ export default function ChatPage() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-base font-semibold text-gray-800">AI 채팅</h1>
+          <h1
+            className="text-base font-semibold text-gray-800 cursor-pointer hover:text-blue-600 transition-colors"
+            onClick={handleNewConversation}
+          >
+            당곡고 학생을 위한 AI 채팅
+          </h1>
         </div>
 
         {/* 프로바이더 선택기 */}
