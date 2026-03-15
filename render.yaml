@@ -2,6 +2,7 @@ services:
   - type: web
     name: ai-chat-for-students-api
     runtime: node
+    plan: free
     buildCommand: cd server && npm install
     startCommand: cd server && node index.js
     envVars:
