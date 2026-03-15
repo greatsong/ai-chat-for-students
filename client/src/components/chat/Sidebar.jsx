@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 
 // 시간 경과 포맷
 function timeAgo(dateStr) {
@@ -181,13 +182,13 @@ export default function Sidebar({
         {/* 교사 대시보드 링크 */}
         {user?.role === 'teacher' && (
           <div className="px-3 pb-2">
-            <a
-              href="/teacher"
+            <Link
+              to="/teacher"
               className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors text-sm"
             >
               <span>📊</span>
               교사 대시보드
-            </a>
+            </Link>
           </div>
         )}
 

@@ -36,39 +36,71 @@ export default function LoginPage() {
       return;
     }
 
-    // 이미 로드된 경우
-    if (window.google?.accounts?.id) {
-      initializeGoogle();
-      return;
-    }
-
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
-    script.async = true;
-    script.defer = true;
-    script.onload = initializeGoogle;
-    document.head.appendChild(script);
+    let cancelled = false;
 
     function initializeGoogle() {
+      if (cancelled || !window.google?.accounts?.id || !buttonRef.current) return;
+
       window.google.accounts.id.initialize({
         client_id: GOOGLE_CLIENT_ID,
         callback: handleCredentialResponse,
       });
 
-      if (buttonRef.current) {
-        window.google.accounts.id.renderButton(buttonRef.current, {
-          type: "standard",
-          theme: "outline",
-          size: "large",
-          text: "signin_with",
-          shape: "rectangular",
-          width: 320,
-        });
-      }
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        type: "standard",
+        theme: "outline",
+        size: "large",
+        text: "signin_with",
+        shape: "rectangular",
+        width: 320,
+      });
     }
 
+    // 이미 로드된 경우
+    if (window.google?.accounts?.id) {
+      initializeGoogle();
+      return () => { cancelled = true; };
+    }
+
+    // 스크립트 태그가 이미 존재하는지 확인 (중복 방지)
+    const existingScript = document.querySelector(
+      'script[src="https://accounts.google.com/gsi/client"]'
+    );
+
+    if (existingScript) {
+      // 스크립트는 있지만 아직 로드 안 됨 — 폴링으로 대기
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initializeGoogle();
+        }
+      }, 100);
+      return () => {
+        cancelled = true;
+        clearInterval(interval);
+      };
+    }
+
+    // 새로 스크립트 로드
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.onload = () => {
+      // onload 후에도 google.accounts.id가 바로 안 될 수 있음
+      const interval = setInterval(() => {
+        if (window.google?.accounts?.id) {
+          clearInterval(interval);
+          initializeGoogle();
+        }
+      }, 50);
+      // 최대 5초 대기
+      setTimeout(() => clearInterval(interval), 5000);
+    };
+    document.head.appendChild(script);
+
     return () => {
-      // cleanup: script는 제거하지 않음 (재사용)
+      cancelled = true;
     };
   }, [handleCredentialResponse]);
 

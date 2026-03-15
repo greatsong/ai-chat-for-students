@@ -3,7 +3,8 @@ import { create } from 'zustand';
 const useAuthStore = create((set, get) => ({
   user: null,
   token: localStorage.getItem('token'),
-  isLoading: false,
+  // 토큰이 있으면 초기에 loading 상태로 시작 (AuthGuard가 바로 /login으로 보내는 것 방지)
+  isLoading: !!localStorage.getItem('token'),
   isAuthenticated: false,
 
   /**
