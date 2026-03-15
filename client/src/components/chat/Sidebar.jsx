@@ -178,6 +178,19 @@ export default function Sidebar({
           )}
         </div>
 
+        {/* 교사 대시보드 링크 */}
+        {user?.role === 'teacher' && (
+          <div className="px-3 pb-2">
+            <a
+              href="/teacher"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors text-sm"
+            >
+              <span>📊</span>
+              교사 대시보드
+            </a>
+          </div>
+        )}
+
         {/* 사용자 정보 + 로그아웃 */}
         <div className="border-t border-gray-700 px-4 py-3">
           <div className="flex items-center gap-3">
