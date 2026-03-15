@@ -187,6 +187,18 @@ function MessageBubble({ message }) {
             </div>
           )}
 
+          {/* 생성된 이미지 표시 */}
+          {message.image_url && (
+            <div className="mt-2">
+              <img
+                src={message.image_url}
+                alt="생성된 이미지"
+                className="max-w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                onClick={() => window.open(message.image_url, '_blank')}
+              />
+            </div>
+          )}
+
           {/* 파일 첨부 */}
           <FileAttachments files={message.files} />
         </div>

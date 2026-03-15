@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { apiGet, apiDelete, apiStreamPost, apiUploadFile } from '../lib/api.js';
+import { apiGet, apiPost, apiDelete, apiStreamPost, apiUploadFile } from '../lib/api.js';
 
 const useChatStore = create((set, get) => ({
   // State
@@ -191,6 +191,66 @@ const useChatStore = create((set, get) => ({
    */
   setModel: (model) => {
     set({ selectedModel: model });
+  },
+
+  /**
+   * 이미지 생성 (교사 전용)
+   */
+  generateImage: async (prompt, provider = 'gemini') => {
+    const { currentConversation, messages } = get();
+
+    // 사용자 요청 메시지 추가
+    const userMessage = {
+      id: `temp-user-${Date.now()}`,
+      role: 'user',
+      content: `🎨 이미지 생성: ${prompt}`,
+      created_at: new Date().toISOString(),
+    };
+
+    // 로딩 어시스턴트 메시지 추가
+    const assistantMessage = {
+      id: `temp-assistant-${Date.now()}`,
+      role: 'assistant',
+      content: '이미지를 생성하고 있습니다...',
+      created_at: new Date().toISOString(),
+    };
+
+    set({
+      messages: [...messages, userMessage, assistantMessage],
+      isStreaming: true,
+    });
+
+    try {
+      const result = await apiPost('/image/generate', {
+        prompt,
+        provider,
+        conversationId: currentConversation?.id || null,
+      });
+
+      // 이미지 생성 완료 — 어시스턴트 메시지 업데이트
+      const currentMessages = get().messages;
+      const lastIdx = currentMessages.length - 1;
+      const updated = [...currentMessages];
+      updated[lastIdx] = {
+        ...updated[lastIdx],
+        content: '이미지가 생성되었습니다.',
+        image_url: result.imageUrl,
+      };
+      set({ messages: updated, isStreaming: false });
+
+      // 대화 목록 새로고침
+      get().loadConversations();
+    } catch (error) {
+      console.error('이미지 생성 실패:', error);
+      const currentMessages = get().messages;
+      const lastIdx = currentMessages.length - 1;
+      const updated = [...currentMessages];
+      updated[lastIdx] = {
+        ...updated[lastIdx],
+        content: `이미지 생성 오류: ${error.message}`,
+      };
+      set({ messages: updated, isStreaming: false });
+    }
   },
 
   /**

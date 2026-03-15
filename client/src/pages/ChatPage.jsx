@@ -107,6 +107,7 @@ export default function ChatPage() {
   const createConversation = useSafeChatStore((s) => s.createConversation);
   const deleteConversation = useSafeChatStore((s) => s.deleteConversation);
   const sendMessage = useSafeChatStore((s) => s.sendMessage);
+  const generateImage = useSafeChatStore((s) => s.generateImage);
   const setProvider = useSafeChatStore((s) => s.setProvider);
   const setModel = useSafeChatStore((s) => s.setModel);
   const loadConversations = useSafeChatStore((s) => s.loadConversations);
@@ -175,6 +176,13 @@ export default function ChatPage() {
     handleSendMessage(prompt);
   }, [handleSendMessage]);
 
+  // 이미지 생성 (교사 전용)
+  const handleGenerateImage = useCallback((prompt, provider) => {
+    generateImage?.(prompt, provider);
+  }, [generateImage]);
+
+  const isTeacher = user?.role === 'teacher';
+
   const hasActiveConversation = !!activeConversationId && messages.length > 0;
 
   return (
@@ -239,8 +247,10 @@ export default function ChatPage() {
         {/* 메시지 입력 */}
         <MessageInput
           onSend={handleSendMessage}
+          onGenerateImage={handleGenerateImage}
           disabled={false}
           isStreaming={isStreaming}
+          isTeacher={isTeacher}
         />
       </main>
     </div>

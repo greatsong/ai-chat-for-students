@@ -13,10 +13,9 @@ router.post('/generate', authenticate, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // 1. 이미지 생성 기능 활성화 확인
-    const imageEnabled = getSetting('image_generation_enabled');
-    if (!imageEnabled) {
-      return res.status(403).json({ error: '이미지 생성 기능이 비활성화되어 있습니다.' });
+    // 1. 교사 권한 확인 (이미지 생성은 교사만 가능)
+    if (req.user.role !== 'teacher') {
+      return res.status(403).json({ error: '이미지 생성은 교사만 사용할 수 있습니다.' });
     }
 
     // 2. 프롬프트 확인

@@ -5,12 +5,17 @@ const LINE_HEIGHT = 24; // approximate line height in px
 
 export default function MessageInput({
   onSend,
+  onGenerateImage,
   disabled = false,
   isStreaming = false,
+  isTeacher = false,
 }) {
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState([]);
   const [isDragOver, setIsDragOver] = useState(false);
+  const [showImageGen, setShowImageGen] = useState(false);
+  const [imagePrompt, setImagePrompt] = useState('');
+  const [imageProvider, setImageProvider] = useState('gemini');
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
 
@@ -171,6 +176,63 @@ export default function MessageInput({
         </div>
       )}
 
+      {/* 이미지 생성 패널 (교사 전용) */}
+      {showImageGen && isTeacher && (
+        <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="text-sm font-medium text-purple-800">🎨 이미지 생성</span>
+            <select
+              value={imageProvider}
+              onChange={(e) => setImageProvider(e.target.value)}
+              className="text-xs px-2 py-1 rounded-md border border-purple-300 bg-white text-purple-700"
+            >
+              <option value="gemini">Gemini</option>
+              <option value="openai">OpenAI</option>
+            </select>
+            <button
+              onClick={() => setShowImageGen(false)}
+              className="ml-auto text-purple-400 hover:text-purple-600 text-xs"
+            >
+              닫기
+            </button>
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={imagePrompt}
+              onChange={(e) => setImagePrompt(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  if (imagePrompt.trim() && !isStreaming) {
+                    onGenerateImage?.(imagePrompt.trim(), imageProvider);
+                    setImagePrompt('');
+                    setShowImageGen(false);
+                  }
+                }
+              }}
+              placeholder="생성할 이미지를 설명하세요..."
+              className="flex-1 px-3 py-2 text-sm rounded-lg border border-purple-300 focus:outline-none focus:ring-2 focus:ring-purple-500"
+              disabled={isStreaming}
+            />
+            <button
+              onClick={() => {
+                if (imagePrompt.trim() && !isStreaming) {
+                  onGenerateImage?.(imagePrompt.trim(), imageProvider);
+                  setImagePrompt('');
+                  setShowImageGen(false);
+                }
+              }}
+              disabled={!imagePrompt.trim() || isStreaming}
+              className="px-4 py-2 bg-purple-600 text-white text-sm rounded-lg hover:bg-purple-700 disabled:bg-gray-300 disabled:cursor-not-allowed transition-colors"
+            >
+              생성
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* 입력 영역 */}
       <div className="flex items-end gap-2">
         {/* 파일 첨부 버튼 */}
@@ -184,6 +246,24 @@ export default function MessageInput({
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
           </svg>
         </button>
+
+        {/* 이미지 생성 버튼 (교사 전용) */}
+        {isTeacher && (
+          <button
+            onClick={() => setShowImageGen(!showImageGen)}
+            disabled={disabled}
+            className={`flex-shrink-0 p-2.5 rounded-lg transition-colors disabled:opacity-50 ${
+              showImageGen
+                ? 'text-purple-600 bg-purple-100'
+                : 'text-gray-400 hover:text-purple-600 hover:bg-purple-50'
+            }`}
+            title="이미지 생성"
+          >
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+            </svg>
+          </button>
+        )}
         <input
           ref={fileInputRef}
           type="file"
