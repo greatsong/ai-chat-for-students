@@ -50,11 +50,12 @@ const useChatStore = create((set, get) => ({
    * 새 대화 시작 (UI에서 초기화만, 실제 생성은 첫 메시지 전송 시)
    */
   createConversation: (provider, model) => {
+    const { selectedProvider, selectedModel } = get();
     set({
       currentConversation: null,
       messages: [],
-      selectedProvider: provider || 'claude',
-      selectedModel: model || 'claude-sonnet-4-6',
+      selectedProvider: provider || selectedProvider || 'claude',
+      selectedModel: model || selectedModel || 'claude-sonnet-4-6',
     });
   },
 
