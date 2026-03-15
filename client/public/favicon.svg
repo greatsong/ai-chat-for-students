@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
+  <!-- 메인 말풍선 -->
+  <rect x="6" y="10" width="52" height="36" rx="12" fill="#6366f1"/>
+  <!-- 말풍선 꼬리 -->
+  <polygon points="18,46 26,46 20,56" fill="#6366f1"/>
+  <!-- 눈 (왼쪽) -->
+  <circle cx="22" cy="26" r="4" fill="white"/>
+  <circle cx="23" cy="25" r="1.8" fill="#1e1b4b"/>
+  <!-- 눈 (오른쪽) -->
+  <circle cx="42" cy="26" r="4" fill="white"/>
+  <circle cx="43" cy="25" r="1.8" fill="#1e1b4b"/>
+  <!-- 반짝임 (왼쪽 눈) -->
+  <circle cx="21" cy="24" r="1" fill="white"/>
+  <!-- 반짝임 (오른쪽 눈) -->
+  <circle cx="41" cy="24" r="1" fill="white"/>
+  <!-- 입 (웃는 표정) -->
+  <path d="M26 33 Q32 39 38 33" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
+  <!-- 볼 터치 (핑크) -->
+  <circle cx="17" cy="32" r="3" fill="#f0abfc" opacity="0.6"/>
+  <circle cx="47" cy="32" r="3" fill="#f0abfc" opacity="0.6"/>
+  <!-- AI 스파클 -->
+  <g fill="#fbbf24">
+    <polygon points="52,6 53.5,10 56,8 53.5,10.5 56,12 53,10.5 52,14 52,10.5 48,12 51,10 48,8 51,9.5"/>
+    <circle cx="10" cy="8" r="1.5"/>
+    <circle cx="56" cy="18" r="1"/>
+  </g>
+</svg>

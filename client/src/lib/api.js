@@ -114,6 +114,25 @@ export async function apiDelete(path) {
 }
 
 /**
+ * 파일 업로드 (FormData)
+ * @param {File} file - 브라우저 File 객체
+ * @returns {Promise<{id, name, size, mimeType, type, content}>}
+ */
+export async function apiUploadFile(file) {
+  const formData = new FormData();
+  formData.append('file', file);
+
+  const response = await fetch(`${API_BASE}/upload`, {
+    method: 'POST',
+    headers: {
+      ...getAuthHeaders(),
+    },
+    body: formData,
+  });
+  return handleResponse(response);
+}
+
+/**
  * POST 요청 + SSE 스트리밍 응답 처리
  * @param {string} path - API 경로
  * @param {object} body - 요청 본문

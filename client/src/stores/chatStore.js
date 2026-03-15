@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { apiGet, apiDelete, apiStreamPost } from '../lib/api.js';
+import { apiGet, apiDelete, apiStreamPost, apiUploadFile } from '../lib/api.js';
 
 const useChatStore = create((set, get) => ({
   // State
@@ -61,15 +61,33 @@ const useChatStore = create((set, get) => ({
   /**
    * 메시지 전송 (스트리밍)
    */
-  sendMessage: async (content, files = []) => {
+  sendMessage: async (content, rawFiles = []) => {
     const { currentConversation, messages, selectedProvider, selectedModel } = get();
+
+    // 0. 파일 업로드 처리 (raw File 객체 → 서버 업로드 → 처리된 데이터)
+    let uploadedFiles = [];
+    if (rawFiles.length > 0) {
+      try {
+        const uploadPromises = rawFiles.map((file) => apiUploadFile(file));
+        const results = await Promise.all(uploadPromises);
+        uploadedFiles = results.map((r) => ({
+          name: r.name,
+          type: r.type,
+          mimeType: r.mimeType,
+          data: r.content,
+          size: r.size,
+        }));
+      } catch (error) {
+        console.error('파일 업로드 실패:', error);
+      }
+    }
 
     // 1. 사용자 메시지 즉시 추가
     const userMessage = {
       id: `temp-user-${Date.now()}`,
       role: 'user',
       content,
-      files,
+      files: uploadedFiles,
       created_at: new Date().toISOString(),
     };
 
@@ -99,7 +117,7 @@ const useChatStore = create((set, get) => ({
           message: content,
           provider: selectedProvider,
           model: selectedModel,
-          files,
+          files: uploadedFiles,
         },
         (chunk) => {
           const currentMessages = get().messages;
