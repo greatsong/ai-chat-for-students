@@ -97,20 +97,19 @@ export default function ChatPage() {
 
   // Chat store
   const conversations = useSafeChatStore((s) => s.conversations);
-  const activeConversationId = useSafeChatStore((s) => s.activeConversationId);
+  const currentConversation = useSafeChatStore((s) => s.currentConversation);
+  const activeConversationId = currentConversation?.id || null;
   const messages = useSafeChatStore((s) => s.messages);
   const isStreaming = useSafeChatStore((s) => s.isStreaming);
-  const streamingContent = useSafeChatStore((s) => s.streamingContent);
   const selectedProvider = useSafeChatStore((s) => s.selectedProvider);
   const selectedModel = useSafeChatStore((s) => s.selectedModel);
-  const setActiveConversation = useSafeChatStore((s) => s.setActiveConversation);
+  const selectConversation = useSafeChatStore((s) => s.selectConversation);
   const createConversation = useSafeChatStore((s) => s.createConversation);
   const deleteConversation = useSafeChatStore((s) => s.deleteConversation);
   const sendMessage = useSafeChatStore((s) => s.sendMessage);
   const setProvider = useSafeChatStore((s) => s.setProvider);
   const setModel = useSafeChatStore((s) => s.setModel);
   const loadConversations = useSafeChatStore((s) => s.loadConversations);
-  const loadMessages = useSafeChatStore((s) => s.loadMessages);
 
   const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
 
@@ -128,22 +127,15 @@ export default function ChatPage() {
     loadConversationsRef.current?.();
   }, []);
 
-  // 대화 선택 시 메시지 로드
-  useEffect(() => {
-    if (activeConversationId) {
-      loadMessages?.(activeConversationId);
-    }
-  }, [activeConversationId, loadMessages]);
-
   // 새 대화 생성
   const handleNewConversation = useCallback(() => {
     createConversation?.();
   }, [createConversation]);
 
-  // 대화 선택
+  // 대화 선택 (메시지도 함께 로드됨)
   const handleSelectConversation = useCallback((id) => {
-    setActiveConversation?.(id);
-  }, [setActiveConversation]);
+    selectConversation?.(id);
+  }, [selectConversation]);
 
   // 대화 삭제
   const handleDeleteConversation = useCallback((id) => {
@@ -230,7 +222,6 @@ export default function ChatPage() {
             <MessageList
               messages={messages}
               isStreaming={isStreaming}
-              streamingContent={streamingContent}
             />
           ) : (
             <WelcomeScreen

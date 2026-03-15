@@ -48,6 +48,8 @@ export default function MessageInput({
   }, [message, attachments, disabled, isStreaming, onSend]);
 
   const handleKeyDown = (e) => {
+    // 한글 IME 조합 중에는 무시 (한글 1글자 남는 문제 방지)
+    if (e.nativeEvent?.isComposing || e.keyCode === 229) return;
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -175,7 +177,7 @@ export default function MessageInput({
         <button
           onClick={() => fileInputRef.current?.click()}
           disabled={disabled}
-          className="flex-shrink-0 p-2 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
+          className="flex-shrink-0 p-2.5 text-gray-400 hover:text-gray-600 hover:bg-gray-100 rounded-lg transition-colors disabled:opacity-50"
           title="파일 첨부"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -209,7 +211,7 @@ export default function MessageInput({
           onClick={handleSend}
           disabled={!canSend}
           className={`
-            flex-shrink-0 p-2.5 rounded-xl transition-all
+            flex-shrink-0 p-3 rounded-xl transition-all
             ${canSend
               ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow'
               : 'bg-gray-200 text-gray-400 cursor-not-allowed'

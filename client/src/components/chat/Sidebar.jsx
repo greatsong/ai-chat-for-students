@@ -84,7 +84,7 @@ export default function Sidebar({
           <h2 className="text-base font-semibold">AI 채팅</h2>
           <button
             onClick={onToggle}
-            className="p-1.5 rounded-lg hover:bg-gray-800 transition-colors lg:hidden"
+            className="p-2.5 rounded-lg hover:bg-gray-800 transition-colors lg:hidden"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
@@ -119,15 +119,22 @@ export default function Sidebar({
               {conversations.map((conv) => {
                 const isActive = conv.id === activeConversationId;
                 return (
-                  <button
+                  <div
                     key={conv.id}
+                    role="button"
+                    tabIndex={0}
                     onClick={() => {
                       onSelectConversation?.(conv.id);
-                      // 모바일에서 대화 선택 시 사이드바 닫기
                       if (window.innerWidth < 1024) onToggle?.();
                     }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        onSelectConversation?.(conv.id);
+                        if (window.innerWidth < 1024) onToggle?.();
+                      }
+                    }}
                     className={`
-                      w-full text-left px-3 py-2.5 rounded-lg transition-colors group relative
+                      w-full text-left px-3 py-2.5 rounded-lg transition-colors group relative cursor-pointer
                       ${isActive
                         ? 'bg-gray-700 text-white'
                         : 'text-gray-300 hover:bg-gray-800 hover:text-white'
@@ -151,7 +158,7 @@ export default function Sidebar({
                       <button
                         onClick={(e) => handleDelete(e, conv.id)}
                         className={`
-                          flex-shrink-0 p-1 rounded transition-colors
+                          flex-shrink-0 p-2 rounded transition-colors
                           ${deleteConfirm === conv.id
                             ? 'text-red-400 bg-red-500/20'
                             : 'text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400'
@@ -164,7 +171,7 @@ export default function Sidebar({
                         </svg>
                       </button>
                     </div>
-                  </button>
+                  </div>
                 );
               })}
             </div>
@@ -192,7 +199,7 @@ export default function Sidebar({
             </div>
             <button
               onClick={onLogout}
-              className="p-1.5 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
               title="로그아웃"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
