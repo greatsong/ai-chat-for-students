@@ -1,17 +1,68 @@
 import { Router } from 'express';
-import { authenticate, requireTeacher } from '../middleware/auth.js';
+import { authenticate, requireTeacher, requireAdmin } from '../middleware/auth.js';
 import { queryAll, queryOne, run, getSetting, setSetting } from '../db/database.js';
 
 const router = Router();
 
-// 모든 교사 라우트에 인증 + 교사 권한 확인 미들웨어 적용
-router.use(authenticate, requireTeacher);
+// 환경변수 교사 이메일 목록 (삭제 불가)
+const ENV_TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+
+// 모든 라우트에 인증 미들웨어 적용
+router.use(authenticate);
+
+// ──────────────────────────────────────────
+// GET /api/teacher/my-usage
+// 현재 사용자 본인의 사용량 (교사 + 관리자)
+// ──────────────────────────────────────────
+router.get('/my-usage', requireTeacher, async (req, res) => {
+  try {
+    const userId = req.user.id;
+
+    // 요약 (전체 기간)
+    const summary = await queryOne(`
+      SELECT
+        COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
+        COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
+        COALESCE(SUM(request_count), 0) AS totalRequests,
+        COALESCE(SUM(image_count), 0) AS totalImages
+      FROM usage_daily
+      WHERE user_id = ?
+    `, [userId]);
+
+    // 일별 사용량 (최근 30일)
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+
+    const daily = await queryAll(`
+      SELECT
+        date,
+        provider,
+        COALESCE(SUM(input_tokens), 0) AS inputTokens,
+        COALESCE(SUM(output_tokens), 0) AS outputTokens,
+        COALESCE(SUM(request_count), 0) AS requests,
+        COALESCE(SUM(image_count), 0) AS images
+      FROM usage_daily
+      WHERE user_id = ? AND date >= ?
+      GROUP BY date, provider
+      ORDER BY date ASC
+    `, [userId, thirtyDaysAgoStr]);
+
+    res.json({
+      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0 },
+      daily,
+    });
+  } catch (error) {
+    console.error('내 사용량 조회 오류:', error);
+    res.status(500).json({ error: '사용량을 불러오는 중 오류가 발생했습니다.' });
+  }
+});
 
 // ──────────────────────────────────────────
 // GET /api/teacher/students
-// 학생 목록 + 오늘의 사용량 통계
+// 학생 목록 + 오늘의 사용량 통계 (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/students', async (req, res) => {
+router.get('/students', requireAdmin, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
 
@@ -38,9 +89,9 @@ router.get('/students', async (req, res) => {
 
 // ──────────────────────────────────────────
 // PATCH /api/teacher/students/:id
-// 학생 정보 수정 (활성화 상태, 일일 한도)
+// 학생 정보 수정 (활성화 상태, 일일 한도) (관리자 전용)
 // ──────────────────────────────────────────
-router.patch('/students/:id', async (req, res) => {
+router.patch('/students/:id', requireAdmin, async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active, daily_limit } = req.body;
@@ -79,9 +130,9 @@ router.patch('/students/:id', async (req, res) => {
 
 // ──────────────────────────────────────────
 // POST /api/teacher/students/bulk-activate
-// 여러 학생 일괄 활성화
+// 여러 학생 일괄 활성화 (관리자 전용)
 // ──────────────────────────────────────────
-router.post('/students/bulk-activate', async (req, res) => {
+router.post('/students/bulk-activate', requireAdmin, async (req, res) => {
   try {
     const { studentIds } = req.body;
 
@@ -104,9 +155,9 @@ router.post('/students/bulk-activate', async (req, res) => {
 
 // ──────────────────────────────────────────
 // GET /api/teacher/conversations
-// 전체 학생 대화 목록 (필터링 + 페이지네이션)
+// 전체 학생 대화 목록 (필터링 + 페이지네이션) (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/conversations', async (req, res) => {
+router.get('/conversations', requireAdmin, async (req, res) => {
   try {
     const { userId, search, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -172,9 +223,9 @@ router.get('/conversations', async (req, res) => {
 
 // ──────────────────────────────────────────
 // GET /api/teacher/conversations/:conversationId/messages
-// 특정 대화의 전체 메시지 조회
+// 특정 대화의 전체 메시지 조회 (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/conversations/:conversationId/messages', async (req, res) => {
+router.get('/conversations/:conversationId/messages', requireAdmin, async (req, res) => {
   try {
     const { conversationId } = req.params;
 
@@ -212,9 +263,9 @@ router.get('/conversations/:conversationId/messages', async (req, res) => {
 
 // ──────────────────────────────────────────
 // GET /api/teacher/usage
-// 사용량 통계 (기간별)
+// 사용량 통계 (기간별) (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/usage', async (req, res) => {
+router.get('/usage', requireAdmin, async (req, res) => {
   try {
     const { period = 'today' } = req.query;
 
@@ -307,9 +358,9 @@ router.get('/usage', async (req, res) => {
 
 // ──────────────────────────────────────────
 // GET /api/teacher/settings
-// 전체 설정 조회
+// 전체 설정 조회 (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/settings', async (req, res) => {
+router.get('/settings', requireAdmin, async (req, res) => {
   try {
     const rows = await queryAll('SELECT key, value FROM settings');
     const settings = {};
@@ -329,9 +380,9 @@ router.get('/settings', async (req, res) => {
 
 // ──────────────────────────────────────────
 // PUT /api/teacher/settings
-// 설정 변경 (단일 또는 복수)
+// 설정 변경 (단일 또는 복수) (관리자 전용)
 // ──────────────────────────────────────────
-router.put('/settings', async (req, res) => {
+router.put('/settings', requireAdmin, async (req, res) => {
   try {
     const { key, value, settings } = req.body;
 
@@ -380,9 +431,9 @@ router.put('/settings', async (req, res) => {
 
 // ──────────────────────────────────────────
 // DELETE /api/teacher/conversations/:conversationId
-// 대화 삭제
+// 대화 삭제 (관리자 전용)
 // ──────────────────────────────────────────
-router.delete('/conversations/:conversationId', async (req, res) => {
+router.delete('/conversations/:conversationId', requireAdmin, async (req, res) => {
   try {
     const { conversationId } = req.params;
 
@@ -399,6 +450,114 @@ router.delete('/conversations/:conversationId', async (req, res) => {
   } catch (error) {
     console.error('대화 삭제 오류:', error);
     res.status(500).json({ error: '대화를 삭제하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
+// GET /api/teacher/teachers
+// 교사 이메일 목록 조회 (관리자 전용)
+// ──────────────────────────────────────────
+router.get('/teachers', requireAdmin, async (req, res) => {
+  try {
+    const dbEmails = (await getSetting('teacher_emails')) || [];
+    res.json({
+      dbEmails: Array.isArray(dbEmails) ? dbEmails : [],
+      envEmails: ENV_TEACHER_EMAILS,
+    });
+  } catch (error) {
+    console.error('교사 목록 조회 오류:', error);
+    res.status(500).json({ error: '교사 목록을 불러오는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
+// POST /api/teacher/teachers
+// 교사 이메일 추가 (관리자 전용)
+// ──────────────────────────────────────────
+router.post('/teachers', requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: '이메일 주소가 필요합니다.' });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // DB 교사 이메일 목록에 추가
+    const dbEmails = (await getSetting('teacher_emails')) || [];
+    const emailList = Array.isArray(dbEmails) ? dbEmails : [];
+
+    if (emailList.includes(trimmedEmail)) {
+      return res.status(400).json({ error: '이미 등록된 교사 이메일입니다.' });
+    }
+
+    emailList.push(trimmedEmail);
+    await setSetting('teacher_emails', emailList);
+
+    // 해당 이메일의 기존 사용자가 있으면 역할을 teacher로 업데이트
+    const existingUser = await queryOne('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
+    if (existingUser && existingUser.role === 'student') {
+      await run('UPDATE users SET role = ?, is_active = 1 WHERE id = ?', ['teacher', existingUser.id]);
+    }
+
+    res.json({
+      message: `${trimmedEmail} 교사로 등록되었습니다.`,
+      dbEmails: emailList,
+      envEmails: ENV_TEACHER_EMAILS,
+    });
+  } catch (error) {
+    console.error('교사 추가 오류:', error);
+    res.status(500).json({ error: '교사를 추가하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
+// DELETE /api/teacher/teachers
+// 교사 이메일 삭제 (관리자 전용)
+// 환경변수 교사는 삭제 불가
+// ──────────────────────────────────────────
+router.delete('/teachers', requireAdmin, async (req, res) => {
+  try {
+    const { email } = req.body;
+
+    if (!email || typeof email !== 'string') {
+      return res.status(400).json({ error: '이메일 주소가 필요합니다.' });
+    }
+
+    const trimmedEmail = email.trim().toLowerCase();
+
+    // 환경변수 교사는 삭제 불가
+    if (ENV_TEACHER_EMAILS.includes(trimmedEmail)) {
+      return res.status(400).json({ error: '환경변수로 등록된 교사는 삭제할 수 없습니다. 서버 설정에서 변경해주세요.' });
+    }
+
+    // DB 교사 이메일 목록에서 제거
+    const dbEmails = (await getSetting('teacher_emails')) || [];
+    const emailList = Array.isArray(dbEmails) ? dbEmails : [];
+    const index = emailList.indexOf(trimmedEmail);
+
+    if (index === -1) {
+      return res.status(404).json({ error: '등록되지 않은 교사 이메일입니다.' });
+    }
+
+    emailList.splice(index, 1);
+    await setSetting('teacher_emails', emailList);
+
+    // 해당 이메일의 기존 사용자가 있으면 역할을 student로 변경
+    const existingUser = await queryOne('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
+    if (existingUser && existingUser.role === 'teacher') {
+      await run('UPDATE users SET role = ? WHERE id = ?', ['student', existingUser.id]);
+    }
+
+    res.json({
+      message: `${trimmedEmail} 교사 권한이 해제되었습니다.`,
+      dbEmails: emailList,
+      envEmails: ENV_TEACHER_EMAILS,
+    });
+  } catch (error) {
+    console.error('교사 삭제 오류:', error);
+    res.status(500).json({ error: '교사를 삭제하는 중 오류가 발생했습니다.' });
   }
 });
 

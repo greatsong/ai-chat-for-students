@@ -51,8 +51,8 @@ export default function AuthGuard({ children, requireTeacher = false }) {
     return <Navigate to="/login" replace />;
   }
 
-  // 교사 권한 체크
-  if (requireTeacher && user.role !== "teacher") {
+  // 교사 권한 체크 (admin도 교사 권한 포함)
+  if (requireTeacher && user.role !== "teacher" && user.role !== "admin") {
     return <Navigate to="/chat" replace />;
   }
 

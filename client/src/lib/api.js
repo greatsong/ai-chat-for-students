@@ -102,14 +102,22 @@ export async function apiPut(path, body) {
 /**
  * DELETE 요청
  * @param {string} path - API 경로
+ * @param {object} [body] - 선택적 요청 본문
  */
-export async function apiDelete(path) {
-  const response = await fetch(`${API_BASE}${path}`, {
+export async function apiDelete(path, body) {
+  const options = {
     method: 'DELETE',
     headers: {
       ...getAuthHeaders(),
     },
-  });
+  };
+
+  if (body) {
+    options.headers['Content-Type'] = 'application/json';
+    options.body = JSON.stringify(body);
+  }
+
+  const response = await fetch(`${API_BASE}${path}`, options);
   return handleResponse(response);
 }
 

@@ -179,15 +179,19 @@ export default function Sidebar({
           )}
         </div>
 
-        {/* 교사 대시보드 링크 */}
-        {user?.role === 'teacher' && (
+        {/* 교사/관리자 대시보드 링크 */}
+        {(user?.role === 'teacher' || user?.role === 'admin') && (
           <div className="px-3 pb-2">
             <Link
               to="/teacher"
-              className="flex items-center gap-2 px-4 py-2.5 rounded-lg bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30 transition-colors text-sm"
+              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors text-sm ${
+                user?.role === 'admin'
+                  ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
+                  : 'bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30'
+              }`}
             >
-              <span>📊</span>
-              교사 대시보드
+              <span>{user?.role === 'admin' ? '🛡️' : '📊'}</span>
+              {user?.role === 'admin' ? '관리자 대시보드' : '교사 대시보드'}
             </Link>
           </div>
         )}

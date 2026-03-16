@@ -54,13 +54,17 @@ export function buildMessages(history) {
     if (msg.role === 'user' && msg.files) {
       let files = [];
       try {
-        files = JSON.parse(msg.files);
+        files = typeof msg.files === 'string' ? JSON.parse(msg.files) : msg.files;
       } catch {
         // 파싱 실패 시 빈 배열
       }
 
       if (files.length > 0) {
+        console.log(`[claude.buildMessages] 파일 ${files.length}개:`, files.map(f => ({
+          type: f.type, mimeType: f.mimeType, name: f.name, dataLen: f.data?.length || 0
+        })));
         const contentBlocks = filesToContentBlocks(files);
+        console.log(`[claude.buildMessages] 콘텐츠 블록 ${contentBlocks.length}개 생성`);
         contentBlocks.push({ type: 'text', text: msg.content || '' });
         return { role: 'user', content: contentBlocks };
       }
@@ -82,6 +86,26 @@ export function buildMessages(history) {
  */
 export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError }) {
   try {
+    // 디버그: 메시지 구조 확인 (base64 데이터는 길이만 표시)
+    const debugMessages = messages.map(m => {
+      if (Array.isArray(m.content)) {
+        return {
+          role: m.role,
+          content: m.content.map(block => {
+            if (block.type === 'image') {
+              return { type: 'image', media_type: block.source?.media_type, dataLen: block.source?.data?.length || 0 };
+            }
+            if (block.type === 'document') {
+              return { type: 'document', media_type: block.source?.media_type, dataLen: block.source?.data?.length || 0 };
+            }
+            return { type: block.type, textLen: block.text?.length || 0 };
+          }),
+        };
+      }
+      return { role: m.role, contentLen: (m.content || '').length };
+    });
+    console.log('[claude.streamChat] 메시지 구조:', JSON.stringify(debugMessages));
+
     const streamParams = {
       model: model || 'claude-sonnet-4-6',
       max_tokens: 8192,

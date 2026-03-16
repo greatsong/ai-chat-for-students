@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
-import { queryOne, run } from '../db/database.js';
+import { queryOne, run, getSetting } from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
 const TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
 
 /**
@@ -35,27 +36,62 @@ router.post('/google', async (req, res) => {
       return res.status(401).json({ error: 'Google 토큰에서 사용자 정보를 추출할 수 없습니다.' });
     }
 
-    // 이메일 도메인 제한: @danggok.hs.kr 또는 교사 이메일만 허용
+    // 역할 판별: admin > teacher > student
+    const isAdminEmail = ADMIN_EMAILS.includes(email);
+    const isEnvTeacherEmail = TEACHER_EMAILS.includes(email);
+    const dbTeacherEmails = (await getSetting('teacher_emails')) || [];
+    const isDbTeacherEmail = Array.isArray(dbTeacherEmails) && dbTeacherEmails.includes(email);
+    const isTeacherEmail = isEnvTeacherEmail || isDbTeacherEmail;
+
+    // 이메일 도메인 제한: @danggok.hs.kr 또는 관리자/교사 이메일만 허용
     const isAllowedDomain = email.endsWith('@danggok.hs.kr');
-    const isTeacherEmail = TEACHER_EMAILS.includes(email);
-    if (!isAllowedDomain && !isTeacherEmail) {
+    if (!isAllowedDomain && !isAdminEmail && !isTeacherEmail) {
       return res.status(403).json({ error: '@danggok.hs.kr 이메일만 사용할 수 있습니다.' });
+    }
+
+    // 역할 결정
+    let role;
+    if (isAdminEmail) {
+      role = 'admin';
+    } else if (isTeacherEmail) {
+      role = 'teacher';
+    } else {
+      role = 'student';
     }
 
     // 2. 기존 사용자 확인
     let user = await queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
 
     if (user) {
-      // 3. 기존 사용자 — 이름/아바타 변경 시 업데이트
-      if (user.name !== name || user.avatar !== picture) {
-        await run('UPDATE users SET name = ?, avatar = ? WHERE id = ?', [name, picture, user.id]);
-        user.name = name;
-        user.avatar = picture;
+      // 3. 기존 사용자 — 이름/아바타/역할 변경 시 업데이트
+      const updates = [];
+      const params = [];
+
+      if (user.name !== name) {
+        updates.push('name = ?');
+        params.push(name);
+      }
+      if (user.avatar !== picture) {
+        updates.push('avatar = ?');
+        params.push(picture);
+      }
+      if (user.role !== role) {
+        updates.push('role = ?');
+        params.push(role);
+        // 관리자/교사로 승격 시 자동 활성화
+        if (role === 'admin' || role === 'teacher') {
+          updates.push('is_active = 1');
+        }
+      }
+
+      if (updates.length > 0) {
+        params.push(user.id);
+        await run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+        user = await queryOne('SELECT * FROM users WHERE id = ?', [user.id]);
       }
     } else {
       // 4. 신규 사용자 생성
-      const role = TEACHER_EMAILS.includes(email) ? 'teacher' : 'student';
-      const isActive = role === 'teacher' ? 1 : 0;
+      const isActive = (role === 'admin' || role === 'teacher') ? 1 : 0;
 
       // 첫 번째 학급 배정
       const firstClassroom = await queryOne('SELECT id FROM classrooms ORDER BY created_at ASC LIMIT 1');

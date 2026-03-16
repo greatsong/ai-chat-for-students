@@ -8,11 +8,13 @@ const useTeacherStore = create((set, get) => ({
   conversationMessages: [],
   conversationPagination: null,
   usage: null,
+  myUsage: null,
   settings: null,
+  teachers: { dbEmails: [], envEmails: [] },
   isLoading: false,
   error: null,
 
-  // ── 학생 관리 ──
+  // ── 학생 관리 (관리자 전용) ──
 
   loadStudents: async () => {
     set({ isLoading: true, error: null });
@@ -51,7 +53,7 @@ const useTeacherStore = create((set, get) => ({
     }
   },
 
-  // ── 대화 열람 ──
+  // ── 대화 열람 (관리자 전용) ──
 
   loadConversations: async (filters = {}) => {
     set({ isLoading: true, error: null });
@@ -100,7 +102,7 @@ const useTeacherStore = create((set, get) => ({
     }
   },
 
-  // ── 사용량 ──
+  // ── 전체 사용량 (관리자 전용) ──
 
   loadUsage: async (period = 'today') => {
     set({ isLoading: true, error: null });
@@ -113,7 +115,55 @@ const useTeacherStore = create((set, get) => ({
     }
   },
 
-  // ── 설정 ──
+  // ── 내 사용량 (교사 + 관리자) ──
+
+  loadMyUsage: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await apiGet('/teacher/my-usage');
+      set({ myUsage: data, isLoading: false });
+    } catch (error) {
+      set({ isLoading: false, error: error.message });
+      console.error('내 사용량 로드 실패:', error);
+    }
+  },
+
+  // ── 교사 관리 (관리자 전용) ──
+
+  loadTeachers: async () => {
+    set({ isLoading: true, error: null });
+    try {
+      const data = await apiGet('/teacher/teachers');
+      set({ teachers: data, isLoading: false });
+    } catch (error) {
+      set({ isLoading: false, error: error.message });
+      console.error('교사 목록 로드 실패:', error);
+    }
+  },
+
+  addTeacher: async (email) => {
+    try {
+      const data = await apiPost('/teacher/teachers', { email });
+      set({ teachers: { dbEmails: data.dbEmails, envEmails: data.envEmails } });
+      return data;
+    } catch (error) {
+      console.error('교사 추가 실패:', error);
+      throw error;
+    }
+  },
+
+  removeTeacher: async (email) => {
+    try {
+      const data = await apiDelete('/teacher/teachers', { email });
+      set({ teachers: { dbEmails: data.dbEmails, envEmails: data.envEmails } });
+      return data;
+    } catch (error) {
+      console.error('교사 삭제 실패:', error);
+      throw error;
+    }
+  },
+
+  // ── 설정 (관리자 전용) ──
 
   loadSettings: async () => {
     set({ isLoading: true, error: null });

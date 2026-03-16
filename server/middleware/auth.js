@@ -39,10 +39,22 @@ export async function authenticate(req, res, next) {
 /**
  * 교사 권한 확인 미들웨어
  * authenticate 미들웨어 이후에 사용해야 함
+ * admin도 교사 권한을 포함함
  */
 export function requireTeacher(req, res, next) {
-  if (!req.user || req.user.role !== 'teacher') {
+  if (!req.user || (req.user.role !== 'teacher' && req.user.role !== 'admin')) {
     return res.status(403).json({ error: '교사 권한이 필요합니다.' });
+  }
+  next();
+}
+
+/**
+ * 관리자 권한 확인 미들웨어
+ * authenticate 미들웨어 이후에 사용해야 함
+ */
+export function requireAdmin(req, res, next) {
+  if (!req.user || req.user.role !== 'admin') {
+    return res.status(403).json({ error: '관리자 권한이 필요합니다.' });
   }
   next();
 }

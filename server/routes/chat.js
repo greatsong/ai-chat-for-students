@@ -80,9 +80,11 @@ router.post('/', authenticate, async (req, res) => {
 
     // 5. 사용자 메시지 저장
     const userMsgId = crypto.randomUUID();
+    const filesJson = JSON.stringify(files || []);
+    console.log(`[chat] 파일 ${files?.length || 0}개 수신:`, files?.map(f => ({ name: f.name, type: f.type, mimeType: f.mimeType, dataLen: f.data?.length || 0 })));
     await run(
       'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [userMsgId, convId, 'user', message, JSON.stringify(files || []), now]
+      [userMsgId, convId, 'user', message, filesJson, now]
     );
 
     // 6. 대화 기록 조회 (메시지 배열 구성)
@@ -90,6 +92,11 @@ router.post('/', authenticate, async (req, res) => {
       'SELECT role, content, files FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
       [convId]
     );
+    // 디버그: 파일 포함 메시지 확인
+    const filesInHistory = history.filter(m => {
+      try { const f = JSON.parse(m.files); return f.length > 0; } catch { return false; }
+    });
+    console.log(`[chat] 히스토리 ${history.length}개 메시지, 파일 포함 ${filesInHistory.length}개`);
 
     // 7. SSE 헤더 설정
     res.setHeader('Content-Type', 'text/event-stream');

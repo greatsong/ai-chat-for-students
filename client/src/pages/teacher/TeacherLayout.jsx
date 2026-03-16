@@ -1,15 +1,30 @@
 import { useState } from "react";
 import { NavLink, Outlet, Link } from "react-router-dom";
+import useAuthStore from "../../stores/authStore";
 
-const navItems = [
-  { to: "/teacher/students", label: "학생 관리", icon: "\u{1F465}" },
-  { to: "/teacher/conversations", label: "채팅 열람", icon: "\u{1F4CB}" },
-  { to: "/teacher/usage", label: "사용량", icon: "\u{1F4CA}" },
-  { to: "/teacher/settings", label: "설정", icon: "\u2699\uFE0F" },
+// 관리자 전용 메뉴
+const adminNavItems = [
+  { to: "/teacher/students", label: "사용자 관리", icon: "👥" },
+  { to: "/teacher/teachers", label: "교사 관리", icon: "🎓" },
+  { to: "/teacher/conversations", label: "채팅 열람", icon: "📋" },
+  { to: "/teacher/usage", label: "전체 사용량", icon: "📊" },
+  { to: "/teacher/my-usage", label: "내 사용량", icon: "📈" },
+  { to: "/teacher/settings", label: "설정", icon: "⚙️" },
+];
+
+// 교사 메뉴 (자기 사용량만)
+const teacherNavItems = [
+  { to: "/teacher/my-usage", label: "내 사용량", icon: "📈" },
 ];
 
 export default function TeacherLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const { user } = useAuthStore();
+
+  const isAdmin = user?.role === "admin";
+  const navItems = isAdmin ? adminNavItems : teacherNavItems;
+  const dashboardTitle = isAdmin ? "관리자 대시보드" : "교사 대시보드";
+  const dashboardSubtitle = isAdmin ? "전체 관리 및 모니터링" : "내 사용량 확인";
 
   return (
     <div className="flex min-h-screen bg-gray-50">
@@ -34,8 +49,11 @@ export default function TeacherLayout() {
       >
         {/* 헤더 */}
         <div className="p-5 border-b border-gray-100">
-          <h2 className="text-lg font-bold text-gray-800">교사 대시보드</h2>
-          <p className="text-xs text-gray-400 mt-1">학생 관리 및 모니터링</p>
+          <div className="flex items-center gap-2">
+            <span className="text-lg">{isAdmin ? "🛡️" : "📊"}</span>
+            <h2 className="text-lg font-bold text-gray-800">{dashboardTitle}</h2>
+          </div>
+          <p className="text-xs text-gray-400 mt-1">{dashboardSubtitle}</p>
         </div>
 
         {/* 네비게이션 */}
@@ -65,7 +83,7 @@ export default function TeacherLayout() {
             to="/chat"
             className="flex items-center gap-2 px-3 py-2.5 rounded-lg text-sm text-gray-500 hover:bg-gray-100 transition-colors"
           >
-            <span className="text-lg">{"\u{1F4AC}"}</span>
+            <span className="text-lg">💬</span>
             채팅으로 돌아가기
           </Link>
         </div>
@@ -84,7 +102,7 @@ export default function TeacherLayout() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
             </svg>
           </button>
-          <h1 className="text-base font-bold text-gray-800">교사 대시보드</h1>
+          <h1 className="text-base font-bold text-gray-800">{dashboardTitle}</h1>
         </header>
 
         {/* 페이지 콘텐츠 */}
