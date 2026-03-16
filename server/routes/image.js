@@ -44,21 +44,22 @@ router.post('/generate', authenticate, async (req, res) => {
       const conv = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
       if (conv) {
         // 사용자 요청 메시지 저장
+        const now = new Date().toISOString();
         const userMsgId = crypto.randomUUID();
         await run(
-          'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, datetime("now"))',
-          [userMsgId, conversationId, 'user', `[이미지 생성 요청] ${prompt}`]
+          'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
+          [userMsgId, conversationId, 'user', `[이미지 생성 요청] ${prompt}`, now]
         );
 
         // AI 응답 메시지 저장 (이미지 URL 포함)
         const assistantMsgId = crypto.randomUUID();
         await run(
-          'INSERT INTO messages (id, conversation_id, role, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))',
-          [assistantMsgId, conversationId, 'assistant', '이미지가 생성되었습니다.', imageUrl]
+          'INSERT INTO messages (id, conversation_id, role, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+          [assistantMsgId, conversationId, 'assistant', '이미지가 생성되었습니다.', imageUrl, now]
         );
 
         // 대화 updated_at 업데이트
-        await run('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?', [conversationId]);
+        await run('UPDATE conversations SET updated_at = ? WHERE id = ?', [now, conversationId]);
       }
     }
 

@@ -90,9 +90,10 @@ router.post('/', authenticate, async (req, res) => {
     const { title, provider = 'claude', model = 'claude-sonnet-4-6' } = req.body;
 
     const id = crypto.randomUUID();
+    const now = new Date().toISOString();
     await run(
-      'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))',
-      [id, userId, title || '새 대화', provider, model]
+      'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [id, userId, title || '새 대화', provider, model, now, now]
     );
 
     const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [id]);
@@ -115,7 +116,8 @@ router.patch('/:id', authenticate, async (req, res) => {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
-    await run('UPDATE conversations SET title = ?, updated_at = datetime("now") WHERE id = ?', [title, convId]);
+    const now = new Date().toISOString();
+    await run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [title, now, convId]);
 
     const updated = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     res.json(updated);

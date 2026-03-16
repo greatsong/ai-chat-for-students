@@ -14,6 +14,8 @@ const router = Router();
 
 const providers = { claude, gemini, openai, solar };
 
+const NOW = "datetime('now')";
+
 // POST /api/chat
 router.post('/', authenticate, async (req, res) => {
   const {
@@ -59,13 +61,14 @@ router.post('/', authenticate, async (req, res) => {
 
     // 4. 대화 생성 또는 확인
     let convId = conversationId;
+    const now = new Date().toISOString();
 
     if (!convId) {
       convId = crypto.randomUUID();
       const title = (message || '').slice(0, 50) || '새 대화';
       await run(
-        'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))',
-        [convId, userId, title, provider, model || 'claude-sonnet-4-6']
+        'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [convId, userId, title, provider, model || 'claude-sonnet-4-6', now, now]
       );
     } else {
       // 대화 소유권 확인
@@ -78,8 +81,8 @@ router.post('/', authenticate, async (req, res) => {
     // 5. 사용자 메시지 저장
     const userMsgId = crypto.randomUUID();
     await run(
-      'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))',
-      [userMsgId, convId, 'user', message, JSON.stringify(files || [])]
+      'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [userMsgId, convId, 'user', message, JSON.stringify(files || []), now]
     );
 
     // 6. 대화 기록 조회 (메시지 배열 구성)
@@ -139,9 +142,10 @@ router.post('/', authenticate, async (req, res) => {
 
     // 9. 어시스턴트 메시지 저장
     const assistantMsgId = crypto.randomUUID();
+    const doneAt = new Date().toISOString();
     await run(
-      'INSERT INTO messages (id, conversation_id, role, content, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now"))',
-      [assistantMsgId, convId, 'assistant', result.fullContent, result.inputTokens, result.outputTokens]
+      'INSERT INTO messages (id, conversation_id, role, content, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [assistantMsgId, convId, 'assistant', result.fullContent, result.inputTokens, result.outputTokens, doneAt]
     );
 
     // 10. 일일 사용량 업데이트
@@ -164,7 +168,7 @@ router.post('/', authenticate, async (req, res) => {
 
     // 11. 첫 번째 메시지인 경우 대화 제목 업데이트
     const messageCount = await queryOne(
-      'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ? AND role = "user"',
+      "SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ? AND role = 'user'",
       [convId]
     );
     if (messageCount?.cnt === 1) {
@@ -173,7 +177,7 @@ router.post('/', authenticate, async (req, res) => {
     }
 
     // 12. 대화 updated_at 업데이트
-    await run('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?', [convId]);
+    await run('UPDATE conversations SET updated_at = ? WHERE id = ?', [doneAt, convId]);
   } catch (error) {
     console.error('채팅 오류:', error);
 
