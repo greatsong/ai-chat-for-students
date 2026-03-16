@@ -107,6 +107,19 @@ export default function MessageInput({
     if (files.length > 0) addFiles(files);
   };
 
+  // 클립보드 붙여넣기 (이미지)
+  const handlePaste = (e) => {
+    const items = Array.from(e.clipboardData?.items || []);
+    const imageFiles = items
+      .filter((item) => item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter(Boolean);
+    if (imageFiles.length > 0) {
+      e.preventDefault();
+      addFiles(imageFiles);
+    }
+  };
+
   const canSend = (message.trim().length > 0 || attachments.length > 0) && !disabled && !isStreaming;
 
   // 파일 아이콘
@@ -279,6 +292,7 @@ export default function MessageInput({
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           onKeyDown={handleKeyDown}
+          onPaste={handlePaste}
           disabled={disabled}
           placeholder={isStreaming ? 'AI가 응답 중...' : '메시지를 입력하세요...'}
           rows={1}
