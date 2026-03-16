@@ -9,7 +9,7 @@
   "dependencies": {
     "@anthropic-ai/sdk": "latest",
     "@google/generative-ai": "latest",
-    "sql.js": "^1",
+    "@libsql/client": "^0.17.0",
     "cors": "^2",
     "dotenv": "^16",
     "express": "^5",

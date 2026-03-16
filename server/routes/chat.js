@@ -29,7 +29,7 @@ router.post('/', authenticate, async (req, res) => {
 
   try {
     // 1. 프로바이더 활성화 확인
-    const enabledProviders = getSetting('enabled_providers') || ['claude'];
+    const enabledProviders = (await getSetting('enabled_providers')) || ['claude'];
     if (!enabledProviders.includes(provider)) {
       return res.status(400).json({ error: `${provider}는 현재 비활성화된 AI 프로바이더입니다.` });
     }
@@ -44,7 +44,7 @@ router.post('/', authenticate, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const dailyLimit = req.user.daily_limit || 100000;
 
-    const usage = queryOne(
+    const usage = await queryOne(
       'SELECT SUM(input_tokens + output_tokens) as total_tokens FROM usage_daily WHERE user_id = ? AND date = ?',
       [userId, today]
     );
@@ -63,13 +63,13 @@ router.post('/', authenticate, async (req, res) => {
     if (!convId) {
       convId = crypto.randomUUID();
       const title = (message || '').slice(0, 50) || '새 대화';
-      run(
+      await run(
         'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))',
         [convId, userId, title, provider, model || 'claude-sonnet-4-6']
       );
     } else {
       // 대화 소유권 확인
-      const conv = queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+      const conv = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
       if (!conv) {
         return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
       }
@@ -77,13 +77,13 @@ router.post('/', authenticate, async (req, res) => {
 
     // 5. 사용자 메시지 저장
     const userMsgId = crypto.randomUUID();
-    run(
+    await run(
       'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))',
       [userMsgId, convId, 'user', message, JSON.stringify(files || [])]
     );
 
     // 6. 대화 기록 조회 (메시지 배열 구성)
-    const history = queryAll(
+    const history = await queryAll(
       'SELECT role, content, files FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
       [convId]
     );
@@ -99,7 +99,7 @@ router.post('/', authenticate, async (req, res) => {
     res.write(`data: ${JSON.stringify({ type: 'conversationId', conversationId: convId })}\n\n`);
 
     // 8. 프로바이더별 메시지 빌드 및 스트리밍 처리
-    const systemPrompt = getSetting('system_prompt') || '';
+    const systemPrompt = (await getSetting('system_prompt')) || '';
     const providerMessages = providerModule.buildMessages(history);
 
     // 프로바이더별 기능 플래그 확인
@@ -139,41 +139,41 @@ router.post('/', authenticate, async (req, res) => {
 
     // 9. 어시스턴트 메시지 저장
     const assistantMsgId = crypto.randomUUID();
-    run(
+    await run(
       'INSERT INTO messages (id, conversation_id, role, content, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, datetime("now"))',
       [assistantMsgId, convId, 'assistant', result.fullContent, result.inputTokens, result.outputTokens]
     );
 
     // 10. 일일 사용량 업데이트
-    const existingUsage = queryOne(
+    const existingUsage = await queryOne(
       'SELECT id FROM usage_daily WHERE user_id = ? AND date = ? AND provider = ?',
       [userId, today, provider]
     );
 
     if (existingUsage) {
-      run(
+      await run(
         'UPDATE usage_daily SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, request_count = request_count + 1 WHERE user_id = ? AND date = ? AND provider = ?',
         [result.inputTokens, result.outputTokens, userId, today, provider]
       );
     } else {
-      run(
+      await run(
         'INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count) VALUES (?, ?, ?, ?, ?, ?, 1)',
         [crypto.randomUUID(), userId, today, provider, result.inputTokens, result.outputTokens]
       );
     }
 
     // 11. 첫 번째 메시지인 경우 대화 제목 업데이트
-    const messageCount = queryOne(
+    const messageCount = await queryOne(
       'SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ? AND role = "user"',
       [convId]
     );
     if (messageCount?.cnt === 1) {
       const title = (message || '').slice(0, 50) || '새 대화';
-      run('UPDATE conversations SET title = ? WHERE id = ?', [title, convId]);
+      await run('UPDATE conversations SET title = ? WHERE id = ?', [title, convId]);
     }
 
     // 12. 대화 updated_at 업데이트
-    run('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?', [convId]);
+    await run('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?', [convId]);
   } catch (error) {
     console.error('채팅 오류:', error);
 

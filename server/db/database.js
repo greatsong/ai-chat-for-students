@@ -1,58 +1,18 @@
-import initSqlJs from 'sql.js';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'fs';
-import { dirname, join } from 'path';
-import { fileURLToPath } from 'url';
+import { createClient } from '@libsql/client';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const DATA_DIR = join(__dirname, '..', 'data');
-const DB_PATH = join(DATA_DIR, 'chat.db');
-
-let db;
-let saveTimer;
+let client;
 
 /**
- * DB를 파일에 저장 (디바운스)
- */
-function saveDatabase() {
-  if (!db) return;
-  if (saveTimer) clearTimeout(saveTimer);
-  saveTimer = setTimeout(() => {
-    const data = db.export();
-    writeFileSync(DB_PATH, Buffer.from(data));
-  }, 100);
-}
-
-/**
- * DB를 즉시 파일에 저장
- */
-export function saveDatabaseSync() {
-  if (!db) return;
-  if (saveTimer) clearTimeout(saveTimer);
-  const data = db.export();
-  writeFileSync(DB_PATH, Buffer.from(data));
-}
-
-/**
- * 데이터베이스 초기화
+ * 데이터베이스 초기화 (Turso libSQL)
  */
 export async function initDatabase() {
-  if (!existsSync(DATA_DIR)) {
-    mkdirSync(DATA_DIR, { recursive: true });
-  }
-
-  const SQL = await initSqlJs();
-
-  if (existsSync(DB_PATH)) {
-    const fileBuffer = readFileSync(DB_PATH);
-    db = new SQL.Database(fileBuffer);
-  } else {
-    db = new SQL.Database();
-  }
-
-  db.run('PRAGMA foreign_keys = ON');
+  client = createClient({
+    url: process.env.TURSO_DATABASE_URL,
+    authToken: process.env.TURSO_AUTH_TOKEN,
+  });
 
   // 테이블 생성
-  db.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS users (
       id TEXT PRIMARY KEY,
       google_id TEXT UNIQUE,
@@ -67,7 +27,7 @@ export async function initDatabase() {
     )
   `);
 
-  db.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS classrooms (
       id TEXT PRIMARY KEY,
       name TEXT,
@@ -78,7 +38,7 @@ export async function initDatabase() {
     )
   `);
 
-  db.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS conversations (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -91,7 +51,7 @@ export async function initDatabase() {
     )
   `);
 
-  db.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       conversation_id TEXT NOT NULL,
@@ -107,7 +67,7 @@ export async function initDatabase() {
     )
   `);
 
-  db.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS usage_daily (
       id TEXT PRIMARY KEY,
       user_id TEXT NOT NULL,
@@ -122,7 +82,7 @@ export async function initDatabase() {
     )
   `);
 
-  db.run(`
+  await client.execute(`
     CREATE TABLE IF NOT EXISTS settings (
       key TEXT PRIMARY KEY,
       value TEXT DEFAULT '{}'
@@ -130,17 +90,17 @@ export async function initDatabase() {
   `);
 
   // 인덱스 생성
-  db.run('CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
-  db.run('CREATE INDEX IF NOT EXISTS idx_usage_daily_user_date ON usage_daily(user_id, date)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
+  await client.execute('CREATE INDEX IF NOT EXISTS idx_usage_daily_user_date ON usage_daily(user_id, date)');
 
   // 기본 학급 삽입 (최초 실행 시)
-  const classroomCount = db.exec('SELECT COUNT(*) as count FROM classrooms');
-  if (classroomCount[0]?.values[0][0] === 0) {
-    db.run(
-      'INSERT INTO classrooms (id, name, join_code) VALUES (?, ?, ?)',
-      [crypto.randomUUID(), '기본 학급', 'DEFAULT']
-    );
+  const classroomCount = await client.execute('SELECT COUNT(*) as count FROM classrooms');
+  if (classroomCount.rows[0]?.count === 0) {
+    await client.execute({
+      sql: 'INSERT INTO classrooms (id, name, join_code) VALUES (?, ?, ?)',
+      args: [crypto.randomUUID(), '기본 학급', 'DEFAULT'],
+    });
   }
 
   // 기본 설정 삽입 (최초 실행 시)
@@ -158,65 +118,54 @@ export async function initDatabase() {
   };
 
   for (const [key, value] of Object.entries(defaultSettings)) {
-    db.run(
-      'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
-      [key, JSON.stringify(value)]
-    );
+    await client.execute({
+      sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+      args: [key, JSON.stringify(value)],
+    });
   }
 
-  saveDatabase();
-  console.log('데이터베이스 초기화 완료:', DB_PATH);
-  return db;
+  console.log('Turso 데이터베이스 초기화 완료:', process.env.TURSO_DATABASE_URL);
+  return client;
 }
 
 /**
- * DB 인스턴스 반환
+ * DB 클라이언트 반환
  */
 export function getDb() {
-  if (!db) {
+  if (!client) {
     throw new Error('데이터베이스가 초기화되지 않았습니다. initDatabase()를 먼저 호출하세요.');
   }
-  return db;
+  return client;
 }
 
 /**
  * SQL 쿼리 실행 헬퍼 — SELECT (여러 행)
  */
-export function queryAll(sql, params = []) {
-  const stmt = getDb().prepare(sql);
-  if (params.length > 0) stmt.bind(params);
-  const results = [];
-  while (stmt.step()) {
-    results.push(stmt.getAsObject());
-  }
-  stmt.free();
-  return results;
+export async function queryAll(sql, params = []) {
+  const result = await getDb().execute({ sql, args: params });
+  return result.rows;
 }
 
 /**
  * SQL 쿼리 실행 헬퍼 — SELECT (한 행)
  */
-export function queryOne(sql, params = []) {
-  const stmt = getDb().prepare(sql);
-  if (params.length > 0) stmt.bind(params);
-  const result = stmt.step() ? stmt.getAsObject() : null;
-  stmt.free();
-  return result;
+export async function queryOne(sql, params = []) {
+  const result = await getDb().execute({ sql, args: params });
+  return result.rows[0] || null;
 }
 
 /**
  * SQL 쿼리 실행 헬퍼 — INSERT/UPDATE/DELETE
  */
-export function run(sql, params = []) {
-  getDb().run(sql, params);
-  saveDatabase();
+export async function run(sql, params = []) {
+  await getDb().execute({ sql, args: params });
 }
 
 /**
  * 설정값 조회
  */
-export function getSetting(key) {
-  const row = queryOne('SELECT value FROM settings WHERE key = ?', [key]);
+export async function getSetting(key) {
+  const row = await queryOne('SELECT value FROM settings WHERE key = ?', [key]);
   if (!row) return null;
   try {
     return JSON.parse(row.value);
@@ -228,8 +177,8 @@ export function getSetting(key) {
 /**
  * 설정값 저장
  */
-export function setSetting(key, value) {
-  run(
+export async function setSetting(key, value) {
+  await run(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
     [key, JSON.stringify(value)]
   );

@@ -11,11 +11,11 @@ router.use(authenticate, requireTeacher);
 // GET /api/teacher/students
 // 학생 목록 + 오늘의 사용량 통계
 // ──────────────────────────────────────────
-router.get('/students', (req, res) => {
+router.get('/students', async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
 
-    const students = queryAll(`
+    const students = await queryAll(`
       SELECT
         u.id, u.name, u.email, u.avatar, u.is_active, u.daily_limit,
         u.classroom_id, u.created_at,
@@ -41,12 +41,12 @@ router.get('/students', (req, res) => {
 // PATCH /api/teacher/students/:id
 // 학생 정보 수정 (활성화 상태, 일일 한도)
 // ──────────────────────────────────────────
-router.patch('/students/:id', (req, res) => {
+router.patch('/students/:id', async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active, daily_limit } = req.body;
 
-    const student = queryOne('SELECT * FROM users WHERE id = ? AND role = ?', [id, 'student']);
+    const student = await queryOne('SELECT * FROM users WHERE id = ? AND role = ?', [id, 'student']);
     if (!student) {
       return res.status(404).json({ error: '학생을 찾을 수 없습니다.' });
     }
@@ -68,9 +68,9 @@ router.patch('/students/:id', (req, res) => {
     }
 
     params.push(id);
-    run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+    await run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
 
-    const updated = queryOne('SELECT * FROM users WHERE id = ?', [id]);
+    const updated = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
     res.json(updated);
   } catch (error) {
     console.error('학생 정보 수정 오류:', error);
@@ -82,7 +82,7 @@ router.patch('/students/:id', (req, res) => {
 // POST /api/teacher/students/bulk-activate
 // 여러 학생 일괄 활성화
 // ──────────────────────────────────────────
-router.post('/students/bulk-activate', (req, res) => {
+router.post('/students/bulk-activate', async (req, res) => {
   try {
     const { studentIds } = req.body;
 
@@ -91,7 +91,7 @@ router.post('/students/bulk-activate', (req, res) => {
     }
 
     const placeholders = studentIds.map(() => '?').join(', ');
-    run(
+    await run(
       `UPDATE users SET is_active = 1 WHERE id IN (${placeholders}) AND role = 'student'`,
       studentIds
     );
@@ -107,7 +107,7 @@ router.post('/students/bulk-activate', (req, res) => {
 // GET /api/teacher/conversations
 // 전체 학생 대화 목록 (필터링 + 페이지네이션)
 // ──────────────────────────────────────────
-router.get('/conversations', (req, res) => {
+router.get('/conversations', async (req, res) => {
   try {
     const { userId, search, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
@@ -128,7 +128,7 @@ router.get('/conversations', (req, res) => {
     const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
 
     // 전체 개수
-    const countRow = queryOne(
+    const countRow = await queryOne(
       `SELECT COUNT(*) AS total FROM conversations c
        JOIN users u ON u.id = c.user_id
        ${whereClause}`,
@@ -137,7 +137,7 @@ router.get('/conversations', (req, res) => {
     const total = countRow?.total || 0;
 
     // 대화 목록
-    const conversations = queryAll(
+    const conversations = await queryAll(
       `SELECT
         c.id, c.user_id, c.title, c.provider, c.model, c.created_at, c.updated_at,
         u.name AS student_name, u.email AS student_email,
@@ -175,16 +175,16 @@ router.get('/conversations', (req, res) => {
 // GET /api/teacher/conversations/:conversationId/messages
 // 특정 대화의 전체 메시지 조회
 // ──────────────────────────────────────────
-router.get('/conversations/:conversationId/messages', (req, res) => {
+router.get('/conversations/:conversationId/messages', async (req, res) => {
   try {
     const { conversationId } = req.params;
 
-    const conversation = queryOne('SELECT * FROM conversations WHERE id = ?', [conversationId]);
+    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [conversationId]);
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
-    const messages = queryAll(
+    const messages = await queryAll(
       `SELECT id, role, content, files, image_url, code_result, input_tokens, output_tokens, created_at
        FROM messages
        WHERE conversation_id = ?
@@ -215,7 +215,7 @@ router.get('/conversations/:conversationId/messages', (req, res) => {
 // GET /api/teacher/usage
 // 사용량 통계 (기간별)
 // ──────────────────────────────────────────
-router.get('/usage', (req, res) => {
+router.get('/usage', async (req, res) => {
   try {
     const { period = 'today' } = req.query;
 
@@ -238,7 +238,7 @@ router.get('/usage', (req, res) => {
     }
 
     // 요약
-    const summary = queryOne(`
+    const summary = await queryOne(`
       SELECT
         COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
@@ -250,7 +250,7 @@ router.get('/usage', (req, res) => {
     `, [dateFilter]);
 
     // 학생별 사용량
-    const byStudent = queryAll(`
+    const byStudent = await queryAll(`
       SELECT
         ud.user_id AS userId,
         u.name, u.email,
@@ -265,7 +265,7 @@ router.get('/usage', (req, res) => {
     `, [dateFilter]);
 
     // 프로바이더별 사용량
-    const byProvider = queryAll(`
+    const byProvider = await queryAll(`
       SELECT
         provider,
         COALESCE(SUM(input_tokens), 0) AS inputTokens,
@@ -282,7 +282,7 @@ router.get('/usage', (req, res) => {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
 
-    const daily = queryAll(`
+    const daily = await queryAll(`
       SELECT
         date,
         COALESCE(SUM(input_tokens), 0) AS inputTokens,
@@ -310,9 +310,9 @@ router.get('/usage', (req, res) => {
 // GET /api/teacher/settings
 // 전체 설정 조회
 // ──────────────────────────────────────────
-router.get('/settings', (req, res) => {
+router.get('/settings', async (req, res) => {
   try {
-    const rows = queryAll('SELECT key, value FROM settings');
+    const rows = await queryAll('SELECT key, value FROM settings');
     const settings = {};
     for (const row of rows) {
       try {
@@ -332,7 +332,7 @@ router.get('/settings', (req, res) => {
 // PUT /api/teacher/settings
 // 설정 변경 (단일 또는 복수)
 // ──────────────────────────────────────────
-router.put('/settings', (req, res) => {
+router.put('/settings', async (req, res) => {
   try {
     const { key, value, settings } = req.body;
 
@@ -350,20 +350,20 @@ router.put('/settings', (req, res) => {
         if (!validKeys.includes(k)) {
           return res.status(400).json({ error: `유효하지 않은 설정 키: ${k}` });
         }
-        setSetting(k, v);
+        await setSetting(k, v);
       }
     } else if (key !== undefined) {
       // 단일 설정 변경
       if (!validKeys.includes(key)) {
         return res.status(400).json({ error: `유효하지 않은 설정 키: ${key}` });
       }
-      setSetting(key, value);
+      await setSetting(key, value);
     } else {
       return res.status(400).json({ error: '설정 키/값이 필요합니다.' });
     }
 
     // 변경 후 전체 설정 반환
-    const rows = queryAll('SELECT key, value FROM settings');
+    const rows = await queryAll('SELECT key, value FROM settings');
     const allSettings = {};
     for (const row of rows) {
       try {
@@ -383,18 +383,18 @@ router.put('/settings', (req, res) => {
 // DELETE /api/teacher/conversations/:conversationId
 // 대화 삭제
 // ──────────────────────────────────────────
-router.delete('/conversations/:conversationId', (req, res) => {
+router.delete('/conversations/:conversationId', async (req, res) => {
   try {
     const { conversationId } = req.params;
 
-    const conversation = queryOne('SELECT * FROM conversations WHERE id = ?', [conversationId]);
+    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [conversationId]);
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
     // 메시지 먼저 삭제 (외래 키 제약)
-    run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
-    run('DELETE FROM conversations WHERE id = ?', [conversationId]);
+    await run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
+    await run('DELETE FROM conversations WHERE id = ?', [conversationId]);
 
     res.json({ message: '대화가 삭제되었습니다.' });
   } catch (error) {

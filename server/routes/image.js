@@ -41,41 +41,41 @@ router.post('/generate', authenticate, async (req, res) => {
     // 5. 대화에 메시지 저장 (conversationId가 있는 경우)
     if (conversationId) {
       // 대화 소유권 확인
-      const conv = queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
+      const conv = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [conversationId, userId]);
       if (conv) {
         // 사용자 요청 메시지 저장
         const userMsgId = crypto.randomUUID();
-        run(
+        await run(
           'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, datetime("now"))',
           [userMsgId, conversationId, 'user', `[이미지 생성 요청] ${prompt}`]
         );
 
         // AI 응답 메시지 저장 (이미지 URL 포함)
         const assistantMsgId = crypto.randomUUID();
-        run(
+        await run(
           'INSERT INTO messages (id, conversation_id, role, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, datetime("now"))',
           [assistantMsgId, conversationId, 'assistant', '이미지가 생성되었습니다.', imageUrl]
         );
 
         // 대화 updated_at 업데이트
-        run('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?', [conversationId]);
+        await run('UPDATE conversations SET updated_at = datetime("now") WHERE id = ?', [conversationId]);
       }
     }
 
     // 6. 일일 사용량 업데이트 (image_count)
     const today = new Date().toISOString().split('T')[0];
-    const existingUsage = queryOne(
+    const existingUsage = await queryOne(
       'SELECT id FROM usage_daily WHERE user_id = ? AND date = ? AND provider = ?',
       [userId, today, provider]
     );
 
     if (existingUsage) {
-      run(
+      await run(
         'UPDATE usage_daily SET image_count = image_count + 1, request_count = request_count + 1 WHERE user_id = ? AND date = ? AND provider = ?',
         [userId, today, provider]
       );
     } else {
-      run(
+      await run(
         'INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count, image_count) VALUES (?, ?, ?, ?, 0, 0, 1, 1)',
         [crypto.randomUUID(), userId, today, provider]
       );

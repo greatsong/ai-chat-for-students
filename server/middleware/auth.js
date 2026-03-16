@@ -9,7 +9,7 @@ const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
  * - 만료/잘못된 토큰은 401 반환
  * - 비활성 사용자도 req.user에 할당 (라우트에서 is_active 체크 가능)
  */
-export function authenticate(req, res, next) {
+export async function authenticate(req, res, next) {
   const authHeader = req.headers.authorization;
 
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
@@ -20,7 +20,7 @@ export function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = queryOne('SELECT * FROM users WHERE id = ?', [decoded.userId]);
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [decoded.userId]);
 
     if (!user) {
       return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });

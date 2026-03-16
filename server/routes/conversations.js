@@ -6,11 +6,11 @@ import crypto from 'crypto';
 const router = Router();
 
 // GET /api/conversations - 사용자의 대화 목록 조회 (최신순, 최대 50개)
-router.get('/', authenticate, (req, res) => {
+router.get('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
 
-    const conversations = queryAll(
+    const conversations = await queryAll(
       `SELECT
         c.id, c.title, c.provider, c.model, c.created_at, c.updated_at,
         (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count,
@@ -36,7 +36,7 @@ router.get('/', authenticate, (req, res) => {
 });
 
 // GET /api/conversations/:id - 특정 대화의 메시지 목록 조회
-router.get('/:id', authenticate, (req, res) => {
+router.get('/:id', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const convId = req.params.id;
@@ -44,9 +44,9 @@ router.get('/:id', authenticate, (req, res) => {
     // 대화 조회 (소유자 또는 교사)
     let conversation;
     if (req.user.role === 'teacher') {
-      conversation = queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
+      conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     } else {
-      conversation = queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
     }
 
     if (!conversation) {
@@ -54,7 +54,7 @@ router.get('/:id', authenticate, (req, res) => {
     }
 
     // 메시지 조회
-    const messages = queryAll(
+    const messages = await queryAll(
       'SELECT id, role, content, files, input_tokens, output_tokens, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
       [convId]
     );
@@ -84,18 +84,18 @@ router.get('/:id', authenticate, (req, res) => {
 });
 
 // POST /api/conversations - 새 대화 생성
-router.post('/', authenticate, (req, res) => {
+router.post('/', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const { title, provider = 'claude', model = 'claude-sonnet-4-6' } = req.body;
 
     const id = crypto.randomUUID();
-    run(
+    await run(
       'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, datetime("now"), datetime("now"))',
       [id, userId, title || '새 대화', provider, model]
     );
 
-    const conversation = queryOne('SELECT * FROM conversations WHERE id = ?', [id]);
+    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [id]);
     res.status(201).json(conversation);
   } catch (error) {
     console.error('대화 생성 오류:', error);
@@ -104,20 +104,20 @@ router.post('/', authenticate, (req, res) => {
 });
 
 // PATCH /api/conversations/:id - 대화 제목 수정
-router.patch('/:id', authenticate, (req, res) => {
+router.patch('/:id', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const convId = req.params.id;
     const { title } = req.body;
 
-    const conversation = queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
-    run('UPDATE conversations SET title = ?, updated_at = datetime("now") WHERE id = ?', [title, convId]);
+    await run('UPDATE conversations SET title = ?, updated_at = datetime("now") WHERE id = ?', [title, convId]);
 
-    const updated = queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
+    const updated = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     res.json(updated);
   } catch (error) {
     console.error('대화 수정 오류:', error);
@@ -126,7 +126,7 @@ router.patch('/:id', authenticate, (req, res) => {
 });
 
 // DELETE /api/conversations/:id - 대화 삭제 (소유자 또는 교사만 가능)
-router.delete('/:id', authenticate, (req, res) => {
+router.delete('/:id', authenticate, async (req, res) => {
   try {
     const userId = req.user.id;
     const convId = req.params.id;
@@ -134,9 +134,9 @@ router.delete('/:id', authenticate, (req, res) => {
     // 소유자 또는 교사 확인
     let conversation;
     if (req.user.role === 'teacher') {
-      conversation = queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
+      conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     } else {
-      conversation = queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
     }
 
     if (!conversation) {
@@ -144,8 +144,8 @@ router.delete('/:id', authenticate, (req, res) => {
     }
 
     // 메시지 먼저 삭제 (외래 키 제약)
-    run('DELETE FROM messages WHERE conversation_id = ?', [convId]);
-    run('DELETE FROM conversations WHERE id = ?', [convId]);
+    await run('DELETE FROM messages WHERE conversation_id = ?', [convId]);
+    await run('DELETE FROM conversations WHERE id = ?', [convId]);
 
     res.json({ message: '대화가 삭제되었습니다.' });
   } catch (error) {

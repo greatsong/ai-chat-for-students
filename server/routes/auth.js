@@ -43,12 +43,12 @@ router.post('/google', async (req, res) => {
     }
 
     // 2. 기존 사용자 확인
-    let user = queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
+    let user = await queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
 
     if (user) {
       // 3. 기존 사용자 — 이름/아바타 변경 시 업데이트
       if (user.name !== name || user.avatar !== picture) {
-        run('UPDATE users SET name = ?, avatar = ? WHERE id = ?', [name, picture, user.id]);
+        await run('UPDATE users SET name = ?, avatar = ? WHERE id = ?', [name, picture, user.id]);
         user.name = name;
         user.avatar = picture;
       }
@@ -58,16 +58,16 @@ router.post('/google', async (req, res) => {
       const isActive = role === 'teacher' ? 1 : 0;
 
       // 첫 번째 학급 배정
-      const firstClassroom = queryOne('SELECT id FROM classrooms ORDER BY created_at ASC LIMIT 1');
+      const firstClassroom = await queryOne('SELECT id FROM classrooms ORDER BY created_at ASC LIMIT 1');
       const classroomId = firstClassroom ? firstClassroom.id : null;
 
       const userId = crypto.randomUUID();
-      run(
+      await run(
         'INSERT INTO users (id, google_id, email, name, avatar, role, classroom_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
         [userId, googleId, email, name, picture, role, classroomId, isActive]
       );
 
-      user = queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+      user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
     }
 
     // 5. JWT 발급
