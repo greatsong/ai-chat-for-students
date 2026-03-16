@@ -43,6 +43,11 @@ router.post('/google', async (req, res) => {
     const isDbTeacherEmail = Array.isArray(dbTeacherEmails) && dbTeacherEmails.includes(email);
     const isTeacherEmail = isEnvTeacherEmail || isDbTeacherEmail;
 
+    console.log(`[auth] 로그인: ${email}`);
+    console.log(`[auth] ADMIN_EMAILS 환경변수: "${process.env.ADMIN_EMAILS}"`);
+    console.log(`[auth] ADMIN_EMAILS 파싱 결과:`, ADMIN_EMAILS);
+    console.log(`[auth] isAdminEmail: ${isAdminEmail}, isTeacherEmail: ${isTeacherEmail}`);
+
     // 이메일 도메인 제한: @danggok.hs.kr 또는 관리자/교사 이메일만 허용
     const isAllowedDomain = email.endsWith('@danggok.hs.kr');
     if (!isAllowedDomain && !isAdminEmail && !isTeacherEmail) {
@@ -58,6 +63,7 @@ router.post('/google', async (req, res) => {
     } else {
       role = 'student';
     }
+    console.log(`[auth] 최종 역할: ${role}`);
 
     // 2. 기존 사용자 확인
     let user = await queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
