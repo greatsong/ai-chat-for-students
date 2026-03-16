@@ -162,7 +162,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
     const { userId, search, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let where = [];
+    let where = ["u.role = 'student'"];  // 교사/관리자 채팅은 수집하지 않음
     let params = [];
 
     if (userId) {
@@ -175,7 +175,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    const whereClause = where.length > 0 ? `WHERE ${where.join(' AND ')}` : '';
+    const whereClause = `WHERE ${where.join(' AND ')}`;
 
     // 전체 개수
     const countRow = await queryOne(
@@ -287,7 +287,7 @@ router.get('/usage', requireAdmin, async (req, res) => {
       dateFilter = today;
     }
 
-    // 요약
+    // 요약 (전체 사용자)
     const summary = await queryOne(`
       SELECT
         COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
