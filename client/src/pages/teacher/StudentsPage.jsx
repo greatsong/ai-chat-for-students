@@ -21,12 +21,13 @@ export default function StudentsPage() {
     );
   });
 
-  const totalCount = students.length;
+  const teacherCount = students.filter((s) => s.role === 'teacher').length;
+  const studentCount = students.filter((s) => s.role !== 'teacher').length;
   const activeCount = students.filter((s) => s.is_active).length;
-  const pendingCount = students.filter((s) => !s.is_active).length;
+  const pendingCount = students.filter((s) => !s.is_active && s.role !== 'teacher').length;
 
-  // 비활성(대기) 학생 ID 목록
-  const pendingIds = students.filter((s) => !s.is_active).map((s) => s.id);
+  // 비활성(대기) 학생 ID 목록 (교사 제외)
+  const pendingIds = students.filter((s) => !s.is_active && s.role !== 'teacher').map((s) => s.id);
 
   const handleToggleActive = async (student) => {
     try {
@@ -81,11 +82,12 @@ export default function StudentsPage() {
       {/* 헤더 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-gray-800">학생 관리</h1>
+          <h1 className="text-2xl font-bold text-gray-800">사용자 관리</h1>
           <div className="flex gap-4 mt-2 text-sm text-gray-500">
-            <span>전체 {totalCount}명</span>
+            <span className="text-indigo-600">교사 {teacherCount}명</span>
+            <span>학생 {studentCount}명</span>
             <span className="text-green-600">활성 {activeCount}명</span>
-            <span className="text-yellow-600">대기 {pendingCount}명</span>
+            {pendingCount > 0 && <span className="text-yellow-600">대기 {pendingCount}명</span>}
           </div>
         </div>
 
@@ -153,9 +155,16 @@ export default function StudentsPage() {
                           {student.name?.[0] || "?"}
                         </div>
                       )}
-                      <span className="font-medium text-gray-800 text-sm">
-                        {student.name || "(이름 없음)"}
-                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-800 text-sm">
+                          {student.name || "(이름 없음)"}
+                        </span>
+                        {student.role === 'teacher' && (
+                          <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded">
+                            교사
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </td>
 
@@ -231,16 +240,20 @@ export default function StudentsPage() {
 
                   {/* 관리 */}
                   <td className="px-4 py-3 text-center">
-                    <button
-                      onClick={() => handleToggleActive(student)}
-                      className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                        student.is_active
-                          ? "bg-red-50 text-red-600 hover:bg-red-100"
-                          : "bg-green-50 text-green-600 hover:bg-green-100"
-                      }`}
-                    >
-                      {student.is_active ? "비활성화" : "활성화"}
-                    </button>
+                    {student.role !== 'teacher' ? (
+                      <button
+                        onClick={() => handleToggleActive(student)}
+                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                          student.is_active
+                            ? "bg-red-50 text-red-600 hover:bg-red-100"
+                            : "bg-green-50 text-green-600 hover:bg-green-100"
+                        }`}
+                      >
+                        {student.is_active ? "비활성화" : "활성화"}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">—</span>
+                    )}
                   </td>
                 </tr>
               ))
@@ -274,7 +287,12 @@ export default function StudentsPage() {
                     </div>
                   )}
                   <div>
-                    <div className="font-medium text-gray-800 text-sm">{student.name || "(이름 없음)"}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-800 text-sm">{student.name || "(이름 없음)"}</span>
+                      {student.role === 'teacher' && (
+                        <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded">교사</span>
+                      )}
+                    </div>
                     <div className="text-xs text-gray-400">{student.email}</div>
                   </div>
                 </div>
@@ -304,26 +322,28 @@ export default function StudentsPage() {
               </div>
 
               {/* 하단 버튼 */}
-              <div className="flex gap-2">
-                <button
-                  onClick={() => handleToggleActive(student)}
-                  className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                    student.is_active
-                      ? "bg-red-50 text-red-600 hover:bg-red-100"
-                      : "bg-green-50 text-green-600 hover:bg-green-100"
-                  }`}
-                >
-                  {student.is_active ? "비활성화" : "활성화"}
-                </button>
-                <button
-                  onClick={() =>
-                    setEditingLimit({ id: student.id, value: String(student.daily_limit) })
-                  }
-                  className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
-                >
-                  한도 수정
-                </button>
-              </div>
+              {student.role !== 'teacher' && (
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleToggleActive(student)}
+                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      student.is_active
+                        ? "bg-red-50 text-red-600 hover:bg-red-100"
+                        : "bg-green-50 text-green-600 hover:bg-green-100"
+                    }`}
+                  >
+                    {student.is_active ? "비활성화" : "활성화"}
+                  </button>
+                  <button
+                    onClick={() =>
+                      setEditingLimit({ id: student.id, value: String(student.daily_limit) })
+                    }
+                    className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
+                  >
+                    한도 수정
+                  </button>
+                </div>
+              )}
 
               {/* 한도 수정 인라인 */}
               {editingLimit && editingLimit.id === student.id && (

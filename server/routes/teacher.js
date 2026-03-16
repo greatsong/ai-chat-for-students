@@ -15,9 +15,9 @@ router.get('/students', async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
 
-    const students = await queryAll(`
+    const users = await queryAll(`
       SELECT
-        u.id, u.name, u.email, u.avatar, u.is_active, u.daily_limit,
+        u.id, u.name, u.email, u.avatar, u.role, u.is_active, u.daily_limit,
         u.classroom_id, u.created_at,
         COALESCE(SUM(ud.input_tokens), 0)  AS today_input_tokens,
         COALESCE(SUM(ud.output_tokens), 0) AS today_output_tokens,
@@ -25,12 +25,11 @@ router.get('/students', async (req, res) => {
         (SELECT COUNT(*) FROM conversations WHERE user_id = u.id) AS total_conversations
       FROM users u
       LEFT JOIN usage_daily ud ON ud.user_id = u.id AND ud.date = ?
-      WHERE u.role = 'student'
       GROUP BY u.id
-      ORDER BY u.created_at DESC
+      ORDER BY u.role ASC, u.created_at DESC
     `, [today]);
 
-    res.json(students);
+    res.json(users);
   } catch (error) {
     console.error('학생 목록 조회 오류:', error);
     res.status(500).json({ error: '학생 목록을 불러오는 중 오류가 발생했습니다.' });
