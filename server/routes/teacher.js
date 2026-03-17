@@ -495,9 +495,9 @@ router.post('/teachers', requireAdmin, async (req, res) => {
     emailList.push(trimmedEmail);
     await setSetting('teacher_emails', emailList);
 
-    // 해당 이메일의 기존 사용자가 있으면 역할을 teacher로 업데이트
-    const existingUser = await queryOne('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
-    if (existingUser && existingUser.role === 'student') {
+    // 해당 이메일의 기존 사용자가 있으면 역할을 teacher로 업데이트 + 자동 활성화
+    const existingUser = await queryOne('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [trimmedEmail]);
+    if (existingUser && existingUser.role !== 'admin') {
       await run('UPDATE users SET role = ?, is_active = 1 WHERE id = ?', ['teacher', existingUser.id]);
     }
 
@@ -545,7 +545,7 @@ router.delete('/teachers', requireAdmin, async (req, res) => {
     await setSetting('teacher_emails', emailList);
 
     // 해당 이메일의 기존 사용자가 있으면 역할을 student로 변경
-    const existingUser = await queryOne('SELECT * FROM users WHERE email = ?', [trimmedEmail]);
+    const existingUser = await queryOne('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [trimmedEmail]);
     if (existingUser && existingUser.role === 'teacher') {
       await run('UPDATE users SET role = ? WHERE id = ?', ['student', existingUser.id]);
     }
