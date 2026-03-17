@@ -21,13 +21,14 @@ export default function StudentsPage() {
     );
   });
 
+  const adminCount = students.filter((s) => s.role === 'admin').length;
   const teacherCount = students.filter((s) => s.role === 'teacher').length;
-  const studentCount = students.filter((s) => s.role !== 'teacher').length;
+  const studentCount = students.filter((s) => s.role === 'student').length;
   const activeCount = students.filter((s) => s.is_active).length;
-  const pendingCount = students.filter((s) => !s.is_active && s.role !== 'teacher').length;
+  const pendingCount = students.filter((s) => !s.is_active && s.role === 'student').length;
 
-  // 비활성(대기) 학생 ID 목록 (교사 제외)
-  const pendingIds = students.filter((s) => !s.is_active && s.role !== 'teacher').map((s) => s.id);
+  // 비활성(대기) 학생 ID 목록 (교사/관리자 제외)
+  const pendingIds = students.filter((s) => !s.is_active && s.role === 'student').map((s) => s.id);
 
   const handleToggleActive = async (student) => {
     try {
@@ -84,6 +85,7 @@ export default function StudentsPage() {
         <div>
           <h1 className="text-2xl font-bold text-gray-800">사용자 관리</h1>
           <div className="flex gap-4 mt-2 text-sm text-gray-500">
+            {adminCount > 0 && <span className="text-purple-600">관리자 {adminCount}명</span>}
             <span className="text-indigo-600">교사 {teacherCount}명</span>
             <span>학생 {studentCount}명</span>
             <span className="text-green-600">활성 {activeCount}명</span>
@@ -159,6 +161,11 @@ export default function StudentsPage() {
                         <span className="font-medium text-gray-800 text-sm">
                           {student.name || "(이름 없음)"}
                         </span>
+                        {student.role === 'admin' && (
+                          <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 rounded">
+                            관리자
+                          </span>
+                        )}
                         {student.role === 'teacher' && (
                           <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded">
                             교사
@@ -240,7 +247,7 @@ export default function StudentsPage() {
 
                   {/* 관리 */}
                   <td className="px-4 py-3 text-center">
-                    {student.role !== 'teacher' ? (
+                    {student.role === 'student' ? (
                       <button
                         onClick={() => handleToggleActive(student)}
                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
@@ -322,7 +329,7 @@ export default function StudentsPage() {
               </div>
 
               {/* 하단 버튼 */}
-              {student.role !== 'teacher' && (
+              {student.role === 'student' && (
                 <div className="flex gap-2">
                   <button
                     onClick={() => handleToggleActive(student)}
