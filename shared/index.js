@@ -33,7 +33,7 @@ export const PROVIDERS = {
     name: 'Solar',
     company: 'Upstage',
     models: [
-      { id: 'solar-pro-3', name: 'Solar Pro 3', tier: 'standard' },
+      { id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' },
     ],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },
   },

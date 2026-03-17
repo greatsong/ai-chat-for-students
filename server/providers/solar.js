@@ -68,7 +68,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
     allMessages.push(...messages);
 
     const stream = await solar.chat.completions.create({
-      model: model || 'solar-pro-3',
+      model: model || 'solar-pro3',
       messages: allMessages,
       stream: true,
     });
