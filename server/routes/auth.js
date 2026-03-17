@@ -36,11 +36,12 @@ router.post('/google', async (req, res) => {
       return res.status(401).json({ error: 'Google 토큰에서 사용자 정보를 추출할 수 없습니다.' });
     }
 
-    // 역할 판별: admin > teacher > student
-    const isAdminEmail = ADMIN_EMAILS.includes(email);
-    const isEnvTeacherEmail = TEACHER_EMAILS.includes(email);
+    // 역할 판별: admin > teacher > student (대소문자 무시)
+    const emailLower = email.toLowerCase();
+    const isAdminEmail = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
+    const isEnvTeacherEmail = TEACHER_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
     const dbTeacherEmails = (await getSetting('teacher_emails')) || [];
-    const isDbTeacherEmail = Array.isArray(dbTeacherEmails) && dbTeacherEmails.includes(email);
+    const isDbTeacherEmail = Array.isArray(dbTeacherEmails) && dbTeacherEmails.map(e => e.toLowerCase()).includes(emailLower);
     const isTeacherEmail = isEnvTeacherEmail || isDbTeacherEmail;
 
     // 이메일 도메인 제한: @danggok.hs.kr 또는 관리자/교사 이메일만 허용

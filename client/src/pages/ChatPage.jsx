@@ -240,6 +240,7 @@ export default function ChatPage() {
             <WelcomeScreen
               onSendMessage={handleWelcomeMessage}
               firstVisitMessage={settings?.first_visit_message}
+              userRole={user?.role}
             />
           )}
         </div>

@@ -37,15 +37,18 @@ const SUGGESTED_PROMPTS = [
   },
 ];
 
-export default function WelcomeScreen({ onSendMessage, firstVisitMessage }) {
+export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRole }) {
   const [showFirstVisit, setShowFirstVisit] = useState(false);
+  const isTeacherOrAdmin = userRole === 'teacher' || userRole === 'admin';
 
   useEffect(() => {
+    // 교사/관리자는 첫 방문 안내 표시 안 함
+    if (isTeacherOrAdmin) return;
     const seen = localStorage.getItem('first_visit_seen');
     if (!seen) {
       setShowFirstVisit(true);
     }
-  }, []);
+  }, [isTeacherOrAdmin]);
 
   const dismissFirstVisit = () => {
     localStorage.setItem('first_visit_seen', 'true');
@@ -55,6 +58,25 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage }) {
   const handlePromptClick = (prompt) => {
     onSendMessage?.(prompt);
   };
+
+  // 교사/관리자용 간단한 웰컴 화면
+  if (isTeacherOrAdmin) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-4 py-8">
+        <div className="text-center">
+          <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
+            <span className="text-3xl">💬</span>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            AI 채팅
+          </h1>
+          <p className="text-gray-500 text-sm">
+            자유롭게 대화를 시작하세요. 시스템 프롬프트 없이 AI를 사용할 수 있습니다.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col items-center justify-center h-full px-4 py-8 overflow-y-auto">
