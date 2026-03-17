@@ -110,7 +110,7 @@ export async function initDatabase() {
       claude: ["claude-sonnet-4-6"],
       gemini: ["gemini-3-flash-preview"],
       openai: ["gpt-5.4"],
-      solar: ["solar-pro-3"],
+      solar: ["solar-pro3"],
     },
     image_generation_enabled: false,
     system_prompt: "당신은 당곡고등학교 학생들의 학습을 돕는 AI 도우미입니다. 오직 수업 및 학습과 관련된 내용에 대해서만 답변해주세요. 상담, 개인적인 고민, 학습과 무관한 잡담 등에는 정중히 거절하고 학습 관련 질문을 하도록 안내해주세요. 학생들이 스스로 생각하고 탐구할 수 있도록 도와주되, 답을 바로 알려주기보다는 사고 과정을 안내해주세요.",

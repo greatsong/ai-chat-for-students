@@ -5,7 +5,7 @@ const ALL_PROVIDERS = [
   { id: "claude", name: "Claude (Anthropic)", models: ["claude-sonnet-4-6", "claude-haiku-4"] },
   { id: "gemini", name: "Gemini (Google)", models: ["gemini-3-flash-preview", "gemini-2.5-pro-preview-06-05"] },
   { id: "openai", name: "OpenAI", models: ["gpt-5.4", "gpt-4.1-mini"] },
-  { id: "solar", name: "Solar (Upstage)", models: ["solar-pro-3"] },
+  { id: "solar", name: "Solar (Upstage)", models: ["solar-pro3"] },
 ];
 
 export default function SettingsPage() {
