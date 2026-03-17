@@ -1,4 +1,3 @@
-// youtube-transcript ESM export 경로 직접 지정
 import { YoutubeTranscript } from 'youtube-transcript/dist/youtube-transcript.esm.js';
 
 // YouTube URL 정규식 (다양한 형식 지원)
