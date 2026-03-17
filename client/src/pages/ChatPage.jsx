@@ -181,7 +181,7 @@ export default function ChatPage() {
     generateImage?.(prompt, provider);
   }, [generateImage]);
 
-  const isTeacher = user?.role === 'teacher';
+  const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
   const hasActiveConversation = !!activeConversationId && messages.length > 0;
 
