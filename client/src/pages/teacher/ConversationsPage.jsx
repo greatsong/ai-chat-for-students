@@ -92,12 +92,12 @@ export default function ConversationsPage() {
       <h1 className="text-2xl font-bold text-gray-800 mb-6">채팅 열람</h1>
 
       <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-12rem)]">
-        {/* 왼쪽: 학생 목록 */}
+        {/* 왼쪽: 사용자 목록 */}
         <div className="lg:w-64 flex-shrink-0 bg-white rounded-xl border border-gray-200 flex flex-col overflow-hidden">
           <div className="p-3 border-b border-gray-100">
             <input
               type="text"
-              placeholder="학생 검색..."
+              placeholder="사용자 검색..."
               value={studentSearch}
               onChange={(e) => setStudentSearch(e.target.value)}
               className="w-full px-3 py-1.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
@@ -113,7 +113,7 @@ export default function ConversationsPage() {
                   : "text-gray-600 hover:bg-gray-50"
               }`}
             >
-              전체 학생
+              전체 사용자
             </button>
             {filteredStudents
               .filter((s) => s.role !== "teacher")

@@ -103,7 +103,7 @@ export default function UsagePage() {
           <div className="text-xs text-gray-400 mt-1">회</div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
-          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">활성 학생</div>
+          <div className="text-xs text-gray-400 uppercase tracking-wide mb-1">활성 사용자</div>
           <div className="text-2xl font-bold text-gray-800">{summary.activeStudents}</div>
           <div className="text-xs text-gray-400 mt-1">명</div>
         </div>
@@ -168,10 +168,10 @@ export default function UsagePage() {
       )}
 
       <div className="grid lg:grid-cols-3 gap-4">
-        {/* 학생별 사용량 */}
+        {/* 사용자별 사용량 */}
         <div className="lg:col-span-2 bg-white rounded-xl border border-gray-200 overflow-hidden">
           <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
-            <h2 className="text-sm font-semibold text-gray-700">학생별 사용량</h2>
+            <h2 className="text-sm font-semibold text-gray-700">사용자별 사용량</h2>
             <select
               value={sortBy}
               onChange={(e) => setSortBy(e.target.value)}
@@ -190,7 +190,7 @@ export default function UsagePage() {
               <table className="w-full">
                 <thead>
                   <tr className="bg-gray-50 text-xs text-gray-500 uppercase tracking-wide">
-                    <th className="text-left px-4 py-2">학생</th>
+                    <th className="text-left px-4 py-2">사용자</th>
                     <th className="text-right px-4 py-2">입력</th>
                     <th className="text-right px-4 py-2">출력</th>
                     <th className="text-right px-4 py-2">요청</th>
