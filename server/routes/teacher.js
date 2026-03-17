@@ -96,9 +96,9 @@ router.patch('/students/:id', requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { is_active, daily_limit } = req.body;
 
-    const student = await queryOne('SELECT * FROM users WHERE id = ? AND role = ?', [id, 'student']);
-    if (!student) {
-      return res.status(404).json({ error: '학생을 찾을 수 없습니다.' });
+    const user = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
+    if (!user) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
     }
 
     const updates = [];
