@@ -16,7 +16,8 @@
     "jsonwebtoken": "^9",
     "multer": "^2",
     "openai": "latest",
-    "uuid": "^11"
+    "uuid": "^11",
+    "youtube-transcript": "^1.3.0"
   },
   "devDependencies": {
     "nodemon": "^3"

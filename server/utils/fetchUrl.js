@@ -1,7 +1,10 @@
 /**
  * URL 내용 가져오기 유틸리티
- * 교사/관리자가 메시지에 URL을 포함하면 해당 페이지 내용을 추출
+ * 메시지에 URL을 포함하면 해당 페이지 내용을 추출
+ * YouTube URL은 자막(transcript)을 추출
  */
+
+import { isYouTubeUrl, getYouTubeTranscript } from './youtube.js';
 
 // URL 정규식 패턴
 const URL_REGEX = /https?:\/\/[^\s<>"')\]]+/gi;
@@ -18,10 +21,40 @@ export function extractUrls(text) {
 }
 
 /**
+ * 메시지에서 YouTube URL만 추출
+ */
+export function extractYouTubeUrlsFromMessage(text) {
+  const urls = extractUrls(text);
+  return urls.filter((url) => isYouTubeUrl(url));
+}
+
+/**
+ * 메시지에 YouTube URL이 포함되어 있는지 확인
+ */
+export function hasYouTubeUrl(text) {
+  const urls = extractUrls(text);
+  return urls.some((url) => isYouTubeUrl(url));
+}
+
+/**
  * URL에서 텍스트 콘텐츠 가져오기
- * HTML 태그 제거, 스크립트/스타일 제거, 텍스트만 추출
+ * YouTube URL → 자막 추출, 일반 URL → HTML 텍스트 추출
  */
 export async function fetchUrlContent(url, maxLength = 8000) {
+  // YouTube URL인 경우 자막 추출
+  if (isYouTubeUrl(url)) {
+    try {
+      const transcript = await getYouTubeTranscript(url, maxLength);
+      if (transcript) {
+        return { url, content: transcript, type: 'youtube' };
+      }
+      return { url, error: '자막을 가져올 수 없는 영상입니다.', content: null };
+    } catch (error) {
+      return { url, error: `YouTube 자막 추출 실패: ${error.message}`, content: null };
+    }
+  }
+
+  // 일반 URL
   try {
     const controller = new AbortController();
     const timeout = setTimeout(() => controller.abort(), 10000); // 10초 타임아웃
@@ -30,7 +63,7 @@ export async function fetchUrlContent(url, maxLength = 8000) {
       signal: controller.signal,
       headers: {
         'User-Agent': 'Mozilla/5.0 (compatible; DanggokAI/1.0)',
-        'Accept': 'text/html,application/xhtml+xml,text/plain,application/json',
+        Accept: 'text/html,application/xhtml+xml,text/plain,application/json',
       },
       redirect: 'follow',
     });
@@ -89,19 +122,31 @@ export async function fetchUrlContent(url, maxLength = 8000) {
 
 /**
  * 메시지에 포함된 URL들의 내용을 가져와서 컨텍스트 텍스트로 변환
+ * @param {string} message - 사용자 메시지
+ * @param {Object} options - { skipYouTube: true } Gemini는 YouTube를 네이티브 처리하므로 스킵
  */
-export async function fetchUrlsFromMessage(message) {
-  const urls = extractUrls(message);
+export async function fetchUrlsFromMessage(message, options = {}) {
+  let urls = extractUrls(message);
   if (urls.length === 0) return null;
 
-  const results = await Promise.all(urls.map(url => fetchUrlContent(url)));
+  // Gemini 프로바이더인 경우 YouTube URL은 스킵 (네이티브 fileData로 처리)
+  if (options.skipYouTube) {
+    urls = urls.filter((url) => !isYouTubeUrl(url));
+    if (urls.length === 0) return null;
+  }
 
-  const successResults = results.filter(r => r.content);
+  const results = await Promise.all(urls.map((url) => fetchUrlContent(url)));
+
+  const successResults = results.filter((r) => r.content);
   if (successResults.length === 0) return null;
 
   let context = '\n\n---\n[URL 내용 참조]\n';
   for (const result of successResults) {
-    context += `\n### ${result.url}\n${result.content}\n`;
+    if (result.type === 'youtube') {
+      context += `\n### YouTube 영상 자막: ${result.url}\n${result.content}\n`;
+    } else {
+      context += `\n### ${result.url}\n${result.content}\n`;
+    }
   }
   context += '\n---\n';
 
