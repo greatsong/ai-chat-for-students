@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import { queryOne, queryAll, run, getSetting } from '../db/database.js';
 import crypto from 'crypto';
 import { PROVIDERS } from '../../shared/index.js';
+import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
@@ -78,13 +79,28 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
-    // 5. 사용자 메시지 저장
+    // 5. 교사/관리자: URL 내용 자동 가져오기
+    let enrichedMessage = message;
+    const isTeacherOrAdmin = req.user.role === 'teacher' || req.user.role === 'admin';
+    if (isTeacherOrAdmin && message) {
+      try {
+        const urlContext = await fetchUrlsFromMessage(message);
+        if (urlContext) {
+          enrichedMessage = message + urlContext;
+          console.log(`[chat] URL 내용 가져옴 (${urlContext.length}자 추가)`);
+        }
+      } catch (err) {
+        console.error('[chat] URL 가져오기 실패:', err.message);
+      }
+    }
+
+    // 6. 사용자 메시지 저장 (enrichedMessage에 URL 내용 포함)
     const userMsgId = crypto.randomUUID();
     const filesJson = JSON.stringify(files || []);
     console.log(`[chat] 파일 ${files?.length || 0}개 수신:`, files?.map(f => ({ name: f.name, type: f.type, mimeType: f.mimeType, dataLen: f.data?.length || 0 })));
     await run(
       'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [userMsgId, convId, 'user', message, filesJson, now]
+      [userMsgId, convId, 'user', enrichedMessage, filesJson, now]
     );
 
     // 6. 대화 기록 조회 (메시지 배열 구성)
