@@ -79,16 +79,12 @@ router.post('/', authenticate, async (req, res) => {
       }
     }
 
-    // 5. 교사/관리자: URL 내용 자동 가져오기
-    //    - Gemini: YouTube URL은 스킵 (fileData로 네이티브 처리)
-    //    - 기타 프로바이더: YouTube 자막 추출 후 컨텍스트에 추가
+    // 5. 교사/관리자: URL 내용 자동 가져오기 (YouTube 자막 포함)
     let enrichedMessage = message;
     const isTeacherOrAdmin = req.user.role === 'teacher' || req.user.role === 'admin';
     if (isTeacherOrAdmin && message) {
       try {
-        const urlContext = await fetchUrlsFromMessage(message, {
-          skipYouTube: provider === 'gemini',
-        });
+        const urlContext = await fetchUrlsFromMessage(message);
         if (urlContext) {
           enrichedMessage = message + urlContext;
           console.log(`[chat] URL 내용 가져옴 (${urlContext.length}자 추가)`);

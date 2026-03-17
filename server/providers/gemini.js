@@ -9,29 +9,8 @@ function getClient() {
   return genAI;
 }
 
-// YouTube URL 감지 정규식
-const YOUTUBE_REGEX =
-  /(?:https?:\/\/)?(?:www\.)?(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([a-zA-Z0-9_-]{11})/gi;
-
-/**
- * 텍스트에서 YouTube URL 추출
- */
-function extractYouTubeUrls(text) {
-  if (!text) return [];
-  const urls = [];
-  let match;
-  YOUTUBE_REGEX.lastIndex = 0;
-  while ((match = YOUTUBE_REGEX.exec(text)) !== null) {
-    // 전체 매칭된 URL이 http로 시작하지 않으면 https:// 추가
-    const url = match[0].startsWith('http') ? match[0] : `https://${match[0]}`;
-    urls.push(url);
-  }
-  return [...new Set(urls)];
-}
-
 /**
  * 대화 기록에서 Gemini 메시지 배열 생성
- * YouTube URL이 포함된 경우 fileData로 네이티브 전달
  * @param {Array} history - DB에서 조회한 메시지 배열
  * @returns {Array} Gemini contents format
  */
@@ -65,19 +44,6 @@ export function buildMessages(history) {
         } else if (f.type === 'text') {
           parts.push({ text: `[파일: ${f.name}]\n${f.data}` });
         }
-      }
-    }
-
-    // YouTube URL → fileData로 네이티브 전달 (Gemini가 영상 직접 이해)
-    if (msg.role === 'user') {
-      const ytUrls = extractYouTubeUrls(msg.content);
-      for (const url of ytUrls) {
-        parts.push({
-          fileData: {
-            fileUri: url,
-            mimeType: 'video/mp4',
-          },
-        });
       }
     }
 
