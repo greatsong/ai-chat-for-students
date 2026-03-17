@@ -172,7 +172,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
 export async function generateImage({ prompt, model }) {
   const client = getClient();
   const imageModel = client.getGenerativeModel({
-    model: model || 'gemini-3-pro-image-preview',
+    model: model || 'gemini-3.1-flash-image-preview',
   });
 
   const result = await imageModel.generateContent({
