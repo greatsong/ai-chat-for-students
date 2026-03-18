@@ -75,14 +75,23 @@ router.post('/google', async (req, res) => {
         updates.push('avatar = ?');
         params.push(picture);
       }
-      if (user.role !== role) {
+
+      // 역할 업데이트 로직:
+      // - 승격(student→teacher, student→admin, teacher→admin)은 항상 허용
+      // - 강등은 차단 (DB에서 teacher/admin으로 설정된 사용자 보호)
+      const rolePriority = { student: 0, teacher: 1, admin: 2 };
+      const currentPriority = rolePriority[user.role] || 0;
+      const newPriority = rolePriority[role] || 0;
+
+      if (newPriority > currentPriority) {
+        // 승격: 환경변수/DB 교사 목록에 추가된 경우
         updates.push('role = ?');
         params.push(role);
-        // 관리자/교사로 승격 시 자동 활성화
         if (role === 'admin' || role === 'teacher') {
           updates.push('is_active = 1');
         }
       }
+      // newPriority <= currentPriority: 강등하지 않음 (DB 역할 유지)
 
       if (updates.length > 0) {
         params.push(user.id);
