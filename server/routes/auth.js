@@ -36,7 +36,7 @@ router.post('/google', async (req, res) => {
       return res.status(401).json({ error: 'Google 토큰에서 사용자 정보를 추출할 수 없습니다.' });
     }
 
-    // 역할 판별: admin > teacher > student (대소문자 무시)
+    // 역할 판별 소스 3곳: 환경변수, DB settings, DB users 테이블
     const emailLower = email.toLowerCase();
     const isAdminEmail = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
     const isEnvTeacherEmail = TEACHER_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
@@ -50,7 +50,12 @@ router.post('/google', async (req, res) => {
       return res.status(403).json({ error: '@danggok.hs.kr 이메일만 사용할 수 있습니다.' });
     }
 
-    // 역할 결정
+    // 2. 기존 사용자 확인
+    let user = await queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
+
+    // 역할 결정: 환경변수/설정 목록 + DB 기존 역할 중 가장 높은 권한 적용
+    // admin(2) > teacher(1) > student(0)
+    const rolePriority = { student: 0, teacher: 1, admin: 2 };
     let role;
     if (isAdminEmail) {
       role = 'admin';
@@ -59,8 +64,10 @@ router.post('/google', async (req, res) => {
     } else {
       role = 'student';
     }
-    // 2. 기존 사용자 확인
-    let user = await queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
+    // 기존 사용자의 DB 역할이 더 높으면 그것을 유지
+    if (user && (rolePriority[user.role] || 0) > (rolePriority[role] || 0)) {
+      role = user.role;
+    }
 
     if (user) {
       // 3. 기존 사용자 — 이름/아바타/역할 변경 시 업데이트
@@ -75,23 +82,13 @@ router.post('/google', async (req, res) => {
         updates.push('avatar = ?');
         params.push(picture);
       }
-
-      // 역할 업데이트 로직:
-      // - 승격(student→teacher, student→admin, teacher→admin)은 항상 허용
-      // - 강등은 차단 (DB에서 teacher/admin으로 설정된 사용자 보호)
-      const rolePriority = { student: 0, teacher: 1, admin: 2 };
-      const currentPriority = rolePriority[user.role] || 0;
-      const newPriority = rolePriority[role] || 0;
-
-      if (newPriority > currentPriority) {
-        // 승격: 환경변수/DB 교사 목록에 추가된 경우
+      if (user.role !== role) {
         updates.push('role = ?');
         params.push(role);
         if (role === 'admin' || role === 'teacher') {
           updates.push('is_active = 1');
         }
       }
-      // newPriority <= currentPriority: 강등하지 않음 (DB 역할 유지)
 
       if (updates.length > 0) {
         params.push(user.id);
