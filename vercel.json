@@ -1,4 +1,6 @@
 {
+  "buildCommand": "npm run build --workspace=client",
+  "installCommand": "npm install",
   "outputDirectory": "client/dist",
   "rewrites": [
     { "source": "/api/(.*)", "destination": "https://talented-compassion-production.up.railway.app/api/$1" },
