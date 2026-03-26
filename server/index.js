@@ -14,6 +14,8 @@ import sttRoutes from './routes/stt.js';
 import teacherRoutes from './routes/teacher.js';
 
 const app = express();
+// Railway 등 리버스 프록시 뒤에서 실행 시 필요 (express-rate-limit이 IP를 올바르게 인식)
+app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4022;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:4021';
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 30000;
