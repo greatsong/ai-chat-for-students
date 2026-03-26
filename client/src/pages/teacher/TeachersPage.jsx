@@ -1,12 +1,11 @@
-import { useEffect, useState } from "react";
-import useTeacherStore from "../../stores/teacherStore";
+import { useEffect, useState } from 'react';
+import useTeacherStore from '../../stores/teacherStore';
 
 export default function TeachersPage() {
-  const { teachers, isLoading, loadTeachers, addTeacher, removeTeacher } =
-    useTeacherStore();
-  const [newEmail, setNewEmail] = useState("");
-  const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
+  const { teachers, isLoading, loadTeachers, addTeacher, removeTeacher } = useTeacherStore();
+  const [newEmail, setNewEmail] = useState('');
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
 
   useEffect(() => {
     loadTeachers();
@@ -14,26 +13,26 @@ export default function TeachersPage() {
 
   const handleAdd = async (e) => {
     e.preventDefault();
-    setError("");
-    setSuccess("");
+    setError('');
+    setSuccess('');
 
     const email = newEmail.trim().toLowerCase();
     if (!email) {
-      setError("이메일 주소를 입력하세요.");
+      setError('이메일 주소를 입력하세요.');
       return;
     }
 
     // 간단한 이메일 형식 검증
-    if (!email.includes("@")) {
-      setError("유효한 이메일 주소를 입력하세요.");
+    if (!email.includes('@')) {
+      setError('유효한 이메일 주소를 입력하세요.');
       return;
     }
 
     try {
       const result = await addTeacher(email);
       setSuccess(result.message);
-      setNewEmail("");
-      setTimeout(() => setSuccess(""), 3000);
+      setNewEmail('');
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.message);
     }
@@ -41,13 +40,13 @@ export default function TeachersPage() {
 
   const handleRemove = async (email) => {
     if (!confirm(`${email} 교사 권한을 해제하시겠습니까?`)) return;
-    setError("");
-    setSuccess("");
+    setError('');
+    setSuccess('');
 
     try {
       const result = await removeTeacher(email);
       setSuccess(result.message);
-      setTimeout(() => setSuccess(""), 3000);
+      setTimeout(() => setSuccess(''), 3000);
     } catch (err) {
       setError(err.message);
     }
@@ -61,9 +60,10 @@ export default function TeachersPage() {
     );
   }
 
+  const nameMap = teachers.nameMap || {};
   const allEmails = [
-    ...teachers.envEmails.map((e) => ({ email: e, source: "env" })),
-    ...teachers.dbEmails.map((e) => ({ email: e, source: "db" })),
+    ...teachers.envEmails.map((e) => ({ email: e, source: 'env' })),
+    ...teachers.dbEmails.map((e) => ({ email: e, source: 'db' })),
   ];
 
   return (
@@ -114,9 +114,7 @@ export default function TeachersPage() {
         </div>
 
         {allEmails.length === 0 ? (
-          <div className="py-8 text-center text-gray-400 text-sm">
-            등록된 교사가 없습니다.
-          </div>
+          <div className="py-8 text-center text-gray-400 text-sm">등록된 교사가 없습니다.</div>
         ) : (
           <div className="divide-y divide-gray-50">
             {allEmails.map(({ email, source }) => (
@@ -126,12 +124,19 @@ export default function TeachersPage() {
               >
                 <div className="flex items-center gap-3">
                   <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-sm font-medium text-indigo-700">
-                    {email[0]?.toUpperCase() || "?"}
+                    {(nameMap[email] || email)[0]?.toUpperCase() || '?'}
                   </div>
                   <div>
-                    <div className="text-sm font-medium text-gray-800">{email}</div>
+                    {nameMap[email] && (
+                      <div className="text-sm font-medium text-gray-800">{nameMap[email]}</div>
+                    )}
+                    <div
+                      className={`text-sm ${nameMap[email] ? 'text-gray-500' : 'font-medium text-gray-800'}`}
+                    >
+                      {email}
+                    </div>
                     <div className="flex items-center gap-2 mt-0.5">
-                      {source === "env" ? (
+                      {source === 'env' ? (
                         <span className="inline-block px-1.5 py-0.5 text-[10px] font-medium bg-gray-100 text-gray-500 rounded">
                           환경변수
                         </span>
@@ -144,7 +149,7 @@ export default function TeachersPage() {
                   </div>
                 </div>
 
-                {source === "db" ? (
+                {source === 'db' ? (
                   <button
                     onClick={() => handleRemove(email)}
                     className="px-3 py-1 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 transition-colors"
@@ -152,7 +157,10 @@ export default function TeachersPage() {
                     삭제
                   </button>
                 ) : (
-                  <span className="text-xs text-gray-400" title="환경변수로 등록된 교사는 서버 설정에서만 변경 가능">
+                  <span
+                    className="text-xs text-gray-400"
+                    title="환경변수로 등록된 교사는 서버 설정에서만 변경 가능"
+                  >
                     삭제 불가
                   </span>
                 )}
@@ -166,8 +174,14 @@ export default function TeachersPage() {
       <div className="mt-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
         <h3 className="text-sm font-semibold text-blue-800 mb-1">안내</h3>
         <ul className="text-xs text-blue-700 space-y-1">
-          <li>• <strong>환경변수</strong> 교사는 서버의 <code className="bg-blue-100 px-1 rounded">TEACHER_EMAILS</code> 환경변수에서 관리됩니다.</li>
-          <li>• <strong>UI 추가</strong> 교사는 이 페이지에서 추가/삭제할 수 있습니다.</li>
+          <li>
+            • <strong>환경변수</strong> 교사는 서버의{' '}
+            <code className="bg-blue-100 px-1 rounded">TEACHER_EMAILS</code> 환경변수에서
+            관리됩니다.
+          </li>
+          <li>
+            • <strong>UI 추가</strong> 교사는 이 페이지에서 추가/삭제할 수 있습니다.
+          </li>
           <li>• 이미 가입한 학생의 이메일을 교사로 추가하면 자동으로 교사 권한이 부여됩니다.</li>
           <li>• 교사 권한을 해제하면 해당 사용자는 학생으로 돌아갑니다.</li>
         </ul>

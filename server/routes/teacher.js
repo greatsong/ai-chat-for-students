@@ -588,9 +588,23 @@ router.delete('/conversations/:conversationId', requireAdmin, async (req, res) =
 router.get('/teachers', requireAdmin, async (req, res) => {
   try {
     const dbEmails = (await getSetting('teacher_emails')) || [];
+    const allEmails = [...ENV_TEACHER_EMAILS, ...(Array.isArray(dbEmails) ? dbEmails : [])];
+    // 이메일에 해당하는 사용자 이름 조회
+    const nameMap = {};
+    if (allEmails.length > 0) {
+      const placeholders = allEmails.map(() => '?').join(',');
+      const users = await queryAll(
+        `SELECT email, name FROM users WHERE email IN (${placeholders})`,
+        allEmails,
+      );
+      users.forEach((u) => {
+        nameMap[u.email] = u.name;
+      });
+    }
     res.json({
       dbEmails: Array.isArray(dbEmails) ? dbEmails : [],
       envEmails: ENV_TEACHER_EMAILS,
+      nameMap,
     });
   } catch (error) {
     console.error('교사 목록 조회 오류:', error);
@@ -652,11 +666,9 @@ router.delete('/teachers', requireAdmin, validate(teacherEmailSchema), async (re
 
     // 환경변수 교사는 삭제 불가
     if (ENV_TEACHER_EMAILS.includes(trimmedEmail)) {
-      return res
-        .status(400)
-        .json({
-          error: '환경변수로 등록된 교사는 삭제할 수 없습니다. 서버 설정에서 변경해주세요.',
-        });
+      return res.status(400).json({
+        error: '환경변수로 등록된 교사는 삭제할 수 없습니다. 서버 설정에서 변경해주세요.',
+      });
     }
 
     // DB 교사 이메일 목록에서 제거
