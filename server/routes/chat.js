@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { queryOne, queryAll, run, getSetting } from '../db/database.js';
 import crypto from 'crypto';
-import { PROVIDERS } from '../../shared/index.js';
+import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
 
 // 프로바이더 모듈 임포트

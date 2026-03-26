@@ -5,7 +5,7 @@ import { readFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import { TEXT_FILE_EXTENSIONS, IMAGE_MIME_TYPES, PDF_MIME_TYPE, DEFAULTS } from '../../shared/index.js';
+import { TEXT_FILE_EXTENSIONS, IMAGE_MIME_TYPES, PDF_MIME_TYPE, DEFAULTS } from '../utils/shared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');

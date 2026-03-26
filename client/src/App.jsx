@@ -8,6 +8,7 @@ import ConversationsPage from "./pages/teacher/ConversationsPage";
 import UsagePage from "./pages/teacher/UsagePage";
 import MyUsagePage from "./pages/teacher/MyUsagePage";
 import SettingsPage from "./pages/teacher/SettingsPage";
+import PrivacyPage from "./pages/PrivacyPage";
 import AuthGuard from "./components/AuthGuard";
 import RoleRedirect from "./components/RoleRedirect";
 
@@ -17,6 +18,7 @@ export default function App() {
       <Routes>
         <Route path="/" element={<Navigate to="/chat" replace />} />
         <Route path="/login" element={<LoginPage />} />
+        <Route path="/privacy" element={<PrivacyPage />} />
         <Route
           path="/chat"
           element={

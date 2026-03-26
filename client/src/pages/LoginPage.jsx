@@ -1,5 +1,5 @@
 import { useEffect, useRef, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import useAuthStore from "../stores/authStore";
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
@@ -182,6 +182,15 @@ export default function LoginPage() {
           <br />
           학생은 교사 승인 후 사용 가능합니다.
         </p>
+
+        <div className="mt-4">
+          <Link
+            to="/privacy"
+            className="text-xs text-gray-400 hover:text-indigo-500 underline underline-offset-2 transition-colors"
+          >
+            개인정보 처리방침
+          </Link>
+        </div>
       </div>
     </div>
   );
