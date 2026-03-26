@@ -58,7 +58,7 @@ export default function SettingsPage() {
   const [dailyLimit, setDailyLimit] = useState(100000);
   const [ttsEnabled, setTtsEnabled] = useState(false);
   const [sttEnabled, setSttEnabled] = useState(false);
-  const [ttsDefaultVoice, setTtsDefaultVoice] = useState("alloy");
+  const [ttsDefaultVoice, setTtsDefaultVoice] = useState("nova");
   const [ttsDefaultModel, setTtsDefaultModel] = useState("tts-1");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
@@ -87,7 +87,7 @@ export default function SettingsPage() {
     setDailyLimit(settings.default_daily_limit || 100000);
     setTtsEnabled(settings.tts_enabled || false);
     setSttEnabled(settings.stt_enabled || false);
-    setTtsDefaultVoice(settings.tts_default_voice || "alloy");
+    setTtsDefaultVoice(settings.tts_default_voice || "nova");
     setTtsDefaultModel(settings.tts_default_model || "tts-1");
 
     // available_models: DB 저장값 + 기본값 병합
