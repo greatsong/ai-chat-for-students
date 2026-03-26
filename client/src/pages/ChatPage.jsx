@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/chat/Sidebar';
 import ProviderSelector from '../components/chat/ProviderSelector';
@@ -6,115 +6,38 @@ import MessageList from '../components/chat/MessageList';
 import MessageInput from '../components/chat/MessageInput';
 import WelcomeScreen from '../components/chat/WelcomeScreen';
 import { apiGet } from '../lib/api';
-
-// Store imports - 병렬 개발 중이므로 안전하게 가져오기
-// 스토어 파일이 아직 없으면 null 유지
-let useChatStore = null;
-let useAuthStore = null;
-let storesLoaded = false;
-
-function loadStores() {
-  if (storesLoaded) return;
-  storesLoaded = true;
-  try {
-    // Vite의 import.meta.glob으로 동적 임포트 (빌드 타임 에러 방지)
-    const chatStoreModules = import.meta.glob('../stores/chatStore.js', { eager: true });
-    const chatModule = Object.values(chatStoreModules)[0];
-    if (chatModule) useChatStore = chatModule.default || chatModule.useChatStore;
-  } catch {
-    // chatStore가 아직 없음
-  }
-  try {
-    const authStoreModules = import.meta.glob('../stores/authStore.js', { eager: true });
-    const authModule = Object.values(authStoreModules)[0];
-    if (authModule) useAuthStore = authModule.default || authModule.useAuthStore;
-  } catch {
-    // authStore가 아직 없음
-  }
-}
-
-// 기본 상태
-const DEFAULT_CHAT_STATE = {
-  conversations: [],
-  activeConversationId: null,
-  messages: [],
-  isStreaming: false,
-  streamingContent: '',
-  selectedProvider: 'claude',
-  selectedModel: 'claude-sonnet-4-6',
-  enabledProviders: ['claude', 'gemini', 'openai', 'solar'],
-  setActiveConversation: () => {},
-  createConversation: () => {},
-  deleteConversation: () => {},
-  sendMessage: () => {},
-  setProvider: () => {},
-  setModel: () => {},
-  loadConversations: () => {},
-  loadMessages: () => {},
-};
-
-const DEFAULT_AUTH_STATE = {
-  user: { name: '테스트 사용자', email: 'test@example.com' },
-  isAuthenticated: true,
-  logout: () => {},
-  settings: { enabled_providers: ['claude', 'gemini', 'openai', 'solar'] },
-};
-
-// 스토어 폴백 훅 - 스토어가 아직 없으면 기본값 반환
-function useSafeChatStore(selector) {
-  if (useChatStore) {
-    try {
-      return useChatStore(selector);
-    } catch {
-      return selector(DEFAULT_CHAT_STATE);
-    }
-  }
-  return selector(DEFAULT_CHAT_STATE);
-}
-
-function useSafeAuthStore(selector) {
-  if (useAuthStore) {
-    try {
-      return useAuthStore(selector);
-    } catch {
-      return selector(DEFAULT_AUTH_STATE);
-    }
-  }
-  return selector(DEFAULT_AUTH_STATE);
-}
+import useChatStore from '../stores/chatStore';
+import useAuthStore from '../stores/authStore';
 
 export default function ChatPage() {
-  // 스토어 로드 시도 (한 번만)
-  loadStores();
-
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [publicSettings, setPublicSettings] = useState({});
 
   // Auth store
-  const user = useSafeAuthStore((s) => s.user);
-  const isAuthenticated = useSafeAuthStore((s) => s.isAuthenticated);
-  const logout = useSafeAuthStore((s) => s.logout);
-  const settings = useSafeAuthStore((s) => s.settings);
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const logout = useAuthStore((s) => s.logout);
+  const settings = useAuthStore((s) => s.settings);
 
   // Chat store
-  const conversations = useSafeChatStore((s) => s.conversations);
-  const currentConversation = useSafeChatStore((s) => s.currentConversation);
+  const conversations = useChatStore((s) => s.conversations);
+  const currentConversation = useChatStore((s) => s.currentConversation);
   const activeConversationId = currentConversation?.id || null;
-  const messages = useSafeChatStore((s) => s.messages);
-  const isStreaming = useSafeChatStore((s) => s.isStreaming);
-  const selectedProvider = useSafeChatStore((s) => s.selectedProvider);
-  const selectedModel = useSafeChatStore((s) => s.selectedModel);
-  const selectConversation = useSafeChatStore((s) => s.selectConversation);
-  const createConversation = useSafeChatStore((s) => s.createConversation);
-  const deleteConversation = useSafeChatStore((s) => s.deleteConversation);
-  const sendMessage = useSafeChatStore((s) => s.sendMessage);
-  const generateImage = useSafeChatStore((s) => s.generateImage);
-  const speakMessage = useSafeChatStore((s) => s.speakMessage);
-  const transcribeAudio = useSafeChatStore((s) => s.transcribeAudio);
-  const setProvider = useSafeChatStore((s) => s.setProvider);
-  const setModel = useSafeChatStore((s) => s.setModel);
-  const loadConversations = useSafeChatStore((s) => s.loadConversations);
+  const messages = useChatStore((s) => s.messages);
+  const isStreaming = useChatStore((s) => s.isStreaming);
+  const selectedProvider = useChatStore((s) => s.selectedProvider);
+  const selectedModel = useChatStore((s) => s.selectedModel);
+  const selectConversation = useChatStore((s) => s.selectConversation);
+  const createConversation = useChatStore((s) => s.createConversation);
+  const deleteConversation = useChatStore((s) => s.deleteConversation);
+  const sendMessage = useChatStore((s) => s.sendMessage);
+  const generateImage = useChatStore((s) => s.generateImage);
+  const speakMessage = useChatStore((s) => s.speakMessage);
+  const transcribeAudio = useChatStore((s) => s.transcribeAudio);
+  const setProvider = useChatStore((s) => s.setProvider);
+  const setModel = useChatStore((s) => s.setModel);
+  const loadConversations = useChatStore((s) => s.loadConversations);
 
   const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
   const enabledModels = settings?.enabled_models || {};
@@ -122,14 +45,16 @@ export default function ChatPage() {
 
   // 인증 확인
   useEffect(() => {
-    if (useAuthStore && !isAuthenticated) {
+    if (!isAuthenticated) {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
 
   // 공개 설정 로드 (TTS/STT 상태)
   useEffect(() => {
-    apiGet('/teacher/public-settings').then(setPublicSettings).catch(() => {});
+    apiGet('/teacher/public-settings')
+      .then(setPublicSettings)
+      .catch(() => {});
   }, []);
 
   // 대화 목록 로드
@@ -145,36 +70,51 @@ export default function ChatPage() {
   }, [createConversation]);
 
   // 대화 선택 (메시지도 함께 로드됨)
-  const handleSelectConversation = useCallback((id) => {
-    selectConversation?.(id);
-  }, [selectConversation]);
+  const handleSelectConversation = useCallback(
+    (id) => {
+      selectConversation?.(id);
+    },
+    [selectConversation],
+  );
 
   // 대화 삭제
-  const handleDeleteConversation = useCallback((id) => {
-    deleteConversation?.(id);
-  }, [deleteConversation]);
+  const handleDeleteConversation = useCallback(
+    (id) => {
+      deleteConversation?.(id);
+    },
+    [deleteConversation],
+  );
 
   // 메시지 전송
-  const handleSendMessage = useCallback((content, attachments = []) => {
-    if (!content?.trim() && attachments.length === 0) return;
+  const handleSendMessage = useCallback(
+    (content, attachments = []) => {
+      if (!content?.trim() && attachments.length === 0) return;
 
-    // 활성 대화가 없으면 새 대화 생성 후 전송
-    if (!activeConversationId) {
-      createConversation?.();
-    }
+      // 활성 대화가 없으면 새 대화 생성 후 전송
+      if (!activeConversationId) {
+        createConversation?.();
+      }
 
-    sendMessage?.(content, attachments);
-  }, [activeConversationId, createConversation, sendMessage]);
+      sendMessage?.(content, attachments);
+    },
+    [activeConversationId, createConversation, sendMessage],
+  );
 
   // 프로바이더 변경
-  const handleProviderChange = useCallback((provider) => {
-    setProvider?.(provider);
-  }, [setProvider]);
+  const handleProviderChange = useCallback(
+    (provider) => {
+      setProvider?.(provider);
+    },
+    [setProvider],
+  );
 
   // 모델 변경
-  const handleModelChange = useCallback((model) => {
-    setModel?.(model);
-  }, [setModel]);
+  const handleModelChange = useCallback(
+    (model) => {
+      setModel?.(model);
+    },
+    [setModel],
+  );
 
   // 로그아웃
   const handleLogout = useCallback(() => {
@@ -183,24 +123,40 @@ export default function ChatPage() {
   }, [logout, navigate]);
 
   // 웰컴 스크린에서 추천 프롬프트 클릭
-  const handleWelcomeMessage = useCallback((prompt) => {
-    handleSendMessage(prompt);
-  }, [handleSendMessage]);
+  const handleWelcomeMessage = useCallback(
+    (prompt) => {
+      handleSendMessage(prompt);
+    },
+    [handleSendMessage],
+  );
 
   // 이미지 생성 (교사 전용)
-  const handleGenerateImage = useCallback((prompt, provider) => {
-    generateImage?.(prompt, provider);
-  }, [generateImage]);
+  const handleGenerateImage = useCallback(
+    (prompt, provider) => {
+      generateImage?.(prompt, provider);
+    },
+    [generateImage],
+  );
 
   // TTS 음성 합성
-  const handleSpeak = useCallback((text) => {
-    return speakMessage?.(text, publicSettings.tts_default_voice, publicSettings.tts_default_model);
-  }, [speakMessage, publicSettings.tts_default_voice, publicSettings.tts_default_model]);
+  const handleSpeak = useCallback(
+    (text) => {
+      return speakMessage?.(
+        text,
+        publicSettings.tts_default_voice,
+        publicSettings.tts_default_model,
+      );
+    },
+    [speakMessage, publicSettings.tts_default_voice, publicSettings.tts_default_model],
+  );
 
   // STT 음성 인식
-  const handleTranscribe = useCallback(async (audioBase64, mimeType) => {
-    return transcribeAudio?.(audioBase64, mimeType);
-  }, [transcribeAudio]);
+  const handleTranscribe = useCallback(
+    async (audioBase64, mimeType) => {
+      return transcribeAudio?.(audioBase64, mimeType);
+    },
+    [transcribeAudio],
+  );
 
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
@@ -229,8 +185,18 @@ export default function ChatPage() {
             onClick={() => setSidebarOpen(true)}
             className="p-1.5 rounded-lg hover:bg-gray-100 transition-colors"
           >
-            <svg className="w-6 h-6 text-gray-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+            <svg
+              className="w-6 h-6 text-gray-600"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 6h16M4 12h16M4 18h16"
+              />
             </svg>
           </button>
           <h1

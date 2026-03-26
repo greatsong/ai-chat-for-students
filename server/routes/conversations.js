@@ -13,22 +13,17 @@ router.get('/', authenticate, async (req, res) => {
     const conversations = await queryAll(
       `SELECT
         c.id, c.title, c.provider, c.model, c.created_at, c.updated_at,
-        (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) as message_count,
-        (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message
+        COUNT(m.id) as message_count
       FROM conversations c
+      LEFT JOIN messages m ON m.conversation_id = c.id
       WHERE c.user_id = ?
+      GROUP BY c.id, c.title, c.provider, c.model, c.created_at, c.updated_at
       ORDER BY c.updated_at DESC
       LIMIT 50`,
-      [userId]
+      [userId],
     );
 
-    // last_message를 미리보기용으로 잘라서 반환
-    const result = conversations.map((conv) => ({
-      ...conv,
-      last_message: conv.last_message ? conv.last_message.slice(0, 100) : null,
-    }));
-
-    res.json(result);
+    res.json(conversations);
   } catch (error) {
     console.error('대화 목록 조회 오류:', error);
     res.status(500).json({ error: '대화 목록을 불러오는 중 오류가 발생했습니다.' });
@@ -46,7 +41,10 @@ router.get('/:id', authenticate, async (req, res) => {
     if (req.user.role === 'teacher') {
       conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     } else {
-      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [
+        convId,
+        userId,
+      ]);
     }
 
     if (!conversation) {
@@ -56,7 +54,7 @@ router.get('/:id', authenticate, async (req, res) => {
     // 메시지 조회
     const messages = await queryAll(
       'SELECT id, role, content, files, input_tokens, output_tokens, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
-      [convId]
+      [convId],
     );
 
     // files 필드 파싱
@@ -93,7 +91,7 @@ router.post('/', authenticate, async (req, res) => {
     const now = new Date().toISOString();
     await run(
       'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, userId, title || '새 대화', provider, model, now, now]
+      [id, userId, title || '새 대화', provider, model, now, now],
     );
 
     const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [id]);
@@ -111,13 +109,20 @@ router.patch('/:id', authenticate, async (req, res) => {
     const convId = req.params.id;
     const { title } = req.body;
 
-    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+    const conversation = await queryOne(
+      'SELECT * FROM conversations WHERE id = ? AND user_id = ?',
+      [convId, userId],
+    );
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
     const now = new Date().toISOString();
-    await run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [title, now, convId]);
+    await run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [
+      title,
+      now,
+      convId,
+    ]);
 
     const updated = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     res.json(updated);
@@ -138,7 +143,10 @@ router.delete('/:id', authenticate, async (req, res) => {
     if (req.user.role === 'teacher') {
       conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
     } else {
-      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [
+        convId,
+        userId,
+      ]);
     }
 
     if (!conversation) {

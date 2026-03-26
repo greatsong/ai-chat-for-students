@@ -1,19 +1,59 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import multer from 'multer';
-import { readFileSync, unlinkSync, existsSync, mkdirSync } from 'fs';
+import { readFile, unlink, readdir, stat } from 'fs/promises';
+import { existsSync, mkdirSync } from 'fs';
 import { extname, join, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import crypto from 'crypto';
-import { TEXT_FILE_EXTENSIONS, IMAGE_MIME_TYPES, PDF_MIME_TYPE, DEFAULTS } from '../utils/shared.js';
+import {
+  TEXT_FILE_EXTENSIONS,
+  IMAGE_MIME_TYPES,
+  PDF_MIME_TYPE,
+  DEFAULTS,
+} from '../utils/shared.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
+const ORPHAN_FILE_MAX_AGE_MS = 24 * 60 * 60 * 1000; // 24시간
 
 // uploads 디렉토리 생성
 if (!existsSync(UPLOADS_DIR)) {
   mkdirSync(UPLOADS_DIR, { recursive: true });
 }
+
+/**
+ * 24시간 이상된 고아 임시 파일 정리
+ */
+async function cleanOrphanedFiles() {
+  try {
+    const files = await readdir(UPLOADS_DIR);
+    const now = Date.now();
+    let cleaned = 0;
+
+    for (const file of files) {
+      try {
+        const filePath = join(UPLOADS_DIR, file);
+        const fileStat = await stat(filePath);
+        if (now - fileStat.mtimeMs > ORPHAN_FILE_MAX_AGE_MS) {
+          await unlink(filePath);
+          cleaned++;
+        }
+      } catch {
+        // 개별 파일 처리 실패는 무시
+      }
+    }
+
+    if (cleaned > 0) {
+      console.log(`고아 임시 파일 ${cleaned}개 정리 완료`);
+    }
+  } catch (error) {
+    console.error('고아 파일 정리 오류:', error);
+  }
+}
+
+// 서버 시작 시 고아 파일 정리
+cleanOrphanedFiles();
 
 // multer 설정 — disk storage
 const storage = multer.diskStorage({
@@ -30,9 +70,14 @@ const storage = multer.diskStorage({
 const ALLOWED_MIME_TYPES = [
   ...IMAGE_MIME_TYPES,
   PDF_MIME_TYPE,
-  'text/plain', 'text/csv', 'text/markdown',
-  'application/json', 'application/xml',
-  'text/html', 'text/css', 'text/javascript',
+  'text/plain',
+  'text/csv',
+  'text/markdown',
+  'application/json',
+  'application/xml',
+  'text/html',
+  'text/css',
+  'text/javascript',
   'application/x-yaml',
 ];
 
@@ -80,72 +125,80 @@ function getFileType(mimeType, originalName) {
 }
 
 // POST /api/upload
-router.post('/', authenticate, (req, res, next) => {
-  // 비활성 학생 차단
-  if (!req.user.is_active && req.user.role === 'student') {
-    return res.status(403).json({ error: '계정이 비활성 상태입니다. 교사에게 활성화를 요청하세요.' });
-  }
-  next();
-}, upload.single('file'), (req, res) => {
-  try {
-    if (!req.file) {
-      return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+router.post(
+  '/',
+  authenticate,
+  (req, res, next) => {
+    // 비활성 학생 차단
+    if (!req.user.is_active && req.user.role === 'student') {
+      return res
+        .status(403)
+        .json({ error: '계정이 비활성 상태입니다. 교사에게 활성화를 요청하세요.' });
     }
-
-    const { originalname, mimetype, size, path: filePath } = req.file;
-    const fileType = getFileType(mimetype, originalname);
-
-    let content = null;
-    let responseType = fileType;
-
+    next();
+  },
+  upload.single('file'),
+  async (req, res) => {
     try {
-      if (fileType === 'image' || fileType === 'pdf') {
-        // 이미지와 PDF는 base64로 변환
-        const fileBuffer = readFileSync(filePath);
-        content = fileBuffer.toString('base64');
-      } else if (fileType === 'text') {
-        // 텍스트 파일은 UTF-8로 읽기
-        content = readFileSync(filePath, 'utf-8');
-      } else {
-        // 바이너리 파일은 지원하지 않음
+      if (!req.file) {
+        return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
+      }
+
+      const { originalname, mimetype, size, path: filePath } = req.file;
+      const fileType = getFileType(mimetype, originalname);
+
+      let content = null;
+      let responseType = fileType;
+
+      try {
+        if (fileType === 'image' || fileType === 'pdf') {
+          // 이미지와 PDF는 base64로 변환 (비동기)
+          const fileBuffer = await readFile(filePath);
+          content = fileBuffer.toString('base64');
+        } else if (fileType === 'text') {
+          // 텍스트 파일은 UTF-8로 읽기 (비동기)
+          content = await readFile(filePath, 'utf-8');
+        } else {
+          // 바이너리 파일은 지원하지 않음
+          responseType = 'unsupported';
+          content = null;
+        }
+      } catch (readError) {
+        console.error('파일 읽기 오류:', readError);
         responseType = 'unsupported';
         content = null;
       }
-    } catch (readError) {
-      console.error('파일 읽기 오류:', readError);
-      responseType = 'unsupported';
-      content = null;
-    }
 
-    // 업로드된 파일 삭제 (콘텐츠만 필요)
-    try {
-      unlinkSync(filePath);
-    } catch {
-      // 삭제 실패는 무시
-    }
-
-    res.json({
-      id: crypto.randomUUID(),
-      name: originalname,
-      size,
-      mimeType: mimetype,
-      type: responseType,
-      content,
-    });
-  } catch (error) {
-    console.error('파일 업로드 오류:', error);
-
-    // 에러 시에도 업로드된 파일 정리
-    if (req.file?.path) {
+      // 업로드된 파일 삭제 (콘텐츠만 필요)
       try {
-        unlinkSync(req.file.path);
+        await unlink(filePath);
       } catch {
         // 삭제 실패는 무시
       }
-    }
 
-    res.status(500).json({ error: '파일 업로드 중 오류가 발생했습니다.' });
-  }
-});
+      res.json({
+        id: crypto.randomUUID(),
+        name: originalname,
+        size,
+        mimeType: mimetype,
+        type: responseType,
+        content,
+      });
+    } catch (error) {
+      console.error('파일 업로드 오류:', error);
+
+      // 에러 시에도 업로드된 파일 정리
+      if (req.file?.path) {
+        try {
+          await unlink(req.file.path);
+        } catch {
+          // 삭제 실패는 무시
+        }
+      }
+
+      res.status(500).json({ error: '파일 업로드 중 오류가 발생했습니다.' });
+    }
+  },
+);
 
 export default router;

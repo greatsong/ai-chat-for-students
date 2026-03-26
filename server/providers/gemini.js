@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
 import { getApiKey } from '../utils/apiKeys.js';
+import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let genAI = null;
@@ -71,7 +72,15 @@ export function buildMessages(history) {
  * @param {Function} params.onError - 에러 콜백
  * @param {Object} params.options - { webSearch, codeExecution }
  */
-export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError, options = {} }) {
+export async function streamChat({
+  messages,
+  systemPrompt,
+  model,
+  onText,
+  onDone,
+  onError,
+  options = {},
+}) {
   try {
     const client = await getClient();
 
@@ -179,12 +188,14 @@ export async function generateImage({ prompt, model }) {
     model: model || 'gemini-3.1-flash-image-preview',
   });
 
-  const result = await imageModel.generateContent({
-    contents: [{ role: 'user', parts: [{ text: prompt }] }],
-    generationConfig: {
-      responseModalities: ['image', 'text'],
-    },
-  });
+  const result = await withRetry(() =>
+    imageModel.generateContent({
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
+      generationConfig: {
+        responseModalities: ['image', 'text'],
+      },
+    }),
+  );
 
   const response = result.response;
   const candidate = response.candidates?.[0];

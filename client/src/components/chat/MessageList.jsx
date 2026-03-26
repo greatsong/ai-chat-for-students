@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { memo, useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -20,7 +20,12 @@ function CodeBlock({ language, children }) {
           className="flex items-center gap-1 px-2 py-0.5 rounded hover:text-white hover:bg-gray-700 transition-colors"
         >
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+            />
           </svg>
           복사
         </button>
@@ -47,7 +52,10 @@ const markdownComponents = {
     const isInline = !match && !String(children).includes('\n');
     if (isInline) {
       return (
-        <code className="px-1.5 py-0.5 bg-gray-100 text-pink-600 text-sm rounded font-mono" {...props}>
+        <code
+          className="px-1.5 py-0.5 bg-gray-100 text-pink-600 text-sm rounded font-mono"
+          {...props}
+        >
           {children}
         </code>
       );
@@ -57,21 +65,28 @@ const markdownComponents = {
   table({ children }) {
     return (
       <div className="overflow-x-auto my-3">
-        <table className="min-w-full border border-gray-200 text-sm">
-          {children}
-        </table>
+        <table className="min-w-full border border-gray-200 text-sm">{children}</table>
       </div>
     );
   },
   th({ children }) {
-    return <th className="border border-gray-200 px-3 py-1.5 bg-gray-50 font-semibold text-left">{children}</th>;
+    return (
+      <th className="border border-gray-200 px-3 py-1.5 bg-gray-50 font-semibold text-left">
+        {children}
+      </th>
+    );
   },
   td({ children }) {
     return <td className="border border-gray-200 px-3 py-1.5">{children}</td>;
   },
   a({ href, children }) {
     return (
-      <a href={href} target="_blank" rel="noopener noreferrer" className="text-blue-600 underline hover:text-blue-800">
+      <a
+        href={href}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="text-blue-600 underline hover:text-blue-800"
+      >
         {children}
       </a>
     );
@@ -83,7 +98,11 @@ const markdownComponents = {
     return <ol className="list-decimal pl-5 my-2 space-y-1">{children}</ol>;
   },
   blockquote({ children }) {
-    return <blockquote className="border-l-4 border-gray-300 pl-4 my-2 text-gray-600 italic">{children}</blockquote>;
+    return (
+      <blockquote className="border-l-4 border-gray-300 pl-4 my-2 text-gray-600 italic">
+        {children}
+      </blockquote>
+    );
   },
   p({ children }) {
     return <p className="my-1.5 leading-relaxed">{children}</p>;
@@ -99,6 +118,15 @@ const markdownComponents = {
   },
 };
 
+// 메모이제이션된 Markdown 렌더러 — content가 변경될 때만 재렌더링
+const MemoizedMarkdown = memo(function MemoizedMarkdown({ content }) {
+  return (
+    <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
+      {content || ''}
+    </ReactMarkdown>
+  );
+});
+
 // 타이핑 인디케이터
 function TypingIndicator() {
   return (
@@ -108,9 +136,18 @@ function TypingIndicator() {
       </div>
       <div className="bg-gray-100 rounded-2xl rounded-tl-sm px-4 py-3">
         <div className="flex items-center gap-1.5">
-          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '0ms' }} />
-          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '150ms' }} />
-          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: '300ms' }} />
+          <div
+            className="w-2 h-2 bg-gray-400 rounded-full animate-pulse-dot"
+            style={{ animationDelay: '0ms' }}
+          />
+          <div
+            className="w-2 h-2 bg-gray-400 rounded-full animate-pulse-dot"
+            style={{ animationDelay: '200ms' }}
+          />
+          <div
+            className="w-2 h-2 bg-gray-400 rounded-full animate-pulse-dot"
+            style={{ animationDelay: '400ms' }}
+          />
         </div>
       </div>
     </div>
@@ -153,10 +190,32 @@ function TtsButton({ text, onSpeak }) {
   const [state, setState] = useState('idle'); // idle | loading | playing
   const audioRef = useRef(null);
 
+  // 언마운트 시 오디오 리소스 정리 및 blob URL 해제
+  useEffect(() => {
+    return () => {
+      if (audioRef.current) {
+        audioRef.current.pause();
+        if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
+          URL.revokeObjectURL(audioRef.current.src);
+        }
+        audioRef.current = null;
+      }
+    };
+  }, []);
+
+  const cleanupAudio = () => {
+    if (audioRef.current) {
+      if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
+        URL.revokeObjectURL(audioRef.current.src);
+      }
+      audioRef.current = null;
+    }
+  };
+
   const handleClick = async () => {
     if (state === 'playing') {
       audioRef.current?.pause();
-      audioRef.current = null;
+      cleanupAudio();
       setState('idle');
       return;
     }
@@ -167,11 +226,11 @@ function TtsButton({ text, onSpeak }) {
       audioRef.current = audio;
       setState('playing');
       audio.onended = () => {
-        audioRef.current = null;
+        cleanupAudio();
         setState('idle');
       };
       audio.onerror = () => {
-        audioRef.current = null;
+        cleanupAudio();
         setState('idle');
       };
     } catch {
@@ -186,99 +245,140 @@ function TtsButton({ text, onSpeak }) {
         state === 'playing'
           ? 'text-blue-600 bg-blue-100'
           : state === 'loading'
-          ? 'text-gray-400 animate-pulse'
-          : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200'
+            ? 'text-gray-400 animate-pulse'
+            : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200'
       }`}
       title={state === 'playing' ? '정지' : '읽어주기'}
     >
       {state === 'loading' ? (
         <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+          <circle
+            className="opacity-25"
+            cx="12"
+            cy="12"
+            r="10"
+            stroke="currentColor"
+            strokeWidth="4"
+          />
+          <path
+            className="opacity-75"
+            fill="currentColor"
+            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+          />
         </svg>
       ) : state === 'playing' ? (
         <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
           <rect x="6" y="6" width="12" height="12" rx="1" />
         </svg>
       ) : (
-        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z" />
+        <svg
+          className="w-4 h-4"
+          fill="none"
+          viewBox="0 0 24 24"
+          stroke="currentColor"
+          strokeWidth={2}
+        >
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z"
+          />
         </svg>
       )}
     </button>
   );
 }
 
-// 개별 메시지 컴포넌트
-function MessageBubble({ message, ttsEnabled, onSpeak }) {
-  const isUser = message.role === 'user';
-  const timeStr = message.created_at
-    ? new Date(message.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
-    : '';
+// 개별 메시지 컴포넌트 — React.memo로 불필요한 재렌더링 방지
+const MessageBubble = memo(
+  function MessageBubble({ message, ttsEnabled, onSpeak }) {
+    const isUser = message.role === 'user';
+    const timeStr = message.created_at
+      ? new Date(message.created_at).toLocaleTimeString('ko-KR', {
+          hour: '2-digit',
+          minute: '2-digit',
+        })
+      : '';
 
-  return (
-    <div className={`flex items-start gap-3 px-4 py-3 ${isUser ? 'flex-row-reverse' : ''}`}>
-      {/* 아바타 */}
+    return (
       <div
-        className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
-          isUser
-            ? 'bg-blue-600 text-white'
-            : 'bg-gradient-to-br from-purple-500 to-blue-600 text-white'
-        }`}
+        className={`flex items-start gap-3 px-4 py-3 ${isUser ? 'flex-row-reverse animate-slide-in-right' : 'animate-slide-in-left'}`}
       >
-        {isUser ? '나' : 'AI'}
-      </div>
-
-      {/* 메시지 본문 */}
-      <div className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}>
+        {/* 아바타 */}
         <div
-          className={`rounded-2xl px-4 py-2.5 text-sm ${
+          className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-sm font-medium ${
             isUser
-              ? 'bg-blue-600 text-white rounded-tr-sm'
-              : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+              ? 'bg-blue-600 text-white'
+              : 'bg-gradient-to-br from-purple-500 to-blue-600 text-white'
           }`}
         >
-          {isUser ? (
-            <p className="whitespace-pre-wrap break-words">{message.content}</p>
-          ) : (
-            <div className="prose prose-sm max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
-              <ReactMarkdown remarkPlugins={[remarkGfm]} components={markdownComponents}>
-                {message.content || ''}
-              </ReactMarkdown>
-            </div>
-          )}
-
-          {/* 생성된 이미지 표시 */}
-          {message.image_url && (
-            <div className="mt-2">
-              <img
-                src={message.image_url}
-                alt="생성된 이미지"
-                className="max-w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                onClick={() => window.open(message.image_url, '_blank')}
-              />
-            </div>
-          )}
-
-          {/* 파일 첨부 */}
-          <FileAttachments files={message.files} />
+          {isUser ? '나' : 'AI'}
         </div>
 
-        {/* 시간 + TTS 버튼 */}
-        <div className={`flex items-center gap-2 mt-1 ${isUser ? 'flex-row-reverse' : ''}`}>
-          {timeStr && (
-            <span className="text-xs text-gray-400">{timeStr}</span>
-          )}
-          {!isUser && ttsEnabled && onSpeak && message.content?.trim() && (
-            <TtsButton text={message.content} onSpeak={onSpeak} />
-          )}
+        {/* 메시지 본문 */}
+        <div
+          className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}
+        >
+          <div
+            className={`rounded-2xl px-4 py-2.5 text-sm ${
+              isUser
+                ? 'bg-blue-600 text-white rounded-tr-sm'
+                : 'bg-gray-100 text-gray-800 rounded-tl-sm'
+            }`}
+          >
+            {isUser ? (
+              <p className="whitespace-pre-wrap break-words">{message.content}</p>
+            ) : (
+              <div className="prose prose-sm max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+                <MemoizedMarkdown content={message.content} />
+              </div>
+            )}
+
+            {/* 생성된 이미지 표시 */}
+            {message.image_url && (
+              <div className="mt-2">
+                <img
+                  src={message.image_url}
+                  alt="생성된 이미지"
+                  className="max-w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
+                  onClick={() => window.open(message.image_url, '_blank')}
+                />
+              </div>
+            )}
+
+            {/* 파일 첨부 */}
+            <FileAttachments files={message.files} />
+          </div>
+
+          {/* 시간 + TTS 버튼 */}
+          <div className={`flex items-center gap-2 mt-1 ${isUser ? 'flex-row-reverse' : ''}`}>
+            {timeStr && <span className="text-xs text-gray-400">{timeStr}</span>}
+            {!isUser && ttsEnabled && onSpeak && message.content?.trim() && (
+              <TtsButton text={message.content} onSpeak={onSpeak} />
+            )}
+          </div>
         </div>
       </div>
-    </div>
-  );
-}
+    );
+  },
+  function areEqual(prevProps, nextProps) {
+    return (
+      prevProps.message.id === nextProps.message.id &&
+      prevProps.message.content === nextProps.message.content &&
+      prevProps.message.role === nextProps.message.role &&
+      prevProps.ttsEnabled === nextProps.ttsEnabled &&
+      prevProps.onSpeak === nextProps.onSpeak
+    );
+  },
+);
 
-export default function MessageList({ messages = [], isStreaming = false, streamingContent = '', ttsEnabled = false, onSpeak }) {
+export default function MessageList({
+  messages = [],
+  isStreaming = false,
+  streamingContent = '',
+  ttsEnabled = false,
+  onSpeak,
+}) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -296,8 +396,13 @@ export default function MessageList({ messages = [], isStreaming = false, stream
   return (
     <div ref={containerRef} className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto py-4">
-        {messages.map((msg) => (
-          <MessageBubble key={msg.id || msg.temp_id || Math.random()} message={msg} ttsEnabled={ttsEnabled} onSpeak={onSpeak} />
+        {messages.map((msg, index) => (
+          <MessageBubble
+            key={msg.id || msg.temp_id || `msg-${index}`}
+            message={msg}
+            ttsEnabled={ttsEnabled}
+            onSpeak={onSpeak}
+          />
         ))}
 
         {/* 스트리밍 중인 응답 */}

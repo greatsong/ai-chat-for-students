@@ -141,89 +141,107 @@ export async function apiUploadFile(file) {
 }
 
 /**
+ * SSE 버퍼에서 완성된 data 라인을 파싱하여 콜백 호출
+ * @param {string} raw - 파싱할 텍스트
+ * @param {function} onChunk - 콜백
+ * @returns {string} 누적된 텍스트 content
+ */
+function parseSSELines(raw, onChunk) {
+  let text = '';
+  const lines = raw.split('\n');
+  for (const line of lines) {
+    if (!line.startsWith('data: ')) continue;
+    try {
+      const parsed = JSON.parse(line.slice(6));
+      if (parsed.type === 'text') {
+        text += parsed.content;
+      }
+      onChunk(parsed);
+    } catch {
+      // JSON 파싱 실패 시 무시
+    }
+  }
+  return text;
+}
+
+/**
  * POST 요청 + SSE 스트리밍 응답 처리
  * @param {string} path - API 경로
  * @param {object} body - 요청 본문
  * @param {function} onChunk - 각 SSE 이벤트에 대한 콜백 ({type, content, usage, message, conversationId})
+ * @param {object} [options] - 추가 옵션
+ * @param {number} [options.timeoutMs=30000] - 요청 타임아웃 (ms)
+ * @param {function} [options.onError] - 스트림 에러 복구 콜백
  * @returns {Promise<string>} 전체 누적 텍스트
  */
-export async function apiStreamPost(path, body, onChunk) {
-  const response = await fetch(`${API_BASE}${path}`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      ...getAuthHeaders(),
-    },
-    body: JSON.stringify(body),
-  });
+export async function apiStreamPost(path, body, onChunk, options = {}) {
+  const { timeoutMs = 30000, onError } = options;
 
-  if (response.status === 401) {
-    handleUnauthorized();
-    throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
-  }
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `요청 실패 (${response.status})`);
-  }
+  let reader;
+  try {
+    const response = await fetch(`${API_BASE}${path}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...getAuthHeaders(),
+      },
+      body: JSON.stringify(body),
+      signal: controller.signal,
+    });
 
-  const reader = response.body.getReader();
-  const decoder = new TextDecoder();
-  let fullText = '';
-  let buffer = '';
+    clearTimeout(timeoutId);
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
+    if (response.status === 401) {
+      handleUnauthorized();
+      throw new Error('인증이 만료되었습니다. 다시 로그인해주세요.');
+    }
 
-    buffer += decoder.decode(value, { stream: true });
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.error || `요청 실패 (${response.status})`);
+    }
 
-    // SSE 이벤트 파싱: "data: {...}\n\n"
-    const lines = buffer.split('\n');
-    buffer = '';
+    reader = response.body.getReader();
+    const decoder = new TextDecoder();
+    let fullText = '';
+    let buffer = '';
 
-    for (let i = 0; i < lines.length; i++) {
-      const line = lines[i];
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
 
-      // 마지막 줄이 완전하지 않을 수 있음
-      if (i === lines.length - 1 && !buffer.endsWith('\n')) {
-        buffer = line;
-        continue;
-      }
+      buffer += decoder.decode(value, { stream: true });
 
-      if (!line.startsWith('data: ')) continue;
+      // 완성된 이벤트 블록(\n\n)까지만 파싱, 나머지는 버퍼에 유지
+      const lastDoubleNewline = buffer.lastIndexOf('\n\n');
+      if (lastDoubleNewline === -1) continue;
 
+      const complete = buffer.slice(0, lastDoubleNewline);
+      buffer = buffer.slice(lastDoubleNewline + 2);
+
+      fullText += parseSSELines(complete, onChunk);
+    }
+
+    // 남은 버퍼 처리
+    if (buffer.trim()) {
+      fullText += parseSSELines(buffer, onChunk);
+    }
+
+    return fullText;
+  } catch (error) {
+    clearTimeout(timeoutId);
+    // 스트림 리더 정리
+    if (reader) {
       try {
-        const jsonStr = line.slice(6); // "data: " 제거
-        const parsed = JSON.parse(jsonStr);
-
-        if (parsed.type === 'text') {
-          fullText += parsed.content;
-        }
-
-        onChunk(parsed);
+        reader.cancel();
       } catch {
-        // JSON 파싱 실패 시 무시
+        // 이미 닫힌 경우 무시
       }
     }
+    if (onError) onError(error);
+    throw error;
   }
-
-  // 남은 버퍼 처리
-  if (buffer) {
-    const remainingLines = buffer.split('\n');
-    for (const line of remainingLines) {
-      if (!line.startsWith('data: ')) continue;
-      try {
-        const parsed = JSON.parse(line.slice(6));
-        if (parsed.type === 'text') {
-          fullText += parsed.content;
-        }
-        onChunk(parsed);
-      } catch {
-        // 무시
-      }
-    }
-  }
-
-  return fullText;
 }
