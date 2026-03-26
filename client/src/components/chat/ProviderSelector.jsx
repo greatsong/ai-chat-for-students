@@ -74,6 +74,8 @@ export default function ProviderSelector({
   onProviderChange,
   onModelChange,
   enabledProviders,
+  enabledModels,
+  availableModels,
 }) {
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const dropdownRef = useRef(null);
@@ -83,8 +85,34 @@ export default function ProviderSelector({
     ([key]) => !enabledProviders || enabledProviders.length === 0 || enabledProviders.includes(key)
   );
 
+  // 현재 프로바이더의 모델 목록 (커스텀 모델 + 활성화 필터 적용)
   const currentProvider = PROVIDERS[selectedProvider];
-  const currentModel = currentProvider?.models?.find((m) => m.id === selectedModel) || currentProvider?.models?.[0];
+  const getProviderModels = (providerKey) => {
+    const provider = PROVIDERS[providerKey];
+    if (!provider) return [];
+    const defaultModels = provider.models;
+    const customModelIds = availableModels?.[providerKey] || [];
+    const enabledModelIds = enabledModels?.[providerKey];
+
+    // 기본 모델 + 커스텀 모델 합치기 (중복 제거)
+    const allModelIds = new Set(defaultModels.map((m) => m.id));
+    const allModels = [...defaultModels];
+    for (const id of customModelIds) {
+      if (!allModelIds.has(id)) {
+        allModels.push({ id, name: id, tier: 'custom' });
+        allModelIds.add(id);
+      }
+    }
+
+    // enabledModels가 설정되어 있으면 필터, 없으면 전부 표시
+    if (enabledModelIds && enabledModelIds.length > 0) {
+      return allModels.filter((m) => enabledModelIds.includes(m.id));
+    }
+    return allModels;
+  };
+
+  const currentModels = getProviderModels(selectedProvider);
+  const currentModel = currentModels.find((m) => m.id === selectedModel) || currentModels[0];
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {
@@ -109,7 +137,8 @@ export default function ProviderSelector({
               key={key}
               onClick={() => {
                 onProviderChange?.(key);
-                const defaultModel = provider.models[0]?.id;
+                const models = getProviderModels(key);
+                const defaultModel = models[0]?.id;
                 if (defaultModel) onModelChange?.(defaultModel);
               }}
               className={`
@@ -140,9 +169,9 @@ export default function ProviderSelector({
             </svg>
           </button>
 
-          {showModelDropdown && currentProvider?.models && (
+          {showModelDropdown && currentModels.length > 0 && (
             <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-lg shadow-lg z-50 py-1">
-              {currentProvider.models.map((model) => (
+              {currentModels.map((model) => (
                 <button
                   key={model.id}
                   onClick={() => {

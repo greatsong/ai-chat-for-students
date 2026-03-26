@@ -16,31 +16,37 @@ export default function AuthGuard({ children, requireTeacher = false }) {
     checkAuth();
   }, [checkAuth]);
 
-  // 로딩 중
+  // 로딩 중 — 우주 컨셉
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <svg
-            className="mx-auto h-8 w-8 animate-spin text-indigo-500"
-            viewBox="0 0 24 24"
-            fill="none"
-          >
-            <circle
-              className="opacity-25"
-              cx="12"
-              cy="12"
-              r="10"
-              stroke="currentColor"
-              strokeWidth="4"
+      <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-indigo-950 to-gray-900 relative overflow-hidden">
+        {/* 별 배경 */}
+        <div className="absolute inset-0">
+          {[...Array(20)].map((_, i) => (
+            <div
+              key={i}
+              className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
+              style={{
+                top: `${Math.sin(i * 7.3) * 50 + 50}%`,
+                left: `${Math.cos(i * 5.1) * 50 + 50}%`,
+                animationDelay: `${(i * 0.2) % 2}s`,
+                opacity: 0.3 + (i % 5) * 0.15,
+              }}
             />
-            <path
-              className="opacity-75"
-              fill="currentColor"
-              d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"
-            />
-          </svg>
-          <p className="mt-3 text-sm text-gray-500">인증 확인 중...</p>
+          ))}
+        </div>
+        <div className="text-center relative z-10">
+          <div className="text-5xl animate-bounce mb-4">&#x1F680;</div>
+          <p className="text-sm text-indigo-200 tracking-widest">우주최강 당곡고 접속 중...</p>
+          <div className="mt-3 flex justify-center gap-1">
+            {[0, 1, 2].map((i) => (
+              <div
+                key={i}
+                className="w-2 h-2 bg-indigo-400 rounded-full animate-bounce"
+                style={{ animationDelay: `${i * 0.15}s` }}
+              />
+            ))}
+          </div>
         </div>
       </div>
     );

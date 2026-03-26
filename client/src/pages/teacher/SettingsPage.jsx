@@ -2,44 +2,68 @@ import { useEffect, useState } from "react";
 import useTeacherStore from "../../stores/teacherStore";
 import { apiGet, apiPut } from "../../lib/api";
 
-const API_KEY_PROVIDERS = [
-  { id: "anthropic", name: "Anthropic (Claude)", placeholder: "sk-ant-api03-..." },
-  { id: "google", name: "Google (Gemini)", placeholder: "AIzaSy..." },
-  { id: "openai", name: "OpenAI (ChatGPT)", placeholder: "sk-proj-..." },
-  { id: "upstage", name: "Upstage (Solar)", placeholder: "up_..." },
+// 프로바이더 통합 설정 (토글 ID + API 키 ID 매핑)
+const PROVIDERS = [
+  {
+    id: "claude", apiKeyId: "anthropic",
+    name: "Claude", company: "Anthropic",
+    placeholder: "sk-ant-api03-...",
+    defaultModels: ["claude-sonnet-4-6", "claude-haiku-4"],
+    color: "orange",
+  },
+  {
+    id: "gemini", apiKeyId: "google",
+    name: "Gemini", company: "Google",
+    placeholder: "AIzaSy...",
+    defaultModels: ["gemini-3-flash-preview", "gemini-2.5-pro-preview-06-05"],
+    color: "blue",
+  },
+  {
+    id: "openai", apiKeyId: "openai",
+    name: "ChatGPT", company: "OpenAI",
+    placeholder: "sk-proj-...",
+    defaultModels: ["gpt-5.4", "gpt-4.1-mini"],
+    color: "green",
+  },
+  {
+    id: "solar", apiKeyId: "upstage",
+    name: "Solar", company: "Upstage",
+    placeholder: "up_...",
+    defaultModels: ["solar-pro3"],
+    color: "purple",
+  },
 ];
 
-const ALL_PROVIDERS = [
-  { id: "claude", name: "Claude (Anthropic)", models: ["claude-sonnet-4-6", "claude-haiku-4"] },
-  { id: "gemini", name: "Gemini (Google)", models: ["gemini-3-flash-preview", "gemini-2.5-pro-preview-06-05"] },
-  { id: "openai", name: "OpenAI", models: ["gpt-5.4", "gpt-4.1-mini"] },
-  { id: "solar", name: "Solar (Upstage)", models: ["solar-pro3"] },
-];
+const COLOR_MAP = {
+  orange: { border: "border-orange-200", bg: "bg-orange-50/40", badge: "bg-orange-100 text-orange-700", dot: "bg-orange-500" },
+  blue: { border: "border-blue-200", bg: "bg-blue-50/40", badge: "bg-blue-100 text-blue-700", dot: "bg-blue-500" },
+  green: { border: "border-green-200", bg: "bg-green-50/40", badge: "bg-green-100 text-green-700", dot: "bg-green-500" },
+  purple: { border: "border-purple-200", bg: "bg-purple-50/40", badge: "bg-purple-100 text-purple-700", dot: "bg-purple-500" },
+};
 
 export default function SettingsPage() {
   const { settings, isLoading, loadSettings, updateSettings } = useTeacherStore();
 
-  // 로컬 상태 (수정 중)
   const [enabledProviders, setEnabledProviders] = useState([]);
   const [enabledModels, setEnabledModels] = useState({});
+  const [availableModels, setAvailableModels] = useState({});
   const [imageGenEnabled, setImageGenEnabled] = useState(false);
   const [systemPrompt, setSystemPrompt] = useState("");
   const [dailyLimit, setDailyLimit] = useState(100000);
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
-  // API 키 관리 상태
+  // API 키
   const [apiKeyStatus, setApiKeyStatus] = useState(null);
   const [apiKeyInputs, setApiKeyInputs] = useState({});
   const [apiKeySaving, setApiKeySaving] = useState({});
   const [apiKeySuccess, setApiKeySuccess] = useState({});
 
-  useEffect(() => {
-    loadSettings();
-    loadApiKeyStatus();
-  }, [loadSettings]);
+  // 모델 추가 입력
+  const [newModelInputs, setNewModelInputs] = useState({});
 
-  // 설정 로드 시 로컬 상태 동기화
+  useEffect(() => { loadSettings(); loadApiKeyStatus(); }, [loadSettings]);
+
   useEffect(() => {
     if (!settings) return;
     setEnabledProviders(settings.enabled_providers || []);
@@ -47,40 +71,56 @@ export default function SettingsPage() {
     setImageGenEnabled(settings.image_generation_enabled || false);
     setSystemPrompt(settings.system_prompt || "");
     setDailyLimit(settings.default_daily_limit || 100000);
+
+    // available_models: DB 저장값 또는 기본값
+    const saved = settings.available_models || {};
+    const merged = {};
+    for (const p of PROVIDERS) {
+      const defaults = p.defaultModels;
+      const custom = saved[p.id] || [];
+      // 기본 모델 + 커스텀 모델 합치되 중복 제거
+      merged[p.id] = [...new Set([...defaults, ...custom])];
+    }
+    setAvailableModels(merged);
   }, [settings]);
 
   const loadApiKeyStatus = async () => {
-    try {
-      const data = await apiGet("/teacher/api-keys");
-      setApiKeyStatus(data);
-    } catch {
-      // 권한 없거나 에러 시 무시
-    }
+    try { setApiKeyStatus(await apiGet("/teacher/api-keys")); } catch { /* 무시 */ }
   };
 
-  const handleSaveApiKey = async (providerId) => {
-    const key = apiKeyInputs[providerId];
-    setApiKeySaving((prev) => ({ ...prev, [providerId]: true }));
+  const handleSaveApiKey = async (apiKeyId) => {
+    const key = apiKeyInputs[apiKeyId];
+    setApiKeySaving((p) => ({ ...p, [apiKeyId]: true }));
     try {
-      await apiPut("/teacher/api-keys", { provider: providerId, apiKey: key || "" });
-      setApiKeySuccess((prev) => ({ ...prev, [providerId]: true }));
-      setApiKeyInputs((prev) => ({ ...prev, [providerId]: "" }));
+      await apiPut("/teacher/api-keys", { provider: apiKeyId, apiKey: key || "" });
+      setApiKeySuccess((p) => ({ ...p, [apiKeyId]: true }));
+      setApiKeyInputs((p) => ({ ...p, [apiKeyId]: "" }));
       await loadApiKeyStatus();
-      setTimeout(() => setApiKeySuccess((prev) => ({ ...prev, [providerId]: false })), 3000);
+      setTimeout(() => setApiKeySuccess((p) => ({ ...p, [apiKeyId]: false })), 3000);
     } catch (err) {
       alert("API 키 저장 실패: " + err.message);
     } finally {
-      setApiKeySaving((prev) => ({ ...prev, [providerId]: false }));
+      setApiKeySaving((p) => ({ ...p, [apiKeyId]: false }));
     }
   };
 
-  const handleToggleProvider = (providerId) => {
-    setEnabledProviders((prev) => {
-      if (prev.includes(providerId)) {
-        return prev.filter((p) => p !== providerId);
-      }
-      return [...prev, providerId];
-    });
+  const handleResetApiKey = async (apiKeyId) => {
+    if (!confirm("이 API 키를 삭제하고 환경변수로 되돌리시겠습니까?")) return;
+    setApiKeySaving((p) => ({ ...p, [apiKeyId]: true }));
+    try {
+      await apiPut("/teacher/api-keys", { provider: apiKeyId, apiKey: "" });
+      await loadApiKeyStatus();
+    } catch (err) {
+      alert("초기화 실패: " + err.message);
+    } finally {
+      setApiKeySaving((p) => ({ ...p, [apiKeyId]: false }));
+    }
+  };
+
+  const handleToggleProvider = (id) => {
+    setEnabledProviders((prev) =>
+      prev.includes(id) ? prev.filter((p) => p !== id) : [...prev, id]
+    );
   };
 
   const handleToggleModel = (providerId, modelId) => {
@@ -93,12 +133,49 @@ export default function SettingsPage() {
     });
   };
 
+  const handleAddModel = (providerId) => {
+    const modelId = (newModelInputs[providerId] || "").trim();
+    if (!modelId) return;
+    if ((availableModels[providerId] || []).includes(modelId)) {
+      alert("이미 등록된 모델입니다.");
+      return;
+    }
+    setAvailableModels((prev) => ({
+      ...prev,
+      [providerId]: [...(prev[providerId] || []), modelId],
+    }));
+    // 새 모델은 자동으로 활성화
+    setEnabledModels((prev) => ({
+      ...prev,
+      [providerId]: [...(prev[providerId] || []), modelId],
+    }));
+    setNewModelInputs((prev) => ({ ...prev, [providerId]: "" }));
+  };
+
+  const handleRemoveModel = (providerId, modelId) => {
+    const provider = PROVIDERS.find((p) => p.id === providerId);
+    if (provider?.defaultModels.includes(modelId)) {
+      alert("기본 모델은 삭제할 수 없습니다. 비활성화만 가능합니다.");
+      return;
+    }
+    if (!confirm(`"${modelId}" 모델을 삭제하시겠습니까?`)) return;
+    setAvailableModels((prev) => ({
+      ...prev,
+      [providerId]: (prev[providerId] || []).filter((m) => m !== modelId),
+    }));
+    setEnabledModels((prev) => ({
+      ...prev,
+      [providerId]: (prev[providerId] || []).filter((m) => m !== modelId),
+    }));
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setSaveSuccess(false);
     try {
       await updateSettings("enabled_providers", enabledProviders);
       await updateSettings("enabled_models", enabledModels);
+      await updateSettings("available_models", availableModels);
       await updateSettings("image_generation_enabled", imageGenEnabled);
       await updateSettings("system_prompt", systemPrompt);
       await updateSettings("default_daily_limit", dailyLimit);
@@ -123,72 +200,154 @@ export default function SettingsPage() {
     <div className="max-w-3xl">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">설정</h1>
 
-      <div className="space-y-6">
-        {/* 프로바이더 설정 */}
-        <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">프로바이더 설정</h2>
+      <div className="space-y-5">
+        {/* ── 프로바이더 통합 카드 ── */}
+        <section>
+          <h2 className="text-base font-semibold text-gray-800 mb-1">AI 프로바이더 관리</h2>
           <p className="text-xs text-gray-400 mb-4">
-            학생들이 사용할 수 있는 AI 프로바이더와 모델을 선택합니다.
+            프로바이더별 활성화, 모델 관리, API 키를 한곳에서 설정합니다.
           </p>
 
           <div className="space-y-4">
-            {ALL_PROVIDERS.map((provider) => {
+            {PROVIDERS.map((provider) => {
               const isEnabled = enabledProviders.includes(provider.id);
+              const colors = COLOR_MAP[provider.color];
+              const dbKey = apiKeyStatus?.dbKeys?.[provider.apiKeyId] || "";
+              const envStatus = apiKeyStatus?.envStatus?.[provider.apiKeyId] || "미설정";
+              const models = availableModels[provider.id] || provider.defaultModels;
+              const hasKey = dbKey || envStatus === "환경변수 설정됨";
+
               return (
                 <div
                   key={provider.id}
-                  className={`rounded-lg border p-4 transition-colors ${
-                    isEnabled ? "border-blue-200 bg-blue-50/30" : "border-gray-100 bg-gray-50/50"
+                  className={`rounded-xl border-2 transition-all ${
+                    isEnabled ? `${colors.border} ${colors.bg}` : "border-gray-200 bg-gray-50/50 opacity-75"
                   }`}
                 >
-                  {/* 프로바이더 토글 */}
-                  <label className="flex items-center gap-3 cursor-pointer">
-                    <div className="relative">
-                      <input
-                        type="checkbox"
-                        checked={isEnabled}
-                        onChange={() => handleToggleProvider(provider.id)}
-                        className="sr-only"
-                      />
-                      <div
-                        className={`w-10 h-5 rounded-full transition-colors ${
-                          isEnabled ? "bg-blue-600" : "bg-gray-300"
-                        }`}
-                      >
-                        <div
-                          className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${
-                            isEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"
-                          }`}
+                  {/* 헤더: 토글 + 이름 + API 키 상태 */}
+                  <div className="flex items-center justify-between p-4 pb-0">
+                    <label className="flex items-center gap-3 cursor-pointer">
+                      <div className="relative">
+                        <input
+                          type="checkbox"
+                          checked={isEnabled}
+                          onChange={() => handleToggleProvider(provider.id)}
+                          className="sr-only"
                         />
+                        <div className={`w-10 h-5 rounded-full transition-colors ${isEnabled ? "bg-blue-600" : "bg-gray-300"}`}>
+                          <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${isEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"}`} />
+                        </div>
                       </div>
+                      <div>
+                        <span className="text-sm font-bold text-gray-800">{provider.name}</span>
+                        <span className="text-xs text-gray-400 ml-1.5">{provider.company}</span>
+                      </div>
+                    </label>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-xs px-2 py-0.5 rounded-full ${
+                        dbKey ? "bg-green-100 text-green-700" : envStatus === "환경변수 설정됨" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                      }`}>
+                        {dbKey ? "DB 키" : envStatus === "환경변수 설정됨" ? "환경변수" : "키 없음"}
+                      </span>
                     </div>
-                    <span className="text-sm font-medium text-gray-700">{provider.name}</span>
-                  </label>
+                  </div>
 
-                  {/* 모델 선택 */}
+                  {/* 본문: 모델 + API 키 (활성화된 경우만 펼침) */}
                   {isEnabled && (
-                    <div className="mt-3 ml-13 flex flex-wrap gap-2">
-                      {provider.models.map((model) => {
-                        const modelEnabled = (enabledModels[provider.id] || []).includes(model);
-                        return (
-                          <label
-                            key={model}
-                            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium cursor-pointer border transition-colors ${
-                              modelEnabled
-                                ? "bg-blue-100 border-blue-200 text-blue-700"
-                                : "bg-white border-gray-200 text-gray-500 hover:border-gray-300"
-                            }`}
+                    <div className="p-4 pt-3 space-y-3">
+                      {/* 모델 관리 */}
+                      <div>
+                        <div className="text-xs font-medium text-gray-500 mb-2">모델</div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {models.map((model) => {
+                            const modelEnabled = (enabledModels[provider.id] || []).includes(model);
+                            const isDefault = provider.defaultModels.includes(model);
+                            return (
+                              <div key={model} className="group relative">
+                                <label
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer border transition-colors ${
+                                    modelEnabled
+                                      ? `${colors.badge} ${colors.border}`
+                                      : "bg-white border-gray-200 text-gray-400 hover:border-gray-300"
+                                  }`}
+                                >
+                                  <input
+                                    type="checkbox"
+                                    checked={modelEnabled}
+                                    onChange={() => handleToggleModel(provider.id, model)}
+                                    className="w-3 h-3 rounded accent-blue-600"
+                                  />
+                                  {model}
+                                </label>
+                                {!isDefault && (
+                                  <button
+                                    onClick={() => handleRemoveModel(provider.id, model)}
+                                    className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs leading-none hidden group-hover:flex items-center justify-center"
+                                    title="모델 삭제"
+                                  >
+                                    &times;
+                                  </button>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                        {/* 모델 추가 */}
+                        <div className="flex gap-2 mt-2">
+                          <input
+                            type="text"
+                            value={newModelInputs[provider.id] || ""}
+                            onChange={(e) => setNewModelInputs((p) => ({ ...p, [provider.id]: e.target.value }))}
+                            onKeyDown={(e) => e.key === "Enter" && handleAddModel(provider.id)}
+                            placeholder="새 모델 ID 입력..."
+                            className="flex-1 px-2.5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                          />
+                          <button
+                            onClick={() => handleAddModel(provider.id)}
+                            className="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap"
                           >
-                            <input
-                              type="checkbox"
-                              checked={modelEnabled}
-                              onChange={() => handleToggleModel(provider.id, model)}
-                              className="w-3 h-3 rounded accent-blue-600"
-                            />
-                            {model}
-                          </label>
-                        );
-                      })}
+                            + 추가
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* API 키 */}
+                      <div className="border-t border-gray-200/60 pt-3">
+                        <div className="text-xs font-medium text-gray-500 mb-2">API 키</div>
+                        {dbKey && (
+                          <div className="text-xs text-gray-400 mb-1.5 font-mono">{dbKey}</div>
+                        )}
+                        {!hasKey && (
+                          <div className="text-xs text-red-500 mb-1.5">API 키가 설정되지 않았습니다. 이 프로바이더를 사용하려면 키가 필요합니다.</div>
+                        )}
+                        <div className="flex gap-2">
+                          <input
+                            type="password"
+                            value={apiKeyInputs[provider.apiKeyId] || ""}
+                            onChange={(e) => setApiKeyInputs((p) => ({ ...p, [provider.apiKeyId]: e.target.value }))}
+                            placeholder={provider.placeholder}
+                            className="flex-1 px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                          />
+                          <button
+                            onClick={() => handleSaveApiKey(provider.apiKeyId)}
+                            disabled={apiKeySaving[provider.apiKeyId]}
+                            className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors"
+                          >
+                            {apiKeySaving[provider.apiKeyId] ? "..." : "저장"}
+                          </button>
+                          {dbKey && (
+                            <button
+                              onClick={() => handleResetApiKey(provider.apiKeyId)}
+                              className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+                            >
+                              초기화
+                            </button>
+                          )}
+                        </div>
+                        {apiKeySuccess[provider.apiKeyId] && (
+                          <div className="mt-1 text-xs text-green-600">저장되었습니다.</div>
+                        )}
+                      </div>
                     </div>
                   )}
                 </div>
@@ -197,71 +356,44 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* 이미지 생성 */}
+        {/* ── 이미지 생성 ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">이미지 생성</h2>
-          <p className="text-xs text-gray-400 mb-4">
-            AI 이미지 생성 기능을 활성화/비활성화합니다.
-          </p>
-
+          <p className="text-xs text-gray-400 mb-4">AI 이미지 생성 기능을 활성화/비활성화합니다.</p>
           <label className="flex items-center gap-3 cursor-pointer">
             <div className="relative">
-              <input
-                type="checkbox"
-                checked={imageGenEnabled}
-                onChange={(e) => setImageGenEnabled(e.target.checked)}
-                className="sr-only"
-              />
-              <div
-                className={`w-10 h-5 rounded-full transition-colors ${
-                  imageGenEnabled ? "bg-blue-600" : "bg-gray-300"
-                }`}
-              >
-                <div
-                  className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${
-                    imageGenEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"
-                  }`}
-                />
+              <input type="checkbox" checked={imageGenEnabled} onChange={(e) => setImageGenEnabled(e.target.checked)} className="sr-only" />
+              <div className={`w-10 h-5 rounded-full transition-colors ${imageGenEnabled ? "bg-blue-600" : "bg-gray-300"}`}>
+                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${imageGenEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"}`} />
               </div>
             </div>
             <span className="text-sm font-medium text-gray-700">이미지 생성 허용</span>
           </label>
-
           {imageGenEnabled && (
             <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-700">
-                이미지 생성은 추가 API 비용이 발생합니다. 학생당 사용량이 증가할 수 있으니 일일 한도를 적절히 설정해주세요.
-              </p>
+              <p className="text-xs text-yellow-700">이미지 생성은 추가 API 비용이 발생합니다.</p>
             </div>
           )}
         </section>
 
-        {/* 시스템 프롬프트 */}
+        {/* ── 시스템 프롬프트 ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">시스템 프롬프트</h2>
-          <p className="text-xs text-gray-400 mb-4">
-            모든 AI 대화에 적용될 시스템 프롬프트를 설정합니다. 비어있으면 기본 프롬프트가 사용됩니다.
-          </p>
-
+          <p className="text-xs text-gray-400 mb-4">모든 AI 대화에 적용될 시스템 프롬프트입니다. 비어있으면 기본 프롬프트가 사용됩니다.</p>
           <textarea
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
-            placeholder="예: 당신은 친절한 교육 도우미입니다. 학생들의 학습을 돕는 것이 목표입니다..."
-            rows={5}
+            placeholder="예: 당신은 친절한 교육 도우미입니다..."
+            rows={4}
             className="w-full px-4 py-3 text-sm border border-gray-200 rounded-lg resize-y focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
           />
-          <div className="text-right mt-1 text-xs text-gray-400">
-            {systemPrompt.length} / 2000자
-          </div>
+          <div className="text-right mt-1 text-xs text-gray-400">{systemPrompt.length} / 2000자</div>
         </section>
 
-        {/* 기본 일일 한도 */}
+        {/* ── 기본 일일 한도 ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">기본 일일 한도</h2>
-          <p className="text-xs text-gray-400 mb-4">
-            새로 등록하는 학생에게 적용될 기본 일일 토큰 한도입니다.
-          </p>
-
+          <p className="text-xs text-gray-400 mb-4">새로 등록하는 학생에게 적용될 기본 일일 토큰 한도입니다.</p>
           <div className="flex items-center gap-3">
             <input
               type="number"
@@ -274,99 +406,24 @@ export default function SettingsPage() {
             <span className="text-sm text-gray-500">토큰</span>
           </div>
           <div className="mt-2 text-xs text-gray-400">
-            {dailyLimit >= 1000
-              ? `약 ${(dailyLimit / 1000).toFixed(0)}K 토큰`
-              : `${dailyLimit} 토큰`}
-            {" "}(개별 학생의 한도는 학생 관리 페이지에서 변경 가능)
+            {dailyLimit >= 1000 ? `약 ${(dailyLimit / 1000).toFixed(0)}K 토큰` : `${dailyLimit} 토큰`}
+            {" "}(개별 학생의 한도는 학생 관리에서 변경 가능)
           </div>
         </section>
 
-        {/* API 키 관리 */}
-        <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">API 키 관리</h2>
-          <p className="text-xs text-gray-400 mb-4">
-            AI 프로바이더의 API 키를 설정합니다. 여기서 설정한 키가 환경변수보다 우선 적용됩니다.
-            비워두면 서버 환경변수의 키를 사용합니다.
-          </p>
-
-          <div className="space-y-3">
-            {API_KEY_PROVIDERS.map((provider) => {
-              const dbKey = apiKeyStatus?.dbKeys?.[provider.id] || "";
-              const envStatus = apiKeyStatus?.envStatus?.[provider.id] || "미설정";
-              return (
-                <div key={provider.id} className="rounded-lg border border-gray-100 p-4 bg-gray-50/50">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-gray-700">{provider.name}</span>
-                    <span className={`text-xs px-2 py-0.5 rounded-full ${
-                      dbKey ? "bg-green-100 text-green-700" : envStatus === "환경변수 설정됨" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
-                    }`}>
-                      {dbKey ? "DB 키 사용 중" : envStatus}
-                    </span>
-                  </div>
-                  {dbKey && (
-                    <div className="text-xs text-gray-400 mb-2 font-mono">{dbKey}</div>
-                  )}
-                  <div className="flex gap-2">
-                    <input
-                      type="password"
-                      value={apiKeyInputs[provider.id] || ""}
-                      onChange={(e) => setApiKeyInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))}
-                      placeholder={provider.placeholder}
-                      className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
-                    />
-                    <button
-                      onClick={() => handleSaveApiKey(provider.id)}
-                      disabled={apiKeySaving[provider.id]}
-                      className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors whitespace-nowrap"
-                    >
-                      {apiKeySaving[provider.id] ? "..." : "저장"}
-                    </button>
-                    {dbKey && (
-                      <button
-                        onClick={async () => {
-                          if (!confirm("이 API 키를 삭제하고 환경변수로 되돌리시겠습니까?")) return;
-                          setApiKeySaving((prev) => ({ ...prev, [provider.id]: true }));
-                          try {
-                            await apiPut("/teacher/api-keys", { provider: provider.id, apiKey: "" });
-                            await loadApiKeyStatus();
-                          } catch (err) {
-                            alert("초기화 실패: " + err.message);
-                          } finally {
-                            setApiKeySaving((prev) => ({ ...prev, [provider.id]: false }));
-                          }
-                        }}
-                        className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
-                      >
-                        초기화
-                      </button>
-                    )}
-                  </div>
-                  {apiKeySuccess[provider.id] && (
-                    <div className="mt-1 text-xs text-green-600">저장되었습니다.</div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </section>
-
-        {/* 저장 버튼 */}
+        {/* ── 저장 버튼 ── */}
         <div className="flex items-center gap-4">
           <button
             onClick={handleSave}
             disabled={saving}
             className={`px-6 py-2.5 text-sm font-medium text-white rounded-lg transition-colors ${
-              saving
-                ? "bg-gray-400 cursor-not-allowed"
-                : "bg-blue-600 hover:bg-blue-700"
+              saving ? "bg-gray-400 cursor-not-allowed" : "bg-blue-600 hover:bg-blue-700"
             }`}
           >
             {saving ? "저장 중..." : "설정 저장"}
           </button>
           {saveSuccess && (
-            <span className="text-sm text-green-600 font-medium">
-              설정이 저장되었습니다.
-            </span>
+            <span className="text-sm text-green-600 font-medium">설정이 저장되었습니다.</span>
           )}
         </div>
       </div>

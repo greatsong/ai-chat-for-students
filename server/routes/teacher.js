@@ -1,6 +1,9 @@
 import { Router } from 'express';
 import { authenticate, requireTeacher, requireAdmin } from '../middleware/auth.js';
 import { queryAll, queryOne, run, getSetting, setSetting } from '../db/database.js';
+import { encrypt, decrypt, encryptApiKeys, decryptApiKeys } from '../utils/crypto.js';
+import { validate, studentUpdateSchema, apiKeyUpdateSchema, teacherEmailSchema, conversationsQuerySchema } from '../middleware/validate.js';
+import { auditLog } from '../utils/logger.js';
 
 const router = Router();
 
@@ -394,6 +397,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
     const validKeys = [
       'enabled_providers',
       'enabled_models',
+      'available_models',
       'image_generation_enabled',
       'system_prompt',
       'default_daily_limit',
@@ -457,6 +461,7 @@ router.delete('/conversations/:conversationId', requireAdmin, async (req, res) =
     await run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
     await run('DELETE FROM conversations WHERE id = ?', [conversationId]);
 
+    auditLog('CONVERSATION_DELETE', req.user.id, { conversationId, ownerId: conversation.user_id });
     res.json({ message: '대화가 삭제되었습니다.' });
   } catch (error) {
     console.error('대화 삭제 오류:', error);
@@ -485,15 +490,9 @@ router.get('/teachers', requireAdmin, async (req, res) => {
 // POST /api/teacher/teachers
 // 교사 이메일 추가 (관리자 전용)
 // ──────────────────────────────────────────
-router.post('/teachers', requireAdmin, async (req, res) => {
+router.post('/teachers', requireAdmin, validate(teacherEmailSchema), async (req, res) => {
   try {
-    const { email } = req.body;
-
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: '이메일 주소가 필요합니다.' });
-    }
-
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedEmail = req.body.email.trim().toLowerCase();
 
     // DB 교사 이메일 목록에 추가
     const dbEmails = (await getSetting('teacher_emails')) || [];
@@ -512,6 +511,7 @@ router.post('/teachers', requireAdmin, async (req, res) => {
       await run('UPDATE users SET role = ?, is_active = 1 WHERE id = ?', ['teacher', existingUser.id]);
     }
 
+    auditLog('TEACHER_ADD', req.user.id, { email: trimmedEmail });
     res.json({
       message: `${trimmedEmail} 교사로 등록되었습니다.`,
       dbEmails: emailList,
@@ -528,15 +528,9 @@ router.post('/teachers', requireAdmin, async (req, res) => {
 // 교사 이메일 삭제 (관리자 전용)
 // 환경변수 교사는 삭제 불가
 // ──────────────────────────────────────────
-router.delete('/teachers', requireAdmin, async (req, res) => {
+router.delete('/teachers', requireAdmin, validate(teacherEmailSchema), async (req, res) => {
   try {
-    const { email } = req.body;
-
-    if (!email || typeof email !== 'string') {
-      return res.status(400).json({ error: '이메일 주소가 필요합니다.' });
-    }
-
-    const trimmedEmail = email.trim().toLowerCase();
+    const trimmedEmail = req.body.email.trim().toLowerCase();
 
     // 환경변수 교사는 삭제 불가
     if (ENV_TEACHER_EMAILS.includes(trimmedEmail)) {
@@ -580,12 +574,17 @@ router.get('/api-keys', requireAdmin, async (req, res) => {
   try {
     const dbKeys = (await getSetting('api_keys')) || {};
 
-    // 키 값을 마스킹하여 반환 (앞 8자만 표시)
+    // 암호화된 키를 복호화 후 마스킹하여 반환 (앞 8자만 표시)
     const masked = {};
     for (const [provider, key] of Object.entries(dbKeys)) {
-      if (key && key.length > 8) {
-        masked[provider] = key.slice(0, 8) + '•'.repeat(Math.min(key.length - 8, 20));
-      } else {
+      try {
+        const decryptedKey = decrypt(key);
+        if (decryptedKey && decryptedKey.length > 8) {
+          masked[provider] = decryptedKey.slice(0, 8) + '•'.repeat(Math.min(decryptedKey.length - 8, 20));
+        } else {
+          masked[provider] = decryptedKey ? '••••••••' : '';
+        }
+      } catch {
         masked[provider] = key ? '••••••••' : '';
       }
     }
@@ -609,19 +608,15 @@ router.get('/api-keys', requireAdmin, async (req, res) => {
 // PUT /api/teacher/api-keys
 // API 키 설정 변경 (관리자 전용)
 // ──────────────────────────────────────────
-router.put('/api-keys', requireAdmin, async (req, res) => {
+router.put('/api-keys', requireAdmin, validate(apiKeyUpdateSchema), async (req, res) => {
   try {
     const { provider, apiKey } = req.body;
-
-    const validProviders = ['anthropic', 'google', 'openai', 'upstage'];
-    if (!validProviders.includes(provider)) {
-      return res.status(400).json({ error: `유효하지 않은 프로바이더: ${provider}` });
-    }
 
     const dbKeys = (await getSetting('api_keys')) || {};
 
     if (apiKey && apiKey.trim()) {
-      dbKeys[provider] = apiKey.trim();
+      // API 키를 AES-256-GCM으로 암호화하여 저장
+      dbKeys[provider] = encrypt(apiKey.trim());
     } else {
       // 빈 값이면 해당 키 삭제 → 환경변수로 fallback
       delete dbKeys[provider];
@@ -629,6 +624,7 @@ router.put('/api-keys', requireAdmin, async (req, res) => {
 
     await setSetting('api_keys', dbKeys);
 
+    auditLog('API_KEY_UPDATE', req.user.id, { provider, action: apiKey ? 'set' : 'delete' });
     res.json({ message: `${provider} API 키가 업데이트되었습니다.` });
   } catch (error) {
     console.error('API 키 변경 오류:', error);

@@ -113,6 +113,8 @@ export default function ChatPage() {
   const loadConversations = useSafeChatStore((s) => s.loadConversations);
 
   const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
+  const enabledModels = settings?.enabled_models || {};
+  const availableModels = settings?.available_models || {};
 
   // 인증 확인
   useEffect(() => {
@@ -227,6 +229,8 @@ export default function ChatPage() {
           onProviderChange={handleProviderChange}
           onModelChange={handleModelChange}
           enabledProviders={enabledProviders}
+          enabledModels={enabledModels}
+          availableModels={availableModels}
         />
 
         {/* 메시지 영역 또는 웰컴 스크린 */}
