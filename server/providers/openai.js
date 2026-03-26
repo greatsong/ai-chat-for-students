@@ -188,11 +188,13 @@ export async function transcribeAudio({ audioBuffer, mimeType }) {
   const openai = await getClient();
 
   const ext = mimeType?.includes('mp4') ? 'mp4' : 'webm';
-  const file = new File([audioBuffer], `recording.${ext}`, { type: mimeType || 'audio/webm' });
+  const blob = new Blob([audioBuffer], { type: mimeType || 'audio/webm' });
+  // OpenAI SDK는 name 속성이 있는 Blob을 File처럼 인식
+  blob.name = `recording.${ext}`;
 
   const transcription = await openai.audio.transcriptions.create({
     model: 'whisper-1',
-    file,
+    file: blob,
   });
 
   return { text: transcription.text };
