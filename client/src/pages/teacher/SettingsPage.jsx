@@ -558,7 +558,7 @@ export default function SettingsPage() {
         {/* ── 시스템 프롬프트 ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">시스템 프롬프트</h2>
-          <p className="text-xs text-gray-400 mb-4">모든 AI 대화에 적용될 시스템 프롬프트입니다. 비어있으면 기본 프롬프트가 사용됩니다.</p>
+          <p className="text-xs text-gray-400 mb-4">학생들의 모든 AI 대화에 적용될 시스템 프롬프트입니다. 비어있으면 기본 프롬프트가 사용됩니다.</p>
           <textarea
             value={systemPrompt}
             onChange={(e) => setSystemPrompt(e.target.value)}
