@@ -4,7 +4,8 @@ import { useState, useRef, useEffect } from 'react';
 // (shared 패키지가 빌드 타임에 resolve되지 않을 수 있으므로 인라인 폴백 사용)
 const PROVIDERS = {
   claude: {
-    name: 'Claude', company: 'Anthropic',
+    name: 'Claude',
+    company: 'Anthropic',
     models: [
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'standard' },
       { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', tier: 'advanced' },
@@ -12,7 +13,8 @@ const PROVIDERS = {
     features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: false },
   },
   gemini: {
-    name: 'Gemini', company: 'Google',
+    name: 'Gemini',
+    company: 'Google',
     models: [
       { id: 'gemini-3-flash-preview', name: 'Gemini 3 Flash', tier: 'standard' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tier: 'advanced' },
@@ -20,15 +22,17 @@ const PROVIDERS = {
     features: { vision: true, webSearch: true, codeExecution: true, imageGeneration: true },
   },
   openai: {
-    name: 'ChatGPT', company: 'OpenAI',
+    name: 'ChatGPT',
+    company: 'OpenAI',
     models: [
       { id: 'gpt-5.4', name: 'GPT-5.4', tier: 'standard' },
       { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', tier: 'advanced' },
     ],
-    features: { vision: true, webSearch: true, codeExecution: false, imageGeneration: true },
+    features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: true },
   },
   solar: {
-    name: 'Solar', company: 'Upstage',
+    name: 'Solar',
+    company: 'Upstage',
     models: [{ id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' }],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },
   },
@@ -36,32 +40,121 @@ const PROVIDERS = {
 
 // 프로바이더 아이콘 컬러
 const PROVIDER_COLORS = {
-  claude: { bg: 'bg-orange-100', text: 'text-orange-700', border: 'border-orange-400', activeBg: 'bg-orange-500' },
-  gemini: { bg: 'bg-blue-100', text: 'text-blue-700', border: 'border-blue-400', activeBg: 'bg-blue-500' },
-  openai: { bg: 'bg-green-100', text: 'text-green-700', border: 'border-green-400', activeBg: 'bg-green-500' },
-  solar: { bg: 'bg-purple-100', text: 'text-purple-700', border: 'border-purple-400', activeBg: 'bg-purple-500' },
+  claude: {
+    bg: 'bg-orange-100',
+    text: 'text-orange-700',
+    border: 'border-orange-400',
+    activeBg: 'bg-orange-500',
+  },
+  gemini: {
+    bg: 'bg-blue-100',
+    text: 'text-blue-700',
+    border: 'border-blue-400',
+    activeBg: 'bg-blue-500',
+  },
+  openai: {
+    bg: 'bg-green-100',
+    text: 'text-green-700',
+    border: 'border-green-400',
+    activeBg: 'bg-green-500',
+  },
+  solar: {
+    bg: 'bg-purple-100',
+    text: 'text-purple-700',
+    border: 'border-purple-400',
+    activeBg: 'bg-purple-500',
+  },
 };
 
-// 기능 뱃지
-function FeatureBadges({ features }) {
-  const badges = [];
-  if (features?.webSearch) badges.push({ icon: '🔍', label: '검색' });
-  if (features?.imageGeneration) badges.push({ icon: '🖼️', label: '이미지' });
-  if (features?.codeExecution) badges.push({ icon: '💻', label: '코드' });
-  if (features?.vision) badges.push({ icon: '👁️', label: '비전' });
+// 기능 뱃지 SVG 아이콘
+const featureIcons = {
+  webSearch: (
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z"
+      />
+    </svg>
+  ),
+  imageGeneration: (
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.25 15.75l5.159-5.159a2.25 2.25 0 013.182 0l5.159 5.159m-1.5-1.5l1.409-1.409a2.25 2.25 0 013.182 0l2.909 2.909M3.75 21h16.5A2.25 2.25 0 0022.5 18.75V5.25A2.25 2.25 0 0020.25 3H3.75A2.25 2.25 0 001.5 5.25v13.5A2.25 2.25 0 003.75 21z"
+      />
+    </svg>
+  ),
+  codeExecution: (
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M17.25 6.75L22.5 12l-5.25 5.25m-10.5 0L1.5 12l5.25-5.25m7.5-3l-4.5 16.5"
+      />
+    </svg>
+  ),
+  vision: (
+    <svg
+      className="w-3.5 h-3.5"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+      strokeWidth={2}
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        d="M2.036 12.322a1.012 1.012 0 010-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.963-7.178z"
+      />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+    </svg>
+  ),
+};
 
-  if (badges.length === 0) return null;
+const featureLabels = {
+  webSearch: '검색',
+  imageGeneration: '이미지',
+  codeExecution: '코드',
+  vision: '비전',
+};
+
+function FeatureBadges({ features }) {
+  const activeFeatures = ['webSearch', 'imageGeneration', 'codeExecution', 'vision'].filter(
+    (f) => features?.[f],
+  );
+
+  if (activeFeatures.length === 0) return null;
 
   return (
-    <div className="flex gap-1 mt-1">
-      {badges.map((b) => (
+    <div className="flex gap-1.5">
+      {activeFeatures.map((f) => (
         <span
-          key={b.label}
-          className="inline-flex items-center gap-0.5 px-1.5 py-0.5 text-xs bg-gray-100 text-gray-600 rounded-full"
-          title={b.label}
+          key={f}
+          className="inline-flex items-center gap-1 px-2 py-1 text-xs font-medium text-indigo-600 bg-indigo-50 rounded-md border border-indigo-100/60 transition-colors hover:bg-indigo-100/80"
+          title={featureLabels[f]}
         >
-          {b.icon}
-          <span className="hidden sm:inline">{b.label}</span>
+          {featureIcons[f]}
+          <span className="hidden sm:inline">{featureLabels[f]}</span>
         </span>
       ))}
     </div>
@@ -82,7 +175,7 @@ export default function ProviderSelector({
 
   // 활성화된 프로바이더 목록
   const availableProviders = Object.entries(PROVIDERS).filter(
-    ([key]) => !enabledProviders || enabledProviders.length === 0 || enabledProviders.includes(key)
+    ([key]) => !enabledProviders || enabledProviders.length === 0 || enabledProviders.includes(key),
   );
 
   // 현재 프로바이더의 모델 목록 (커스텀 모델 + 활성화 필터 적용)
@@ -143,13 +236,14 @@ export default function ProviderSelector({
               }}
               className={`
                 flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all whitespace-nowrap
-                ${isActive
-                  ? `${colors.activeBg} text-white shadow-sm`
-                  : `${colors.bg} ${colors.text} hover:opacity-80`
+                ${
+                  isActive
+                    ? `${colors.activeBg} text-white shadow-sm ring-1 ring-inset ring-white/20`
+                    : `bg-gray-50 text-gray-600 hover:bg-gray-100`
                 }
               `}
             >
-              <span className="text-base">{getProviderIcon(key)}</span>
+              {getProviderIcon(key)}
               <span>{provider.name}</span>
             </button>
           );
@@ -164,8 +258,18 @@ export default function ProviderSelector({
             className="flex items-center gap-2 px-3 py-1.5 text-sm text-gray-700 bg-gray-50 border border-gray-200 rounded-lg hover:bg-gray-100 transition-colors"
           >
             <span>{currentModel?.name || '모델 선택'}</span>
-            <svg className={`w-4 h-4 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            <svg
+              className={`w-4 h-4 transition-transform ${showModelDropdown ? 'rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M19 9l-7 7-7-7"
+              />
             </svg>
           </button>
 
@@ -180,16 +284,19 @@ export default function ProviderSelector({
                   }}
                   className={`
                     w-full text-left px-3 py-2 text-sm transition-colors
-                    ${model.id === selectedModel
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'text-gray-700 hover:bg-gray-50'
+                    ${
+                      model.id === selectedModel
+                        ? 'bg-blue-50 text-blue-700'
+                        : 'text-gray-700 hover:bg-gray-50'
                     }
                   `}
                 >
                   <div className="flex items-center justify-between">
                     <span>{model.name}</span>
                     {model.tier === 'advanced' && (
-                      <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">Pro</span>
+                      <span className="text-xs px-1.5 py-0.5 bg-amber-100 text-amber-700 rounded">
+                        Pro
+                      </span>
                     )}
                   </div>
                 </button>
@@ -205,13 +312,15 @@ export default function ProviderSelector({
 }
 
 function getProviderIcon(key) {
-  switch (key) {
-    case 'claude': return '🟠';
-    case 'gemini': return '🔵';
-    case 'openai': return '🟢';
-    case 'solar': return '🟣';
-    default: return '⚪';
-  }
+  const dotColors = {
+    claude: 'bg-orange-400',
+    gemini: 'bg-blue-400',
+    openai: 'bg-green-400',
+    solar: 'bg-purple-400',
+  };
+  return (
+    <span className={`inline-block w-2.5 h-2.5 rounded-full ${dotColors[key] || 'bg-gray-400'}`} />
+  );
 }
 
 export { PROVIDERS };

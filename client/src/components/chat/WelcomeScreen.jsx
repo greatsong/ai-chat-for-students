@@ -63,15 +63,25 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRo
   if (isTeacherOrAdmin) {
     return (
       <div className="flex flex-col items-center justify-center h-full px-4 py-8">
-        <div className="text-center">
-          <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg">
-            <span className="text-3xl">💬</span>
+        <div className="text-center animate-fade-in-up">
+          <div className="inline-flex items-center justify-center w-14 h-14 mb-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-200/50">
+            <svg
+              className="w-7 h-7 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M7.5 8.25h9m-9 3H12m-9.75 1.51c0 1.6 1.123 2.994 2.707 3.227 1.129.166 2.27.293 3.423.379.35.026.67.21.865.501L12 21l2.755-4.133a1.14 1.14 0 01.865-.501 48.172 48.172 0 003.423-.379c1.584-.233 2.707-1.626 2.707-3.228V6.741c0-1.602-1.123-2.995-2.707-3.228A48.394 48.394 0 0012 3c-2.392 0-4.744.175-7.043.513C3.373 3.746 2.25 5.14 2.25 6.741v6.018z"
+              />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            AI 채팅
-          </h1>
-          <p className="text-gray-500 text-sm">
-            자유롭게 대화를 시작하세요. 시스템 프롬프트 없이 AI를 사용할 수 있습니다.
+          <h1 className="text-xl font-bold text-gray-900 mb-2">AI 채팅</h1>
+          <p className="text-gray-400 text-sm">
+            선생님 안녕하세요! 원하시는 유료 모델을 사용하셔서 수업 준비에 도움을 받아보세요!
           </p>
         </div>
       </div>
@@ -107,14 +117,24 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRo
       <div className="w-full max-w-2xl">
         {/* 타이틀 */}
         <div className="text-center mb-6">
-          <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
-            <span className="text-3xl">💬</span>
+          <div className="inline-flex items-center justify-center w-14 h-14 mb-4 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-2xl shadow-lg shadow-indigo-200/50">
+            <svg
+              className="w-7 h-7 text-white"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={1.5}
+            >
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                d="M9.813 15.904L9 18.75l-.813-2.846a4.5 4.5 0 00-3.09-3.09L2.25 12l2.846-.813a4.5 4.5 0 003.09-3.09L9 5.25l.813 2.846a4.5 4.5 0 003.09 3.09L15.75 12l-2.846.813a4.5 4.5 0 00-3.09 3.09zM18.259 8.715L18 9.75l-.259-1.035a3.375 3.375 0 00-2.455-2.456L14.25 6l1.036-.259a3.375 3.375 0 002.455-2.456L18 2.25l.259 1.035a3.375 3.375 0 002.455 2.456L21.75 6l-1.036.259a3.375 3.375 0 00-2.455 2.456z"
+              />
+            </svg>
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            당곡고 학생 여러분!
-          </h1>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">당곡고 학생 여러분! 환영합니다!</h1>
           <p className="text-gray-500 text-sm">
-            AI와 학습과 관련된 대화를 시작하세요! 아래 추천 주제를 눌러 바로 시작할 수도 있습니다.
+            여러분의 학습에 도움을 받아보세요! :) 아래 추천 주제를 눌러 바로 시작할 수도 있어요.
           </p>
         </div>
 
@@ -122,8 +142,9 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRo
         <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
           <span className="text-lg mt-0.5">📋</span>
           <p className="text-xs text-amber-800 leading-relaxed">
-            이 앱은 당곡고등학교 학생들이 <strong>학습에 필요한 용도로만</strong> 사용되도록 개발되었습니다.
-            학생들의 <strong>채팅 기록은 저장</strong>되며, 교사가 수업 지도 목적으로 열람할 수 있습니다.
+            이 앱은 당곡고등학교 학생들이 <strong>학습에 필요한 용도로만</strong> 사용되도록
+            개발되었습니다. 학생들의 <strong>채팅 기록은 저장</strong>되며, 교사가 수업 지도
+            목적으로 열람할 수 있습니다.
           </p>
         </div>
 
@@ -148,9 +169,7 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRo
 
         {/* 팁 */}
         <div className="mt-8 p-4 bg-blue-50 rounded-xl border border-blue-100">
-          <h3 className="text-sm font-semibold text-blue-800 mb-2">
-            💡 효과적인 AI 활용 팁
-          </h3>
+          <h3 className="text-sm font-semibold text-blue-800 mb-2">💡 효과적인 AI 활용 팁</h3>
           <ul className="text-xs text-blue-700 space-y-1">
             <li>• 구체적인 질문을 하면 더 좋은 답변을 받을 수 있어요</li>
             <li>• 답변이 이해되지 않으면 "더 쉽게 설명해줘"라고 요청해보세요</li>

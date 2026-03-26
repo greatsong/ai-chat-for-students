@@ -29,7 +29,9 @@ function ProviderBadge({ provider }) {
   const names = { claude: 'Claude', gemini: 'Gemini', openai: 'ChatGPT', solar: 'Solar' };
 
   return (
-    <span className={`text-xs px-1.5 py-0.5 rounded-full ${colors[provider] || 'bg-gray-100 text-gray-600'}`}>
+    <span
+      className={`text-xs px-1.5 py-0.5 rounded-full ${colors[provider] || 'bg-gray-100 text-gray-600'}`}
+    >
       {names[provider] || provider}
     </span>
   );
@@ -63,32 +65,32 @@ export default function Sidebar({
   return (
     <>
       {/* 모바일 오버레이 */}
-      {isOpen && (
-        <div
-          className="fixed inset-0 z-40 bg-black/50 lg:hidden"
-          onClick={onToggle}
-        />
-      )}
+      {isOpen && <div className="fixed inset-0 z-40 bg-black/50 lg:hidden" onClick={onToggle} />}
 
       {/* 사이드바 */}
       <aside
         className={`
           fixed lg:static inset-y-0 left-0 z-50
           w-[280px] flex flex-col
-          bg-gray-900 text-white
+          bg-gradient-to-b from-indigo-950 to-slate-950 text-white
           transition-transform duration-300 ease-in-out
           ${isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
         `}
       >
         {/* 헤더 */}
-        <div className="flex items-center justify-between px-4 py-4 border-b border-gray-700">
+        <div className="flex items-center justify-between px-4 py-4 border-b border-indigo-800/30">
           <h2 className="text-base font-semibold">AI 채팅</h2>
           <button
             onClick={onToggle}
-            className="p-2.5 rounded-lg hover:bg-gray-800 transition-colors lg:hidden"
+            className="p-2.5 rounded-lg hover:bg-indigo-900/40 transition-colors lg:hidden"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M6 18L18 6M6 6l12 12"
+              />
             </svg>
           </button>
         </div>
@@ -100,10 +102,15 @@ export default function Sidebar({
               onNewConversation?.();
               onToggle?.(); // 모바일에서 사이드바 닫기
             }}
-            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-gray-600 hover:bg-gray-800 transition-colors text-sm"
+            className="w-full flex items-center gap-2 px-4 py-2.5 rounded-lg border border-indigo-700/40 hover:bg-indigo-900/40 hover:border-indigo-600/50 active:scale-[0.98] transition-all duration-150 text-sm"
           >
             <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 4v16m8-8H4"
+              />
             </svg>
             새 대화
           </button>
@@ -112,9 +119,7 @@ export default function Sidebar({
         {/* 대화 목록 */}
         <div className="flex-1 overflow-y-auto px-3 pb-3">
           {conversations.length === 0 ? (
-            <div className="text-center text-gray-500 text-sm py-8">
-              대화가 없습니다
-            </div>
+            <div className="text-center text-gray-500 text-sm py-8">대화가 없습니다</div>
           ) : (
             <div className="space-y-1">
               {conversations.map((conv) => {
@@ -136,9 +141,10 @@ export default function Sidebar({
                     }}
                     className={`
                       w-full text-left px-3 py-2.5 rounded-lg transition-colors group relative cursor-pointer
-                      ${isActive
-                        ? 'bg-gray-700 text-white'
-                        : 'text-gray-300 hover:bg-gray-800 hover:text-white'
+                      ${
+                        isActive
+                          ? 'bg-indigo-800/40 text-white'
+                          : 'text-gray-300 hover:bg-indigo-900/40 hover:text-white'
                       }
                     `}
                   >
@@ -160,15 +166,26 @@ export default function Sidebar({
                         onClick={(e) => handleDelete(e, conv.id)}
                         className={`
                           flex-shrink-0 p-2 rounded transition-colors
-                          ${deleteConfirm === conv.id
-                            ? 'text-red-400 bg-red-500/20'
-                            : 'text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400'
+                          ${
+                            deleteConfirm === conv.id
+                              ? 'text-red-400 bg-red-500/20'
+                              : 'text-gray-500 opacity-0 group-hover:opacity-100 hover:text-red-400'
                           }
                         `}
                         title={deleteConfirm === conv.id ? '다시 클릭하여 삭제' : '대화 삭제'}
                       >
-                        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                        <svg
+                          className="w-4 h-4"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                          />
                         </svg>
                       </button>
                     </div>
@@ -184,20 +201,28 @@ export default function Sidebar({
           <div className="px-3 pb-2">
             <Link
               to="/teacher"
-              className={`flex items-center gap-2 px-4 py-2.5 rounded-lg transition-colors text-sm ${
-                user?.role === 'admin'
-                  ? 'bg-red-600/20 text-red-300 hover:bg-red-600/30'
-                  : 'bg-indigo-600/20 text-indigo-300 hover:bg-indigo-600/30'
-              }`}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-lg transition-all duration-150 text-sm bg-indigo-500/15 text-indigo-300 hover:bg-indigo-500/25 border border-indigo-500/20"
             >
-              <span>{user?.role === 'admin' ? '🛡️' : '📊'}</span>
+              <svg
+                className="w-4 h-4"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={1.5}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z"
+                />
+              </svg>
               {user?.role === 'admin' ? '관리자 대시보드' : '교사 대시보드'}
             </Link>
           </div>
         )}
 
         {/* 사용자 정보 + 로그아웃 */}
-        <div className="border-t border-gray-700 px-4 py-3">
+        <div className="border-t border-indigo-800/30 px-4 py-3">
           <div className="flex items-center gap-3">
             {user?.picture ? (
               <img
@@ -217,11 +242,16 @@ export default function Sidebar({
             </div>
             <button
               onClick={onLogout}
-              className="p-2 text-gray-400 hover:text-white hover:bg-gray-800 rounded-lg transition-colors"
+              className="p-2 text-gray-400 hover:text-white hover:bg-indigo-900/40 rounded-lg transition-colors"
               title="로그아웃"
             >
               <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
+                />
               </svg>
             </button>
           </div>

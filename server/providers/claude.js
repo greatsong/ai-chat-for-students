@@ -1,5 +1,6 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getApiKey } from '../utils/apiKeys.js';
+import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let anthropic = null;
@@ -69,9 +70,15 @@ export function buildMessages(history) {
       }
 
       if (files.length > 0) {
-        console.log(`[claude.buildMessages] 파일 ${files.length}개:`, files.map(f => ({
-          type: f.type, mimeType: f.mimeType, name: f.name, dataLen: f.data?.length || 0
-        })));
+        console.log(
+          `[claude.buildMessages] 파일 ${files.length}개:`,
+          files.map((f) => ({
+            type: f.type,
+            mimeType: f.mimeType,
+            name: f.name,
+            dataLen: f.data?.length || 0,
+          })),
+        );
         const contentBlocks = filesToContentBlocks(files);
         console.log(`[claude.buildMessages] 콘텐츠 블록 ${contentBlocks.length}개 생성`);
         contentBlocks.push({ type: 'text', text: msg.content || '' });
@@ -96,16 +103,24 @@ export function buildMessages(history) {
 export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError }) {
   try {
     // 디버그: 메시지 구조 확인 (base64 데이터는 길이만 표시)
-    const debugMessages = messages.map(m => {
+    const debugMessages = messages.map((m) => {
       if (Array.isArray(m.content)) {
         return {
           role: m.role,
-          content: m.content.map(block => {
+          content: m.content.map((block) => {
             if (block.type === 'image') {
-              return { type: 'image', media_type: block.source?.media_type, dataLen: block.source?.data?.length || 0 };
+              return {
+                type: 'image',
+                media_type: block.source?.media_type,
+                dataLen: block.source?.data?.length || 0,
+              };
             }
             if (block.type === 'document') {
-              return { type: 'document', media_type: block.source?.media_type, dataLen: block.source?.data?.length || 0 };
+              return {
+                type: 'document',
+                media_type: block.source?.media_type,
+                dataLen: block.source?.data?.length || 0,
+              };
             }
             return { type: block.type, textLen: block.text?.length || 0 };
           }),
@@ -142,6 +157,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
     });
 
     stream.on('error', (error) => {
+      stream.abort();
       onError(error);
     });
 

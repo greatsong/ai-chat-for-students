@@ -99,9 +99,24 @@ export async function initDatabase() {
   }
 
   // 인덱스 생성
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)');
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
-  await client.execute('CREATE INDEX IF NOT EXISTS idx_usage_daily_user_date ON usage_daily(user_id, date)');
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)',
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_conversations_user_updated ON conversations(user_id, updated_at)',
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)',
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_messages_conv_created ON messages(conversation_id, created_at)',
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_usage_daily_user_date ON usage_daily(user_id, date)',
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_usage_daily_user_date_provider ON usage_daily(user_id, date, provider)',
+  );
 
   // 기본 학급 삽입 (최초 실행 시)
   const classroomCount = await client.execute('SELECT COUNT(*) as count FROM classrooms');
@@ -114,19 +129,20 @@ export async function initDatabase() {
 
   // 기본 설정 삽입 (최초 실행 시)
   const defaultSettings = {
-    enabled_providers: ["claude", "gemini", "openai", "solar"],
+    enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      claude: ["claude-sonnet-4-6"],
-      gemini: ["gemini-3-flash-preview"],
-      openai: ["gpt-5.4"],
-      solar: ["solar-pro3"],
+      claude: ['claude-sonnet-4-6'],
+      gemini: ['gemini-3-flash-preview'],
+      openai: ['gpt-5.4'],
+      solar: ['solar-pro3'],
     },
     image_generation_enabled: false,
     tts_enabled: false,
     stt_enabled: false,
-    tts_default_voice: "nova",
-    tts_default_model: "tts-1",
-    system_prompt: "당신은 당곡고등학교 학생들의 학습을 돕는 AI 도우미입니다. 오직 수업 및 학습과 관련된 내용에 대해서만 답변해주세요. 상담, 개인적인 고민, 학습과 무관한 잡담 등에는 정중히 거절하고 학습 관련 질문을 하도록 안내해주세요. 학생들이 스스로 생각하고 탐구할 수 있도록 도와주되, 답을 바로 알려주기보다는 사고 과정을 안내해주세요.",
+    tts_default_voice: 'nova',
+    tts_default_model: 'tts-1',
+    system_prompt:
+      '당신은 당곡고등학교 학생들의 학습을 돕는 AI 도우미입니다. 오직 수업 및 학습과 관련된 내용에 대해서만 답변해주세요. 상담, 개인적인 고민, 학습과 무관한 잡담 등에는 정중히 거절하고 학습 관련 질문을 하도록 안내해주세요. 학생들이 스스로 생각하고 탐구할 수 있도록 도와주되, 답을 바로 알려주기보다는 사고 과정을 안내해주세요.',
     default_daily_limit: 100000,
     teacher_emails: [],
   };
@@ -152,11 +168,26 @@ export function getDb() {
   return client;
 }
 
+// 쿼리 타임아웃 기본값 (10초)
+const DEFAULT_QUERY_TIMEOUT = 10_000;
+
+/**
+ * 쿼리에 타임아웃을 적용하는 래퍼
+ */
+function withTimeout(promise, timeoutMs = DEFAULT_QUERY_TIMEOUT) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) =>
+      setTimeout(() => reject(new Error(`쿼리 타임아웃 (${timeoutMs}ms)`)), timeoutMs),
+    ),
+  ]);
+}
+
 /**
  * SQL 쿼리 실행 헬퍼 — SELECT (여러 행)
  */
 export async function queryAll(sql, params = []) {
-  const result = await getDb().execute({ sql, args: params });
+  const result = await withTimeout(getDb().execute({ sql, args: params }));
   return result.rows;
 }
 
@@ -164,7 +195,7 @@ export async function queryAll(sql, params = []) {
  * SQL 쿼리 실행 헬퍼 — SELECT (한 행)
  */
 export async function queryOne(sql, params = []) {
-  const result = await getDb().execute({ sql, args: params });
+  const result = await withTimeout(getDb().execute({ sql, args: params }));
   return result.rows[0] || null;
 }
 
@@ -172,7 +203,7 @@ export async function queryOne(sql, params = []) {
  * SQL 쿼리 실행 헬퍼 — INSERT/UPDATE/DELETE
  */
 export async function run(sql, params = []) {
-  await getDb().execute({ sql, args: params });
+  await withTimeout(getDb().execute({ sql, args: params }));
 }
 
 /**
@@ -194,6 +225,6 @@ export async function getSetting(key) {
 export async function setSetting(key, value) {
   await run(
     'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
-    [key, JSON.stringify(value)]
+    [key, JSON.stringify(value)],
   );
 }

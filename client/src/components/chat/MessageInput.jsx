@@ -24,6 +24,8 @@ export default function MessageInput({
   const fileInputRef = useRef(null);
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
+  const blobUrlsRef = useRef([]);
+  const timeoutIdsRef = useRef([]);
 
   // 자동 리사이즈
   useEffect(() => {
@@ -41,6 +43,29 @@ export default function MessageInput({
     }
   }, [disabled]);
 
+  // 언마운트 시 리소스 정리 (MediaRecorder, blob URLs, timeouts)
+  useEffect(() => {
+    return () => {
+      // MediaRecorder 스트림 정리
+      if (mediaRecorderRef.current) {
+        try {
+          if (mediaRecorderRef.current.state !== 'inactive') {
+            mediaRecorderRef.current.stop();
+          }
+          mediaRecorderRef.current.stream?.getTracks().forEach((t) => t.stop());
+        } catch {
+          // 이미 정리된 경우 무시
+        }
+      }
+      // Blob URL 해제
+      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      blobUrlsRef.current = [];
+      // Timeout 정리
+      timeoutIdsRef.current.forEach((id) => clearTimeout(id));
+      timeoutIdsRef.current = [];
+    };
+  }, []);
+
   const handleSend = useCallback(() => {
     const trimmed = message.trim();
     if (!trimmed && attachments.length === 0) return;
@@ -49,13 +74,17 @@ export default function MessageInput({
     onSend?.(trimmed, attachments);
     setMessage('');
     setAttachments([]);
+    // 첨부 해제 시 blob URL 정리
+    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+    blobUrlsRef.current = [];
 
     // 리사이즈 초기화
-    setTimeout(() => {
+    const tid = setTimeout(() => {
       if (textareaRef.current) {
         textareaRef.current.style.height = 'auto';
       }
     }, 0);
+    timeoutIdsRef.current.push(tid);
   }, [message, attachments, disabled, isStreaming, onSend]);
 
   const handleKeyDown = (e) => {
@@ -139,8 +168,8 @@ export default function MessageInput({
       const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
         ? 'audio/webm;codecs=opus'
         : MediaRecorder.isTypeSupported('audio/mp4')
-        ? 'audio/mp4'
-        : 'audio/webm';
+          ? 'audio/mp4'
+          : 'audio/webm';
 
       const mediaRecorder = new MediaRecorder(stream, { mimeType });
       mediaRecorderRef.current = mediaRecorder;
@@ -183,13 +212,18 @@ export default function MessageInput({
     }
   };
 
-  const canSend = (message.trim().length > 0 || attachments.length > 0) && !disabled && !isStreaming;
+  const canSend =
+    (message.trim().length > 0 || attachments.length > 0) && !disabled && !isStreaming;
 
   // 파일 아이콘
   const getFileIcon = (file) => {
     if (file.type.startsWith('image/')) return '🖼️';
     if (file.type === 'application/pdf') return '📄';
-    if (file.type.includes('text') || file.name.match(/\.(js|jsx|ts|tsx|py|java|c|cpp|h|css|html|json|md|txt|csv)$/i)) return '📝';
+    if (
+      file.type.includes('text') ||
+      file.name.match(/\.(js|jsx|ts|tsx|py|java|c|cpp|h|css|html|json|md|txt|csv)$/i)
+    )
+      return '📝';
     return '📎';
   };
 
@@ -229,7 +263,11 @@ export default function MessageInput({
               {/* 이미지 프리뷰 */}
               {file.type.startsWith('image/') ? (
                 <img
-                  src={URL.createObjectURL(file)}
+                  src={(() => {
+                    const url = URL.createObjectURL(file);
+                    blobUrlsRef.current.push(url);
+                    return url;
+                  })()}
                   alt={file.name}
                   className="w-8 h-8 rounded object-cover"
                 />
@@ -244,7 +282,12 @@ export default function MessageInput({
                 title="첨부 제거"
               >
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  <path
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    strokeWidth={2}
+                    d="M6 18L18 6M6 6l12 12"
+                  />
                 </svg>
               </button>
             </div>
@@ -319,7 +362,12 @@ export default function MessageInput({
           title="파일 첨부"
         >
           <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13"
+            />
           </svg>
         </button>
 
@@ -336,7 +384,12 @@ export default function MessageInput({
             title="이미지 생성"
           >
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z"
+              />
             </svg>
           </button>
         )}
@@ -372,19 +425,40 @@ export default function MessageInput({
               isRecording
                 ? 'text-red-600 bg-red-100 animate-pulse'
                 : isTranscribing
-                ? 'text-gray-400'
-                : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+                  ? 'text-gray-400'
+                  : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
             }`}
             title={isRecording ? '녹음 중지' : isTranscribing ? '변환 중...' : '음성 입력'}
           >
             {isTranscribing ? (
               <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                <circle
+                  className="opacity-25"
+                  cx="12"
+                  cy="12"
+                  r="10"
+                  stroke="currentColor"
+                  strokeWidth="4"
+                />
+                <path
+                  className="opacity-75"
+                  fill="currentColor"
+                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                />
               </svg>
             ) : (
-              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z" />
+              <svg
+                className="w-5 h-5"
+                fill="none"
+                viewBox="0 0 24 24"
+                stroke="currentColor"
+                strokeWidth={2}
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z"
+                />
               </svg>
             )}
           </button>
@@ -395,22 +469,39 @@ export default function MessageInput({
           onClick={handleSend}
           disabled={!canSend}
           className={`
-            flex-shrink-0 p-3 rounded-xl transition-all
-            ${canSend
-              ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow'
-              : 'bg-gray-200 text-gray-400 cursor-not-allowed'
+            flex-shrink-0 p-3 rounded-xl transition-all duration-200
+            ${
+              canSend
+                ? 'bg-blue-600 text-white hover:bg-blue-700 shadow-sm hover:shadow active:scale-95'
+                : 'bg-gray-200 text-gray-400 cursor-not-allowed'
             }
           `}
           title="전송 (Enter)"
         >
           {isStreaming ? (
             <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-              <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-              <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              <circle
+                className="opacity-25"
+                cx="12"
+                cy="12"
+                r="10"
+                stroke="currentColor"
+                strokeWidth="4"
+              />
+              <path
+                className="opacity-75"
+                fill="currentColor"
+                d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+              />
             </svg>
           ) : (
             <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"
+              />
             </svg>
           )}
         </button>

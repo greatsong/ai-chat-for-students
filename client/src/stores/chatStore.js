@@ -1,6 +1,9 @@
 import { create } from 'zustand';
 import { apiGet, apiPost, apiDelete, apiStreamPost, apiUploadFile } from '../lib/api.js';
 
+let _tempIdCounter = 0;
+let _loadConversationsPromise = null;
+
 const useChatStore = create((set, get) => ({
   // State
   conversations: [],
@@ -13,15 +16,17 @@ const useChatStore = create((set, get) => ({
   // Actions
 
   /**
-   * 대화 목록 조회
+   * 대화 목록 조회 (중복 요청 방지)
    */
   loadConversations: async () => {
-    try {
-      const conversations = await apiGet('/conversations');
-      set({ conversations });
-    } catch (error) {
-      console.error('대화 목록 로드 실패:', error);
-    }
+    if (_loadConversationsPromise) return _loadConversationsPromise;
+    _loadConversationsPromise = apiGet('/conversations')
+      .then((conversations) => set({ conversations }))
+      .catch((error) => console.error('대화 목록 로드 실패:', error))
+      .finally(() => {
+        _loadConversationsPromise = null;
+      });
+    return _loadConversationsPromise;
   },
 
   /**
@@ -85,7 +90,7 @@ const useChatStore = create((set, get) => ({
 
     // 1. 사용자 메시지 즉시 추가
     const userMessage = {
-      id: `temp-user-${Date.now()}`,
+      id: `temp-user-${++_tempIdCounter}`,
       role: 'user',
       content,
       files: uploadedFiles,
@@ -94,7 +99,7 @@ const useChatStore = create((set, get) => ({
 
     // 2. 빈 어시스턴트 메시지 추가
     const assistantMessage = {
-      id: `temp-assistant-${Date.now()}`,
+      id: `temp-assistant-${++_tempIdCounter}`,
       role: 'assistant',
       content: '',
       input_tokens: 0,
@@ -119,6 +124,8 @@ const useChatStore = create((set, get) => ({
           provider: selectedProvider,
           model: selectedModel,
           files: uploadedFiles,
+          web_search: true,
+          code_execution: true,
         },
         (chunk) => {
           const currentMessages = get().messages;
@@ -160,11 +167,36 @@ const useChatStore = create((set, get) => ({
             };
             set({ messages: updated, isStreaming: false });
           }
-        }
+        },
       );
 
-      // 4. 대화 목록 새로고침
-      get().loadConversations();
+      // 4. 대화 목록에 현재 대화 반영 (전체 리페치 대신 로컬 업데이트)
+      if (conversationId) {
+        const { conversations, currentConversation } = get();
+        const title = content.slice(0, 30) + (content.length > 30 ? '...' : '');
+        const existing = conversations.find((c) => c.id === conversationId);
+        if (existing) {
+          set({
+            conversations: conversations.map((c) =>
+              c.id === conversationId ? { ...c, updated_at: new Date().toISOString() } : c,
+            ),
+          });
+        } else {
+          set({
+            conversations: [
+              {
+                id: conversationId,
+                title,
+                provider: selectedProvider,
+                model: selectedModel,
+                created_at: new Date().toISOString(),
+                updated_at: new Date().toISOString(),
+              },
+              ...conversations,
+            ],
+          });
+        }
+      }
     } catch (error) {
       console.error('메시지 전송 실패:', error);
 
@@ -202,7 +234,7 @@ const useChatStore = create((set, get) => ({
 
     // 사용자 요청 메시지 추가
     const userMessage = {
-      id: `temp-user-${Date.now()}`,
+      id: `temp-user-${++_tempIdCounter}`,
       role: 'user',
       content: `🎨 이미지 생성: ${prompt}`,
       created_at: new Date().toISOString(),
@@ -210,7 +242,7 @@ const useChatStore = create((set, get) => ({
 
     // 로딩 어시스턴트 메시지 추가
     const assistantMessage = {
-      id: `temp-assistant-${Date.now()}`,
+      id: `temp-assistant-${++_tempIdCounter}`,
       role: 'assistant',
       content: '이미지를 생성하고 있습니다...',
       created_at: new Date().toISOString(),
@@ -238,9 +270,6 @@ const useChatStore = create((set, get) => ({
         image_url: result.imageUrl,
       };
       set({ messages: updated, isStreaming: false });
-
-      // 대화 목록 새로고침
-      get().loadConversations();
     } catch (error) {
       console.error('이미지 생성 실패:', error);
       const currentMessages = get().messages;

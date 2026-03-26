@@ -1,14 +1,29 @@
 import { Router } from 'express';
-import { authenticate, requireTeacher, requireAdmin } from '../middleware/auth.js';
+import {
+  authenticate,
+  requireTeacher,
+  requireAdmin,
+  invalidateUserCache,
+} from '../middleware/auth.js';
 import { queryAll, queryOne, run, getSetting, setSetting } from '../db/database.js';
 import { encrypt, decrypt, encryptApiKeys, decryptApiKeys } from '../utils/crypto.js';
-import { validate, studentUpdateSchema, apiKeyUpdateSchema, teacherEmailSchema, conversationsQuerySchema } from '../middleware/validate.js';
+import {
+  validate,
+  studentUpdateSchema,
+  apiKeyUpdateSchema,
+  teacherEmailSchema,
+  conversationsQuerySchema,
+} from '../middleware/validate.js';
 import { auditLog } from '../utils/logger.js';
+import { clearKeyCache } from '../utils/apiKeys.js';
 
 const router = Router();
 
 // 환경변수 교사 이메일 목록 (삭제 불가)
-const ENV_TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+const ENV_TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean);
 
 // 모든 라우트에 인증 미들웨어 적용
 router.use(authenticate);
@@ -20,8 +35,13 @@ router.use(authenticate);
 router.get('/public-settings', async (req, res) => {
   try {
     const publicKeys = [
-      'tts_enabled', 'stt_enabled', 'tts_default_voice', 'tts_default_model',
-      'enabled_providers', 'enabled_models', 'available_models',
+      'tts_enabled',
+      'stt_enabled',
+      'tts_default_voice',
+      'tts_default_model',
+      'enabled_providers',
+      'enabled_models',
+      'available_models',
     ];
     const result = {};
     for (const key of publicKeys) {
@@ -43,7 +63,8 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
     const userId = req.user.id;
 
     // 요약 (전체 기간)
-    const summary = await queryOne(`
+    const summary = await queryOne(
+      `
       SELECT
         COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
@@ -53,14 +74,17 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
         COALESCE(SUM(stt_count), 0) AS totalStt
       FROM usage_daily
       WHERE user_id = ?
-    `, [userId]);
+    `,
+      [userId],
+    );
 
     // 일별 사용량 (최근 30일)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
 
-    const daily = await queryAll(`
+    const daily = await queryAll(
+      `
       SELECT
         date,
         provider,
@@ -72,10 +96,19 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
       WHERE user_id = ? AND date >= ?
       GROUP BY date, provider
       ORDER BY date ASC
-    `, [userId, thirtyDaysAgoStr]);
+    `,
+      [userId, thirtyDaysAgoStr],
+    );
 
     res.json({
-      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0, totalTts: 0, totalStt: 0 },
+      summary: summary || {
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalRequests: 0,
+        totalImages: 0,
+        totalTts: 0,
+        totalStt: 0,
+      },
       daily,
     });
   } catch (error) {
@@ -92,7 +125,8 @@ router.get('/students', requireAdmin, async (req, res) => {
   try {
     const today = new Date().toISOString().slice(0, 10);
 
-    const users = await queryAll(`
+    const users = await queryAll(
+      `
       SELECT
         u.id, u.name, u.email, u.avatar, u.role, u.is_active, u.daily_limit,
         u.classroom_id, u.created_at,
@@ -104,7 +138,10 @@ router.get('/students', requireAdmin, async (req, res) => {
       LEFT JOIN usage_daily ud ON ud.user_id = u.id AND ud.date = ?
       GROUP BY u.id
       ORDER BY u.role ASC, u.created_at DESC
-    `, [today]);
+      LIMIT 1000
+    `,
+      [today],
+    );
 
     res.json(users);
   } catch (error) {
@@ -145,6 +182,7 @@ router.patch('/students/:id', requireAdmin, async (req, res) => {
 
     params.push(id);
     await run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+    invalidateUserCache(id);
 
     const updated = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
     res.json(updated);
@@ -169,10 +207,14 @@ router.post('/students/bulk-activate', requireAdmin, async (req, res) => {
     const placeholders = studentIds.map(() => '?').join(', ');
     await run(
       `UPDATE users SET is_active = 1 WHERE id IN (${placeholders}) AND role = 'student'`,
-      studentIds
+      studentIds,
     );
+    studentIds.forEach((id) => invalidateUserCache(id));
 
-    res.json({ message: `${studentIds.length}명의 학생이 활성화되었습니다.`, count: studentIds.length });
+    res.json({
+      message: `${studentIds.length}명의 학생이 활성화되었습니다.`,
+      count: studentIds.length,
+    });
   } catch (error) {
     console.error('일괄 활성화 오류:', error);
     res.status(500).json({ error: '학생을 활성화하는 중 오류가 발생했습니다.' });
@@ -188,7 +230,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
     const { userId, search, page = 1, limit = 20 } = req.query;
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let where = ["u.role = 'student'"];  // 교사/관리자 채팅은 수집하지 않음
+    let where = ["u.role = 'student'"]; // 교사/관리자 채팅은 수집하지 않음
     let params = [];
 
     if (userId) {
@@ -208,7 +250,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
       `SELECT COUNT(*) AS total FROM conversations c
        JOIN users u ON u.id = c.user_id
        ${whereClause}`,
-      params
+      params,
     );
     const total = countRow?.total || 0;
 
@@ -224,7 +266,7 @@ router.get('/conversations', requireAdmin, async (req, res) => {
       ${whereClause}
       ORDER BY c.updated_at DESC
       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset]
+      [...params, parseInt(limit), offset],
     );
 
     const result = conversations.map((conv) => ({
@@ -255,7 +297,9 @@ router.get('/conversations/:conversationId/messages', requireAdmin, async (req, 
   try {
     const { conversationId } = req.params;
 
-    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [conversationId]);
+    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [
+      conversationId,
+    ]);
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
@@ -265,7 +309,10 @@ router.get('/conversations/:conversationId/messages', requireAdmin, async (req, 
     if (!owner) {
       return res.status(404).json({ error: '대화 소유자를 찾을 수 없습니다.' });
     }
-    if ((owner.role === 'teacher' || owner.role === 'admin') && conversation.user_id !== req.user.id) {
+    if (
+      (owner.role === 'teacher' || owner.role === 'admin') &&
+      conversation.user_id !== req.user.id
+    ) {
       return res.status(403).json({ error: '교사의 채팅 기록은 본인만 열람할 수 있습니다.' });
     }
 
@@ -273,8 +320,9 @@ router.get('/conversations/:conversationId/messages', requireAdmin, async (req, 
       `SELECT id, role, content, files, image_url, code_result, input_tokens, output_tokens, created_at
        FROM messages
        WHERE conversation_id = ?
-       ORDER BY created_at ASC`,
-      [conversationId]
+       ORDER BY created_at ASC
+       LIMIT 1000`,
+      [conversationId],
     );
 
     // files JSON 파싱
@@ -282,7 +330,9 @@ router.get('/conversations/:conversationId/messages', requireAdmin, async (req, 
       let files = [];
       try {
         files = msg.files ? JSON.parse(msg.files) : [];
-      } catch { /* 무시 */ }
+      } catch {
+        /* 무시 */
+      }
       return { ...msg, files };
     });
 
@@ -323,7 +373,8 @@ router.get('/usage', requireAdmin, async (req, res) => {
     }
 
     // 요약 (전체 사용자)
-    const summary = await queryOne(`
+    const summary = await queryOne(
+      `
       SELECT
         COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
@@ -334,10 +385,13 @@ router.get('/usage', requireAdmin, async (req, res) => {
         COUNT(DISTINCT user_id) AS activeStudents
       FROM usage_daily
       WHERE date >= ?
-    `, [dateFilter]);
+    `,
+      [dateFilter],
+    );
 
     // 사용자별 사용량 (교사 포함 — 채팅 내용만 비공개, 사용량은 관리자 열람 가능)
-    const byStudent = await queryAll(`
+    const byStudent = await queryAll(
+      `
       SELECT
         u.id AS userId,
         u.name, u.email,
@@ -348,10 +402,14 @@ router.get('/usage', requireAdmin, async (req, res) => {
       INNER JOIN usage_daily ud ON ud.user_id = u.id AND ud.date >= ?
       GROUP BY u.id, u.name, u.email
       ORDER BY (COALESCE(SUM(ud.input_tokens), 0) + COALESCE(SUM(ud.output_tokens), 0)) DESC
-    `, [dateFilter]);
+      LIMIT 500
+    `,
+      [dateFilter],
+    );
 
     // 프로바이더별 사용량
-    const byProvider = await queryAll(`
+    const byProvider = await queryAll(
+      `
       SELECT
         provider,
         COALESCE(SUM(input_tokens), 0) AS inputTokens,
@@ -361,14 +419,18 @@ router.get('/usage', requireAdmin, async (req, res) => {
       WHERE date >= ?
       GROUP BY provider
       ORDER BY (COALESCE(SUM(input_tokens), 0) + COALESCE(SUM(output_tokens), 0)) DESC
-    `, [dateFilter]);
+      LIMIT 50
+    `,
+      [dateFilter],
+    );
 
     // 일별 사용량 (최근 30일)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
 
-    const daily = await queryAll(`
+    const daily = await queryAll(
+      `
       SELECT
         date,
         COALESCE(SUM(input_tokens), 0) AS inputTokens,
@@ -378,10 +440,21 @@ router.get('/usage', requireAdmin, async (req, res) => {
       WHERE date >= ?
       GROUP BY date
       ORDER BY date ASC
-    `, [thirtyDaysAgoStr]);
+      LIMIT 90
+    `,
+      [thirtyDaysAgoStr],
+    );
 
     res.json({
-      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0, totalTts: 0, totalStt: 0, activeStudents: 0 },
+      summary: summary || {
+        totalInputTokens: 0,
+        totalOutputTokens: 0,
+        totalRequests: 0,
+        totalImages: 0,
+        totalTts: 0,
+        totalStt: 0,
+        activeStudents: 0,
+      },
       byStudent,
       byProvider,
       daily,
@@ -479,14 +552,20 @@ router.delete('/conversations/:conversationId', requireAdmin, async (req, res) =
   try {
     const { conversationId } = req.params;
 
-    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [conversationId]);
+    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [
+      conversationId,
+    ]);
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
     // 교사/관리자의 대화는 본인만 삭제 가능
     const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
-    if (owner && (owner.role === 'teacher' || owner.role === 'admin') && conversation.user_id !== req.user.id) {
+    if (
+      owner &&
+      (owner.role === 'teacher' || owner.role === 'admin') &&
+      conversation.user_id !== req.user.id
+    ) {
       return res.status(403).json({ error: '교사의 채팅 기록은 본인만 관리할 수 있습니다.' });
     }
 
@@ -539,9 +618,15 @@ router.post('/teachers', requireAdmin, validate(teacherEmailSchema), async (req,
     await setSetting('teacher_emails', emailList);
 
     // 해당 이메일의 기존 사용자가 있으면 역할을 teacher로 업데이트 + 자동 활성화
-    const existingUser = await queryOne('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [trimmedEmail]);
+    const existingUser = await queryOne('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [
+      trimmedEmail,
+    ]);
     if (existingUser && existingUser.role !== 'admin') {
-      await run('UPDATE users SET role = ?, is_active = 1 WHERE id = ?', ['teacher', existingUser.id]);
+      await run('UPDATE users SET role = ?, is_active = 1 WHERE id = ?', [
+        'teacher',
+        existingUser.id,
+      ]);
+      invalidateUserCache(existingUser.id);
     }
 
     auditLog('TEACHER_ADD', req.user.id, { email: trimmedEmail });
@@ -567,7 +652,11 @@ router.delete('/teachers', requireAdmin, validate(teacherEmailSchema), async (re
 
     // 환경변수 교사는 삭제 불가
     if (ENV_TEACHER_EMAILS.includes(trimmedEmail)) {
-      return res.status(400).json({ error: '환경변수로 등록된 교사는 삭제할 수 없습니다. 서버 설정에서 변경해주세요.' });
+      return res
+        .status(400)
+        .json({
+          error: '환경변수로 등록된 교사는 삭제할 수 없습니다. 서버 설정에서 변경해주세요.',
+        });
     }
 
     // DB 교사 이메일 목록에서 제거
@@ -583,9 +672,12 @@ router.delete('/teachers', requireAdmin, validate(teacherEmailSchema), async (re
     await setSetting('teacher_emails', emailList);
 
     // 해당 이메일의 기존 사용자가 있으면 역할을 student로 변경
-    const existingUser = await queryOne('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [trimmedEmail]);
+    const existingUser = await queryOne('SELECT * FROM users WHERE LOWER(email) = LOWER(?)', [
+      trimmedEmail,
+    ]);
     if (existingUser && existingUser.role === 'teacher') {
       await run('UPDATE users SET role = ? WHERE id = ?', ['student', existingUser.id]);
+      invalidateUserCache(existingUser.id);
     }
 
     res.json({
@@ -613,7 +705,8 @@ router.get('/api-keys', requireAdmin, async (req, res) => {
       try {
         const decryptedKey = decrypt(key);
         if (decryptedKey && decryptedKey.length > 8) {
-          masked[provider] = decryptedKey.slice(0, 8) + '•'.repeat(Math.min(decryptedKey.length - 8, 20));
+          masked[provider] =
+            decryptedKey.slice(0, 8) + '•'.repeat(Math.min(decryptedKey.length - 8, 20));
         } else {
           masked[provider] = decryptedKey ? '••••••••' : '';
         }
@@ -656,6 +749,7 @@ router.put('/api-keys', requireAdmin, validate(apiKeyUpdateSchema), async (req, 
     }
 
     await setSetting('api_keys', dbKeys);
+    clearKeyCache(provider);
 
     auditLog('API_KEY_UPDATE', req.user.id, { provider, action: apiKey ? 'set' : 'delete' });
     res.json({ message: `${provider} API 키가 업데이트되었습니다.` });

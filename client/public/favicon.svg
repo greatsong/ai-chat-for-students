@@ -1,27 +1,18 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <!-- 메인 말풍선 -->
-  <rect x="6" y="10" width="52" height="36" rx="12" fill="#6366f1"/>
-  <!-- 말풍선 꼬리 -->
-  <polygon points="18,46 26,46 20,56" fill="#6366f1"/>
-  <!-- 눈 (왼쪽) -->
-  <circle cx="22" cy="26" r="4" fill="white"/>
-  <circle cx="23" cy="25" r="1.8" fill="#1e1b4b"/>
-  <!-- 눈 (오른쪽) -->
-  <circle cx="42" cy="26" r="4" fill="white"/>
-  <circle cx="43" cy="25" r="1.8" fill="#1e1b4b"/>
-  <!-- 반짝임 (왼쪽 눈) -->
-  <circle cx="21" cy="24" r="1" fill="white"/>
-  <!-- 반짝임 (오른쪽 눈) -->
-  <circle cx="41" cy="24" r="1" fill="white"/>
-  <!-- 입 (웃는 표정) -->
-  <path d="M26 33 Q32 39 38 33" stroke="white" stroke-width="2.5" fill="none" stroke-linecap="round"/>
-  <!-- 볼 터치 (핑크) -->
-  <circle cx="17" cy="32" r="3" fill="#f0abfc" opacity="0.6"/>
-  <circle cx="47" cy="32" r="3" fill="#f0abfc" opacity="0.6"/>
-  <!-- AI 스파클 -->
-  <g fill="#fbbf24">
-    <polygon points="52,6 53.5,10 56,8 53.5,10.5 56,12 53,10.5 52,14 52,10.5 48,12 51,10 48,8 51,9.5"/>
-    <circle cx="10" cy="8" r="1.5"/>
-    <circle cx="56" cy="18" r="1"/>
-  </g>
+  <!-- 로켓 본체 -->
+  <path d="M32 4 C32 4 18 20 18 40 C18 48 24 52 32 52 C40 52 46 48 46 40 C46 20 32 4 32 4Z" fill="#6366f1"/>
+  <!-- 로켓 창문 -->
+  <circle cx="32" cy="28" r="7" fill="#e0e7ff"/>
+  <circle cx="32" cy="28" r="5" fill="#a5b4fc"/>
+  <!-- 창문 반짝임 -->
+  <circle cx="30" cy="26" r="1.5" fill="white" opacity="0.8"/>
+  <!-- 날개 (왼쪽) -->
+  <path d="M18 38 C18 38 8 42 10 50 L18 46Z" fill="#f59e0b"/>
+  <!-- 날개 (오른쪽) -->
+  <path d="M46 38 C46 38 56 42 54 50 L46 46Z" fill="#f59e0b"/>
+  <!-- 불꽃 -->
+  <path d="M26 52 Q29 62 32 56 Q35 62 38 52" fill="#ef4444"/>
+  <path d="M28 52 Q30 58 32 54 Q34 58 36 52" fill="#fbbf24"/>
+  <!-- 로켓 코 -->
+  <ellipse cx="32" cy="12" rx="4" ry="3" fill="#818cf8" opacity="0.5"/>
 </svg>

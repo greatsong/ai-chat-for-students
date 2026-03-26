@@ -7,6 +7,48 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+// 사용자 캐시: DB 조회를 줄이기 위해 5분 TTL로 캐싱
+const userCache = new Map();
+const USER_CACHE_TTL = 5 * 60 * 1000; // 5분
+
+// 30분마다 만료된 캐시 엔트리 정리
+setInterval(
+  () => {
+    const now = Date.now();
+    for (const [key, entry] of userCache) {
+      if (now - entry.cachedAt > USER_CACHE_TTL) {
+        userCache.delete(key);
+      }
+    }
+  },
+  30 * 60 * 1000,
+);
+
+/**
+ * 캐시에서 사용자 조회, 없으면 DB에서 조회 후 캐시에 저장
+ */
+async function getCachedUser(userId) {
+  const cached = userCache.get(userId);
+  if (cached && Date.now() - cached.cachedAt < USER_CACHE_TTL) {
+    return cached.user;
+  }
+
+  const user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
+  if (user) {
+    userCache.set(userId, { user, cachedAt: Date.now() });
+  } else {
+    userCache.delete(userId);
+  }
+  return user;
+}
+
+/**
+ * 캐시 무효화 (사용자 정보 변경 시 호출)
+ */
+export function invalidateUserCache(userId) {
+  userCache.delete(userId);
+}
+
 /**
  * JWT 인증 미들웨어
  * Authorization 헤더에서 Bearer 토큰을 추출하고 검증
@@ -24,7 +66,7 @@ export async function authenticate(req, res, next) {
 
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
-    const user = await queryOne('SELECT * FROM users WHERE id = ?', [decoded.userId]);
+    const user = await getCachedUser(decoded.userId);
 
     if (!user) {
       return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });

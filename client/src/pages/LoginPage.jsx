@@ -1,6 +1,6 @@
-import { useEffect, useRef, useCallback } from "react";
-import { useNavigate, Link } from "react-router-dom";
-import useAuthStore from "../stores/authStore";
+import { useEffect, useRef, useCallback } from 'react';
+import { useNavigate, Link } from 'react-router-dom';
+import useAuthStore from '../stores/authStore';
 
 const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 
@@ -12,7 +12,7 @@ export default function LoginPage() {
   // 이미 인증된 상태면 /chat으로 이동
   useEffect(() => {
     if (isAuthenticated) {
-      navigate("/chat", { replace: true });
+      navigate('/chat', { replace: true });
     }
   }, [isAuthenticated, navigate]);
 
@@ -20,19 +20,19 @@ export default function LoginPage() {
     async (response) => {
       try {
         await loginWithGoogle(response.credential);
-        navigate("/chat", { replace: true });
+        navigate('/chat', { replace: true });
       } catch (err) {
-        console.error("로그인 실패:", err);
-        alert(err.message || "로그인에 실패했습니다.");
+        console.error('로그인 실패:', err);
+        alert(err.message || '로그인에 실패했습니다.');
       }
     },
-    [loginWithGoogle, navigate]
+    [loginWithGoogle, navigate],
   );
 
   // Google Identity Services 스크립트 로드
   useEffect(() => {
     if (!GOOGLE_CLIENT_ID) {
-      console.error("VITE_GOOGLE_CLIENT_ID 환경변수가 설정되지 않았습니다.");
+      console.error('VITE_GOOGLE_CLIENT_ID 환경변수가 설정되지 않았습니다.');
       return;
     }
 
@@ -47,11 +47,11 @@ export default function LoginPage() {
       });
 
       window.google.accounts.id.renderButton(buttonRef.current, {
-        type: "standard",
-        theme: "outline",
-        size: "large",
-        text: "signin_with",
-        shape: "rectangular",
+        type: 'standard',
+        theme: 'outline',
+        size: 'large',
+        text: 'signin_with',
+        shape: 'rectangular',
         width: 320,
       });
     }
@@ -59,12 +59,14 @@ export default function LoginPage() {
     // 이미 로드된 경우
     if (window.google?.accounts?.id) {
       initializeGoogle();
-      return () => { cancelled = true; };
+      return () => {
+        cancelled = true;
+      };
     }
 
     // 스크립트 태그가 이미 존재하는지 확인 (중복 방지)
     const existingScript = document.querySelector(
-      'script[src="https://accounts.google.com/gsi/client"]'
+      'script[src="https://accounts.google.com/gsi/client"]',
     );
 
     if (existingScript) {
@@ -81,8 +83,8 @@ export default function LoginPage() {
     }
 
     // 새로 스크립트 로드
-    const script = document.createElement("script");
-    script.src = "https://accounts.google.com/gsi/client";
+    const script = document.createElement('script');
+    script.src = 'https://accounts.google.com/gsi/client';
     script.async = true;
     script.defer = true;
     script.onload = () => {
@@ -117,51 +119,83 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-emerald-50 via-white to-blue-50 relative overflow-hidden">
-      {/* 배경 장식 */}
-      <div className="absolute top-0 left-0 w-64 h-64 bg-emerald-100/20 rounded-full -translate-x-1/2 -translate-y-1/2 blur-3xl" />
-      <div className="absolute bottom-0 right-0 w-72 h-72 bg-blue-100/20 rounded-full translate-x-1/3 translate-y-1/3 blur-3xl" />
+    <div className="flex items-center justify-center min-h-screen bg-gradient-to-br from-indigo-50 via-white to-purple-50 relative overflow-hidden">
+      {/* 메쉬 그라데이션 배경 오브 */}
+      <div className="absolute top-[-15%] left-[-10%] w-[500px] h-[500px] bg-violet-300/30 rounded-full blur-[120px] animate-float" />
+      <div className="absolute top-[30%] right-[-15%] w-[400px] h-[400px] bg-blue-300/25 rounded-full blur-[100px] animate-float-delayed" />
+      <div
+        className="absolute bottom-[-10%] left-[25%] w-[450px] h-[450px] bg-pink-200/20 rounded-full blur-[110px] animate-float"
+        style={{ animationDelay: '2s' }}
+      />
+      <div
+        className="absolute top-[60%] left-[10%] w-[300px] h-[300px] bg-cyan-200/20 rounded-full blur-[80px] animate-float-delayed"
+        style={{ animationDelay: '1s' }}
+      />
+
+      {/* 미세한 도트 패턴 */}
+      <div
+        className="absolute inset-0 opacity-[0.03]"
+        style={{
+          backgroundImage: 'radial-gradient(circle, rgba(99,102,241,0.8) 1px, transparent 1px)',
+          backgroundSize: '32px 32px',
+        }}
+      />
 
       <div className="w-full max-w-lg mx-4 relative z-10">
-        {/* 메인 카드 */}
-        <div className="bg-white/80 backdrop-blur-sm rounded-3xl shadow-xl border border-white/50 p-8 sm:p-10">
+        {/* 메인 글래스 카드 */}
+        <div className="bg-white/70 backdrop-blur-xl rounded-3xl shadow-xl shadow-indigo-100/50 border border-white/80 p-8 sm:p-10 hover:shadow-2xl hover:shadow-indigo-100/60 transition-all duration-500">
           {/* 학교 로고 */}
-          <div className="flex justify-center mb-6">
-            <img
-              src="/danggok-logo.jpeg"
-              alt="당곡고등학교 로고"
-              className="h-24 sm:h-28 object-contain"
-            />
+          <div className="flex justify-center mb-6 animate-fade-in-up">
+            <div className="bg-white rounded-2xl px-5 py-3 shadow-md shadow-indigo-100/40 border border-indigo-50">
+              <img
+                src="/danggok-logo.jpeg"
+                alt="당곡고등학교 로고"
+                className="h-16 sm:h-20 object-contain"
+              />
+            </div>
           </div>
 
           {/* 타이틀 */}
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
-            &#x2B50; AI 학습 도우미 &#x2B50;
+          <h1
+            className="text-2xl sm:text-3xl font-bold text-center text-gray-900 shimmer-text animate-fade-in-up"
+            style={{ animationDelay: '100ms' }}
+          >
+            ✨ 유료 AI 4종 세트 for 당곡고
           </h1>
-          <p className="mt-2 text-center text-gray-500 text-sm">
-            &#x1F680; 우주최강 당곡고등학교 학생들의 학습을 위한 AI 학습 도우미
+          <p
+            className="mt-3 text-center text-gray-400 text-sm animate-fade-in-up"
+            style={{ animationDelay: '200ms' }}
+          >
+            🚀 우주최강 당곡고등학교 학생들의 학습을 위한 AI 학습 도우미
           </p>
 
           {/* AI 모델 뱃지 */}
-          <div className="flex justify-center gap-2 mt-4 flex-wrap">
-            <span className="px-2.5 py-1 text-xs font-medium bg-orange-50 text-orange-600 rounded-full border border-orange-100">Claude</span>
-            <span className="px-2.5 py-1 text-xs font-medium bg-blue-50 text-blue-600 rounded-full border border-blue-100">Gemini</span>
-            <span className="px-2.5 py-1 text-xs font-medium bg-green-50 text-green-600 rounded-full border border-green-100">ChatGPT</span>
-            <span className="px-2.5 py-1 text-xs font-medium bg-purple-50 text-purple-600 rounded-full border border-purple-100">Solar</span>
+          <div
+            className="flex justify-center gap-2.5 mt-5 flex-wrap animate-fade-in-up"
+            style={{ animationDelay: '300ms' }}
+          >
+            <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-orange-50 to-orange-100 text-orange-600 rounded-full border border-orange-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-orange-100 cursor-default">
+              Claude
+            </span>
+            <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 rounded-full border border-blue-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-blue-100 cursor-default">
+              Gemini
+            </span>
+            <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-green-50 to-green-100 text-green-600 rounded-full border border-green-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-green-100 cursor-default">
+              ChatGPT
+            </span>
+            <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-50 to-purple-100 text-purple-600 rounded-full border border-purple-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-purple-100 cursor-default">
+              Solar
+            </span>
           </div>
 
           {/* 구분선 */}
-          <div className="my-7 border-t border-gray-200/80" />
+          <div className="my-8 border-t border-gray-200/60" />
 
           {/* Google 로그인 버튼 */}
           <div className="flex justify-center">
             {isLoading ? (
               <div className="flex items-center gap-2 text-gray-500">
-                <svg
-                  className="h-5 w-5 animate-spin"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                >
+                <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
                   <circle
                     className="opacity-25"
                     cx="12"
@@ -184,12 +218,15 @@ export default function LoginPage() {
           </div>
 
           {/* 안내 문구 */}
-          <div className="mt-7 bg-gray-50 rounded-xl p-4">
+          <div className="mt-8 bg-gradient-to-r from-indigo-50/80 to-purple-50/80 rounded-xl p-4 border border-indigo-100/60">
             <div className="flex items-start gap-2.5">
-              <span className="text-base mt-0.5">&#x1F393;</span>
+              <span className="text-base mt-0.5">🎓</span>
               <div className="text-xs text-gray-500 leading-relaxed">
-                <p><strong className="text-gray-700">@danggok.hs.kr</strong> 또는 교사 등록된 계정으로 로그인하세요.</p>
-                <p className="mt-1">학생은 교사 승인 후 사용할 수 있습니다.</p>
+                <p>
+                  <strong className="text-gray-700">@danggok.hs.kr</strong> 또는 교사 등록된
+                  계정으로 로그인하세요.
+                </p>
+                <p className="mt-1 text-gray-400">학생은 교사 승인 후 사용할 수 있습니다.</p>
               </div>
             </div>
           </div>
@@ -199,7 +236,7 @@ export default function LoginPage() {
         <div className="text-center mt-4">
           <Link
             to="/privacy"
-            className="text-xs text-gray-400 hover:text-emerald-600 underline underline-offset-2 transition-colors"
+            className="text-xs text-gray-400 hover:text-indigo-500 underline underline-offset-2 transition-colors"
           >
             개인정보 처리방침
           </Link>

@@ -18,6 +18,9 @@ const providers = { claude, gemini, openai, solar };
 
 const NOW = "datetime('now')";
 
+// AI 컨텍스트에 전달할 최대 메시지 수
+const MAX_HISTORY_MESSAGES = 50;
+
 // POST /api/chat
 router.post('/', authenticate, validate(chatSchema), async (req, res) => {
   const {
@@ -44,13 +47,13 @@ router.post('/', authenticate, validate(chatSchema), async (req, res) => {
       return res.status(400).json({ error: `${provider}는 지원되지 않는 AI 프로바이더입니다.` });
     }
 
-    // 3. 일일 사용량 확인
+    // 3. 일일 사용량 확인 (atomic upsert로 race condition 방지)
     const today = new Date().toISOString().split('T')[0];
     const dailyLimit = req.user.daily_limit || 100000;
 
     const usage = await queryOne(
       'SELECT SUM(input_tokens + output_tokens) as total_tokens FROM usage_daily WHERE user_id = ? AND date = ?',
-      [userId, today]
+      [userId, today],
     );
 
     const totalUsed = usage?.total_tokens || 0;
@@ -70,17 +73,20 @@ router.post('/', authenticate, validate(chatSchema), async (req, res) => {
       const title = (message || '').slice(0, 50) || '새 대화';
       await run(
         'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [convId, userId, title, provider, model || 'claude-sonnet-4-6', now, now]
+        [convId, userId, title, provider, model || 'claude-sonnet-4-6', now, now],
       );
     } else {
       // 대화 소유권 확인
-      const conv = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [convId, userId]);
+      const conv = await queryOne('SELECT id FROM conversations WHERE id = ? AND user_id = ?', [
+        convId,
+        userId,
+      ]);
       if (!conv) {
         return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
       }
     }
 
-    // 5. 교사/관리자: URL 내용 자동 가져오기 (YouTube 자막 포함)
+    // 5. 교사/관리자: URL 내용 자동 가져오기 (백그라운드, 응답 차단하지 않음)
     let enrichedMessage = message;
     const isTeacherOrAdmin = req.user.role === 'teacher' || req.user.role === 'admin';
     if (isTeacherOrAdmin && message) {
@@ -99,26 +105,40 @@ router.post('/', authenticate, validate(chatSchema), async (req, res) => {
     const userMsgId = crypto.randomUUID();
     const filesJson = JSON.stringify(files || []);
     if (process.env.NODE_ENV !== 'production') {
-      console.log(`[chat] 파일 ${files?.length || 0}개 수신:`, files?.map(f => ({ name: f.name, type: f.type })));
+      console.log(
+        `[chat] 파일 ${files?.length || 0}개 수신:`,
+        files?.map((f) => ({ name: f.name, type: f.type })),
+      );
     }
     await run(
       'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [userMsgId, convId, 'user', enrichedMessage, filesJson, now]
+      [userMsgId, convId, 'user', enrichedMessage, filesJson, now],
     );
 
-    // 6. 대화 기록 조회 (메시지 배열 구성)
+    // 7. 대화 기록 조회 (최근 MAX_HISTORY_MESSAGES개만 — AI 컨텍스트 제한)
     const history = await queryAll(
-      'SELECT role, content, files FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
-      [convId]
+      `SELECT role, content, files FROM messages WHERE conversation_id = ?
+       ORDER BY created_at DESC LIMIT ?`,
+      [convId, MAX_HISTORY_MESSAGES],
     );
+    // DESC로 가져온 후 시간순으로 다시 정렬
+    history.reverse();
+
     if (process.env.NODE_ENV !== 'production') {
-      const filesInHistory = history.filter(m => {
-        try { const f = JSON.parse(m.files); return f.length > 0; } catch { return false; }
+      const filesInHistory = history.filter((m) => {
+        try {
+          const f = JSON.parse(m.files);
+          return f.length > 0;
+        } catch {
+          return false;
+        }
       });
-      console.log(`[chat] 히스토리 ${history.length}개 메시지, 파일 포함 ${filesInHistory.length}개`);
+      console.log(
+        `[chat] 히스토리 ${history.length}개 메시지, 파일 포함 ${filesInHistory.length}개`,
+      );
     }
 
-    // 7. SSE 헤더 설정
+    // 8. SSE 헤더 설정
     res.setHeader('Content-Type', 'text/event-stream');
     res.setHeader('Cache-Control', 'no-cache');
     res.setHeader('Connection', 'keep-alive');
@@ -128,11 +148,12 @@ router.post('/', authenticate, validate(chatSchema), async (req, res) => {
     // conversationId를 클라이언트에 전달 (새 대화 생성 시 필요)
     res.write(`data: ${JSON.stringify({ type: 'conversationId', conversationId: convId })}\n\n`);
 
-    // 8. 프로바이더별 메시지 빌드 및 스트리밍 처리
+    // 9. 프로바이더별 메시지 빌드 및 스트리밍 처리
     // 교사/관리자는 시스템 프롬프트 없이 자유롭게 사용
-    const systemPrompt = (req.user.role === 'teacher' || req.user.role === 'admin')
-      ? ''
-      : (await getSetting('system_prompt')) || '';
+    const systemPrompt =
+      req.user.role === 'teacher' || req.user.role === 'admin'
+        ? ''
+        : (await getSetting('system_prompt')) || '';
     const providerMessages = providerModule.buildMessages(history);
 
     // 프로바이더별 기능 플래그 확인
@@ -159,7 +180,7 @@ router.post('/', authenticate, validate(chatSchema), async (req, res) => {
             `data: ${JSON.stringify({
               type: 'done',
               usage: { input: result.inputTokens, output: result.outputTokens },
-            })}\n\n`
+            })}\n\n`,
           );
           res.end();
           resolve(result);
@@ -170,57 +191,57 @@ router.post('/', authenticate, validate(chatSchema), async (req, res) => {
       });
     });
 
-    // 9. 어시스턴트 메시지 저장
+    // 10. 어시스턴트 메시지 저장
     const assistantMsgId = crypto.randomUUID();
     const doneAt = new Date().toISOString();
     await run(
       'INSERT INTO messages (id, conversation_id, role, content, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [assistantMsgId, convId, 'assistant', result.fullContent, result.inputTokens, result.outputTokens, doneAt]
+      [
+        assistantMsgId,
+        convId,
+        'assistant',
+        result.fullContent,
+        result.inputTokens,
+        result.outputTokens,
+        doneAt,
+      ],
     );
 
-    // 10. 일일 사용량 업데이트
-    const existingUsage = await queryOne(
-      'SELECT id FROM usage_daily WHERE user_id = ? AND date = ? AND provider = ?',
-      [userId, today, provider]
+    // 11. 일일 사용량 업데이트 (INSERT OR로 atomic upsert — race condition 방지)
+    await run(
+      `INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count)
+       VALUES (?, ?, ?, ?, ?, ?, 1)
+       ON CONFLICT(user_id, date, provider) DO UPDATE SET
+         input_tokens = input_tokens + excluded.input_tokens,
+         output_tokens = output_tokens + excluded.output_tokens,
+         request_count = request_count + 1`,
+      [crypto.randomUUID(), userId, today, provider, result.inputTokens, result.outputTokens],
     );
 
-    if (existingUsage) {
-      await run(
-        'UPDATE usage_daily SET input_tokens = input_tokens + ?, output_tokens = output_tokens + ?, request_count = request_count + 1 WHERE user_id = ? AND date = ? AND provider = ?',
-        [result.inputTokens, result.outputTokens, userId, today, provider]
-      );
-    } else {
-      await run(
-        'INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count) VALUES (?, ?, ?, ?, ?, ?, 1)',
-        [crypto.randomUUID(), userId, today, provider, result.inputTokens, result.outputTokens]
-      );
-    }
-
-    // 11. 첫 번째 메시지인 경우 대화 제목 업데이트
+    // 12. 첫 번째 메시지인 경우 대화 제목 업데이트
     const messageCount = await queryOne(
       "SELECT COUNT(*) as cnt FROM messages WHERE conversation_id = ? AND role = 'user'",
-      [convId]
+      [convId],
     );
     if (messageCount?.cnt === 1) {
       const title = (message || '').slice(0, 50) || '새 대화';
       await run('UPDATE conversations SET title = ? WHERE id = ?', [title, convId]);
     }
 
-    // 12. 대화 updated_at 업데이트
+    // 13. 대화 updated_at 업데이트
     await run('UPDATE conversations SET updated_at = ? WHERE id = ?', [doneAt, convId]);
   } catch (error) {
     console.error('채팅 오류:', error);
 
     // 프로덕션에서는 내부 에러 메시지 노출 방지
-    const safeMessage = process.env.NODE_ENV === 'production'
-      ? 'AI 응답 중 오류가 발생했습니다.'
-      : (error.message || 'AI 응답 중 오류가 발생했습니다.');
+    const safeMessage =
+      process.env.NODE_ENV === 'production'
+        ? 'AI 응답 중 오류가 발생했습니다.'
+        : error.message || 'AI 응답 중 오류가 발생했습니다.';
 
     // SSE 헤더가 이미 전송된 경우 에러 이벤트 전송
     if (res.headersSent) {
-      res.write(
-        `data: ${JSON.stringify({ type: 'error', message: safeMessage })}\n\n`
-      );
+      res.write(`data: ${JSON.stringify({ type: 'error', message: safeMessage })}\n\n`);
       res.end();
     } else {
       res.status(500).json({ error: safeMessage });

@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { queryOne, run, getSetting } from '../db/database.js';
-import { authenticate } from '../middleware/auth.js';
+import { authenticate, invalidateUserCache } from '../middleware/auth.js';
 import { validate, googleAuthSchema } from '../middleware/validate.js';
 
 const router = Router();
@@ -10,8 +10,14 @@ if (!JWT_SECRET) {
   console.error('FATAL: JWT_SECRET 환경변수가 설정되지 않았습니다.');
   process.exit(1);
 }
-const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
-const TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
+const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean);
+const TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '')
+  .split(',')
+  .map((e) => e.trim())
+  .filter(Boolean);
 
 /**
  * POST /api/auth/google
@@ -23,7 +29,7 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
   try {
     // 1. Google ID 토큰 검증
     const response = await fetch(
-      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(credential)}`,
     );
 
     if (!response.ok) {
@@ -45,10 +51,12 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
 
     // 역할 판별 소스 3곳: 환경변수, DB settings, DB users 테이블
     const emailLower = email.toLowerCase();
-    const isAdminEmail = ADMIN_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
-    const isEnvTeacherEmail = TEACHER_EMAILS.map(e => e.toLowerCase()).includes(emailLower);
+    const isAdminEmail = ADMIN_EMAILS.map((e) => e.toLowerCase()).includes(emailLower);
+    const isEnvTeacherEmail = TEACHER_EMAILS.map((e) => e.toLowerCase()).includes(emailLower);
     const dbTeacherEmails = (await getSetting('teacher_emails')) || [];
-    const isDbTeacherEmail = Array.isArray(dbTeacherEmails) && dbTeacherEmails.map(e => e.toLowerCase()).includes(emailLower);
+    const isDbTeacherEmail =
+      Array.isArray(dbTeacherEmails) &&
+      dbTeacherEmails.map((e) => e.toLowerCase()).includes(emailLower);
     const isTeacherEmail = isEnvTeacherEmail || isDbTeacherEmail;
 
     // 이메일 도메인 제한: @danggok.hs.kr 또는 관리자/교사 이메일만 허용
@@ -100,31 +108,32 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
       if (updates.length > 0) {
         params.push(user.id);
         await run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+        invalidateUserCache(user.id);
         user = await queryOne('SELECT * FROM users WHERE id = ?', [user.id]);
       }
     } else {
       // 4. 신규 사용자 생성
-      const isActive = (role === 'admin' || role === 'teacher') ? 1 : 0;
+      const isActive = role === 'admin' || role === 'teacher' ? 1 : 0;
 
       // 첫 번째 학급 배정
-      const firstClassroom = await queryOne('SELECT id FROM classrooms ORDER BY created_at ASC LIMIT 1');
+      const firstClassroom = await queryOne(
+        'SELECT id FROM classrooms ORDER BY created_at ASC LIMIT 1',
+      );
       const classroomId = firstClassroom ? firstClassroom.id : null;
 
       const userId = crypto.randomUUID();
       await run(
         'INSERT INTO users (id, google_id, email, name, avatar, role, classroom_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, googleId, email, name, picture, role, classroomId, isActive]
+        [userId, googleId, email, name, picture, role, classroomId, isActive],
       );
 
       user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
     }
 
     // 5. JWT 발급
-    const token = jwt.sign(
-      { userId: user.id, role: user.role, email: user.email },
-      JWT_SECRET,
-      { expiresIn: '7d' }
-    );
+    const token = jwt.sign({ userId: user.id, role: user.role, email: user.email }, JWT_SECRET, {
+      expiresIn: '7d',
+    });
 
     // 6. 응답
     res.json({

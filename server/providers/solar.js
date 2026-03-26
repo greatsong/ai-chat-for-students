@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { getApiKey } from '../utils/apiKeys.js';
+import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let client = null;
@@ -35,9 +36,7 @@ export function buildMessages(history) {
           .map((f) => `[파일: ${f.name}]\n${f.data}`)
           .join('\n\n');
 
-        const content = textParts
-          ? `${textParts}\n\n${msg.content || ''}`
-          : msg.content || '';
+        const content = textParts ? `${textParts}\n\n${msg.content || ''}` : msg.content || '';
 
         return { role: 'user', content };
       }
@@ -79,18 +78,23 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
     let inputTokens = 0;
     let outputTokens = 0;
 
-    for await (const chunk of stream) {
-      // 사용량 정보
-      if (chunk.usage) {
-        inputTokens = chunk.usage.prompt_tokens || 0;
-        outputTokens = chunk.usage.completion_tokens || 0;
-      }
+    try {
+      for await (const chunk of stream) {
+        // 사용량 정보
+        if (chunk.usage) {
+          inputTokens = chunk.usage.prompt_tokens || 0;
+          outputTokens = chunk.usage.completion_tokens || 0;
+        }
 
-      const delta = chunk.choices?.[0]?.delta;
-      if (delta?.content) {
-        fullContent += delta.content;
-        onText(delta.content);
+        const delta = chunk.choices?.[0]?.delta;
+        if (delta?.content) {
+          fullContent += delta.content;
+          onText(delta.content);
+        }
       }
+    } catch (streamError) {
+      stream.controller?.abort();
+      throw streamError;
     }
 
     onDone({ fullContent, inputTokens, outputTokens });

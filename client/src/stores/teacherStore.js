@@ -31,9 +31,7 @@ const useTeacherStore = create((set, get) => ({
     try {
       const updated = await apiPatch(`/teacher/students/${id}`, data);
       set((state) => ({
-        students: state.students.map((s) =>
-          s.id === id ? { ...s, ...updated } : s
-        ),
+        students: state.students.map((s) => (s.id === id ? { ...s, ...updated } : s)),
       }));
       return updated;
     } catch (error) {
@@ -81,12 +79,18 @@ const useTeacherStore = create((set, get) => ({
     set({ isLoading: true, error: null });
     try {
       const data = await apiGet(`/teacher/conversations/${conversationId}/messages`);
-      set({ conversationMessages: data.messages, isLoading: false });
+      // 메모리 보호: 최대 500개 메시지만 유지
+      const messages = data.messages?.slice(-500) || [];
+      set({ conversationMessages: messages, isLoading: false });
       return data;
     } catch (error) {
       set({ isLoading: false, error: error.message });
       console.error('메시지 로드 실패:', error);
     }
+  },
+
+  clearConversationState: () => {
+    set({ conversationMessages: [], conversationPagination: null });
   },
 
   deleteConversation: async (conversationId) => {
@@ -95,6 +99,7 @@ const useTeacherStore = create((set, get) => ({
       set((state) => ({
         conversations: state.conversations.filter((c) => c.id !== conversationId),
         conversationMessages: [],
+        conversationPagination: null,
       }));
     } catch (error) {
       console.error('대화 삭제 실패:', error);

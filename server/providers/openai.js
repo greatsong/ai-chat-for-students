@@ -1,5 +1,6 @@
 import OpenAI from 'openai';
 import { getApiKey } from '../utils/apiKeys.js';
+import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let client = null;
@@ -73,7 +74,15 @@ export function buildMessages(history) {
  * @param {Function} params.onError - 에러 콜백
  * @param {Object} params.options - { webSearch }
  */
-export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError, options = {} }) {
+export async function streamChat({
+  messages,
+  systemPrompt,
+  model,
+  onText,
+  onDone,
+  onError,
+  options = {},
+}) {
   try {
     const openai = await getClient();
 
@@ -91,10 +100,10 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
       stream_options: { include_usage: true },
     };
 
-    // 웹 검색 도구 설정
-    if (options.webSearch) {
-      createParams.tools = [{ type: 'web_search_preview' }];
-    }
+    // 웹 검색: OpenAI Chat Completions API에서는 미지원 (Responses API 전용)
+    // if (options.webSearch) {
+    //   createParams.tools = [{ type: 'web_search_preview' }];
+    // }
 
     const stream = await openai.chat.completions.create(createParams);
 
@@ -102,18 +111,24 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
     let inputTokens = 0;
     let outputTokens = 0;
 
-    for await (const chunk of stream) {
-      // 사용량 정보 (스트림 마지막 청크에 포함)
-      if (chunk.usage) {
-        inputTokens = chunk.usage.prompt_tokens || 0;
-        outputTokens = chunk.usage.completion_tokens || 0;
-      }
+    try {
+      for await (const chunk of stream) {
+        // 사용량 정보 (스트림 마지막 청크에 포함)
+        if (chunk.usage) {
+          inputTokens = chunk.usage.prompt_tokens || 0;
+          outputTokens = chunk.usage.completion_tokens || 0;
+        }
 
-      const delta = chunk.choices?.[0]?.delta;
-      if (delta?.content) {
-        fullContent += delta.content;
-        onText(delta.content);
+        const delta = chunk.choices?.[0]?.delta;
+        if (delta?.content) {
+          fullContent += delta.content;
+          onText(delta.content);
+        }
       }
+    } catch (streamError) {
+      // 스트림 도중 에러 발생 시 컨트롤러 정리
+      stream.controller?.abort();
+      throw streamError;
     }
 
     onDone({ fullContent, inputTokens, outputTokens });
@@ -133,13 +148,15 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
 export async function generateImage({ prompt, model, size }) {
   const openai = await getClient();
 
-  const result = await openai.images.generate({
-    model: model || 'gpt-image-1.5',
-    prompt,
-    n: 1,
-    size: size || '1024x1024',
-    response_format: 'b64_json',
-  });
+  const result = await withRetry(() =>
+    openai.images.generate({
+      model: model || 'gpt-image-1.5',
+      prompt,
+      n: 1,
+      size: size || '1024x1024',
+      response_format: 'b64_json',
+    }),
+  );
 
   const imageData = result.data?.[0]?.b64_json;
   if (!imageData) {
@@ -163,12 +180,14 @@ export async function generateImage({ prompt, model, size }) {
 export async function generateSpeech({ text, voice, model }) {
   const openai = await getClient();
 
-  const response = await openai.audio.speech.create({
-    model: model || 'tts-1',
-    voice: voice || 'alloy',
-    input: text.slice(0, 4096),
-    response_format: 'mp3',
-  });
+  const response = await withRetry(() =>
+    openai.audio.speech.create({
+      model: model || 'tts-1',
+      voice: voice || 'alloy',
+      input: text.slice(0, 4096),
+      response_format: 'mp3',
+    }),
+  );
 
   const buffer = Buffer.from(await response.arrayBuffer());
   return {
@@ -192,10 +211,12 @@ export async function transcribeAudio({ audioBuffer, mimeType }) {
   // OpenAI SDK는 name 속성이 있는 Blob을 File처럼 인식
   blob.name = `recording.${ext}`;
 
-  const transcription = await openai.audio.transcriptions.create({
-    model: 'whisper-1',
-    file: blob,
-  });
+  const transcription = await withRetry(() =>
+    openai.audio.transcriptions.create({
+      model: 'whisper-1',
+      file: blob,
+    }),
+  );
 
   return { text: transcription.text };
 }
