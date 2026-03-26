@@ -485,7 +485,7 @@ export default function SettingsPage() {
         <section className="bg-white rounded-xl border-2 border-teal-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">TTS / STT (음성 기능)</h2>
           <p className="text-xs text-gray-400 mb-4">
-            OpenAI API를 사용합니다. OpenAI API 키가 설정되어 있어야 합니다.
+            교사/관리자는 항상 사용 가능합니다. 아래 설정은 학생에게 허용할지 여부입니다. OpenAI API 키 필요.
           </p>
 
           <div className="space-y-4">
@@ -500,7 +500,7 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <span className="text-sm font-bold text-gray-800">TTS</span>
-                  <span className="text-xs text-gray-400 ml-1.5">텍스트 읽기</span>
+                  <span className="text-xs text-gray-400 ml-1.5">학생에게 허용</span>
                 </div>
               </label>
 
@@ -544,13 +544,13 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <span className="text-sm font-bold text-gray-800">STT</span>
-                  <span className="text-xs text-gray-400 ml-1.5">음성 입력 (Whisper)</span>
+                  <span className="text-xs text-gray-400 ml-1.5">학생에게 허용 (Whisper)</span>
                 </div>
               </label>
             </div>
 
             <div className="text-xs text-gray-400 bg-teal-50 px-3 py-2 rounded-lg">
-              TTS/STT는 모든 사용자(학생 포함)가 사용할 수 있습니다. 비용: TTS ~3-10원/회, STT ~2-4원/회
+              교사/관리자는 설정과 무관하게 항상 사용 가능합니다. 비용: TTS ~3-10원/회, STT ~2-4원/회
             </div>
           </div>
         </section>

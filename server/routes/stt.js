@@ -12,10 +12,13 @@ router.post('/transcribe', authenticate, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // 1. STT 활성화 확인
-    const sttEnabled = await getSetting('stt_enabled');
-    if (!sttEnabled) {
-      return res.status(403).json({ error: 'STT 기능이 비활성화되어 있습니다.' });
+    // 1. STT 활성화 확인 (교사/관리자는 항상 사용 가능)
+    const isTeacher = req.user.role === 'teacher' || req.user.role === 'admin';
+    if (!isTeacher) {
+      const sttEnabled = await getSetting('stt_enabled');
+      if (!sttEnabled) {
+        return res.status(403).json({ error: 'STT 기능이 비활성화되어 있습니다.' });
+      }
     }
 
     // 2. 오디오 데이터 확인

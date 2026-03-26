@@ -12,10 +12,13 @@ router.post('/generate', authenticate, async (req, res) => {
   const userId = req.user.id;
 
   try {
-    // 1. TTS 활성화 확인
-    const ttsEnabled = await getSetting('tts_enabled');
-    if (!ttsEnabled) {
-      return res.status(403).json({ error: 'TTS 기능이 비활성화되어 있습니다.' });
+    // 1. TTS 활성화 확인 (교사/관리자는 항상 사용 가능)
+    const isTeacher = req.user.role === 'teacher' || req.user.role === 'admin';
+    if (!isTeacher) {
+      const ttsEnabled = await getSetting('tts_enabled');
+      if (!ttsEnabled) {
+        return res.status(403).json({ error: 'TTS 기능이 비활성화되어 있습니다.' });
+      }
     }
 
     // 2. 텍스트 확인

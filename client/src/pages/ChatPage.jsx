@@ -258,7 +258,7 @@ export default function ChatPage() {
             <MessageList
               messages={messages}
               isStreaming={isStreaming}
-              ttsEnabled={!!publicSettings.tts_enabled}
+              ttsEnabled={isTeacher || !!publicSettings.tts_enabled}
               onSpeak={handleSpeak}
             />
           ) : (
@@ -278,7 +278,7 @@ export default function ChatPage() {
           disabled={false}
           isStreaming={isStreaming}
           isTeacher={isTeacher}
-          sttEnabled={!!publicSettings.stt_enabled}
+          sttEnabled={isTeacher || !!publicSettings.stt_enabled}
         />
       </main>
     </div>
