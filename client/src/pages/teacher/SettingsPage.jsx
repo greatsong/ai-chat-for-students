@@ -1,5 +1,13 @@
 import { useEffect, useState } from "react";
 import useTeacherStore from "../../stores/teacherStore";
+import { apiGet, apiPut } from "../../lib/api";
+
+const API_KEY_PROVIDERS = [
+  { id: "anthropic", name: "Anthropic (Claude)", placeholder: "sk-ant-api03-..." },
+  { id: "google", name: "Google (Gemini)", placeholder: "AIzaSy..." },
+  { id: "openai", name: "OpenAI (ChatGPT)", placeholder: "sk-proj-..." },
+  { id: "upstage", name: "Upstage (Solar)", placeholder: "up_..." },
+];
 
 const ALL_PROVIDERS = [
   { id: "claude", name: "Claude (Anthropic)", models: ["claude-sonnet-4-6", "claude-haiku-4"] },
@@ -20,8 +28,15 @@ export default function SettingsPage() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // API 키 관리 상태
+  const [apiKeyStatus, setApiKeyStatus] = useState(null);
+  const [apiKeyInputs, setApiKeyInputs] = useState({});
+  const [apiKeySaving, setApiKeySaving] = useState({});
+  const [apiKeySuccess, setApiKeySuccess] = useState({});
+
   useEffect(() => {
     loadSettings();
+    loadApiKeyStatus();
   }, [loadSettings]);
 
   // 설정 로드 시 로컬 상태 동기화
@@ -33,6 +48,31 @@ export default function SettingsPage() {
     setSystemPrompt(settings.system_prompt || "");
     setDailyLimit(settings.default_daily_limit || 100000);
   }, [settings]);
+
+  const loadApiKeyStatus = async () => {
+    try {
+      const data = await apiGet("/teacher/api-keys");
+      setApiKeyStatus(data);
+    } catch {
+      // 권한 없거나 에러 시 무시
+    }
+  };
+
+  const handleSaveApiKey = async (providerId) => {
+    const key = apiKeyInputs[providerId];
+    setApiKeySaving((prev) => ({ ...prev, [providerId]: true }));
+    try {
+      await apiPut("/teacher/api-keys", { provider: providerId, apiKey: key || "" });
+      setApiKeySuccess((prev) => ({ ...prev, [providerId]: true }));
+      setApiKeyInputs((prev) => ({ ...prev, [providerId]: "" }));
+      await loadApiKeyStatus();
+      setTimeout(() => setApiKeySuccess((prev) => ({ ...prev, [providerId]: false })), 3000);
+    } catch (err) {
+      alert("API 키 저장 실패: " + err.message);
+    } finally {
+      setApiKeySaving((prev) => ({ ...prev, [providerId]: false }));
+    }
+  };
 
   const handleToggleProvider = (providerId) => {
     setEnabledProviders((prev) => {
@@ -238,6 +278,75 @@ export default function SettingsPage() {
               ? `약 ${(dailyLimit / 1000).toFixed(0)}K 토큰`
               : `${dailyLimit} 토큰`}
             {" "}(개별 학생의 한도는 학생 관리 페이지에서 변경 가능)
+          </div>
+        </section>
+
+        {/* API 키 관리 */}
+        <section className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">API 키 관리</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            AI 프로바이더의 API 키를 설정합니다. 여기서 설정한 키가 환경변수보다 우선 적용됩니다.
+            비워두면 서버 환경변수의 키를 사용합니다.
+          </p>
+
+          <div className="space-y-3">
+            {API_KEY_PROVIDERS.map((provider) => {
+              const dbKey = apiKeyStatus?.dbKeys?.[provider.id] || "";
+              const envStatus = apiKeyStatus?.envStatus?.[provider.id] || "미설정";
+              return (
+                <div key={provider.id} className="rounded-lg border border-gray-100 p-4 bg-gray-50/50">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-sm font-medium text-gray-700">{provider.name}</span>
+                    <span className={`text-xs px-2 py-0.5 rounded-full ${
+                      dbKey ? "bg-green-100 text-green-700" : envStatus === "환경변수 설정됨" ? "bg-blue-100 text-blue-700" : "bg-red-100 text-red-700"
+                    }`}>
+                      {dbKey ? "DB 키 사용 중" : envStatus}
+                    </span>
+                  </div>
+                  {dbKey && (
+                    <div className="text-xs text-gray-400 mb-2 font-mono">{dbKey}</div>
+                  )}
+                  <div className="flex gap-2">
+                    <input
+                      type="password"
+                      value={apiKeyInputs[provider.id] || ""}
+                      onChange={(e) => setApiKeyInputs((prev) => ({ ...prev, [provider.id]: e.target.value }))}
+                      placeholder={provider.placeholder}
+                      className="flex-1 px-3 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent font-mono"
+                    />
+                    <button
+                      onClick={() => handleSaveApiKey(provider.id)}
+                      disabled={apiKeySaving[provider.id]}
+                      className="px-3 py-1.5 text-xs font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:bg-gray-400 transition-colors whitespace-nowrap"
+                    >
+                      {apiKeySaving[provider.id] ? "..." : "저장"}
+                    </button>
+                    {dbKey && (
+                      <button
+                        onClick={async () => {
+                          if (!confirm("이 API 키를 삭제하고 환경변수로 되돌리시겠습니까?")) return;
+                          setApiKeySaving((prev) => ({ ...prev, [provider.id]: true }));
+                          try {
+                            await apiPut("/teacher/api-keys", { provider: provider.id, apiKey: "" });
+                            await loadApiKeyStatus();
+                          } catch (err) {
+                            alert("초기화 실패: " + err.message);
+                          } finally {
+                            setApiKeySaving((prev) => ({ ...prev, [provider.id]: false }));
+                          }
+                        }}
+                        className="px-3 py-1.5 text-xs font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors whitespace-nowrap"
+                      >
+                        초기화
+                      </button>
+                    )}
+                  </div>
+                  {apiKeySuccess[provider.id] && (
+                    <div className="mt-1 text-xs text-green-600">저장되었습니다.</div>
+                  )}
+                </div>
+              );
+            })}
           </div>
         </section>
 

@@ -234,6 +234,12 @@ router.get('/conversations/:conversationId/messages', requireAdmin, async (req, 
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
+    // 교사/관리자의 대화는 본인만 열람 가능
+    const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
+    if (owner && (owner.role === 'teacher' || owner.role === 'admin') && conversation.user_id !== req.user.id) {
+      return res.status(403).json({ error: '교사의 채팅 기록은 본인만 열람할 수 있습니다.' });
+    }
+
     const messages = await queryAll(
       `SELECT id, role, content, files, image_url, code_result, input_tokens, output_tokens, created_at
        FROM messages
@@ -299,7 +305,7 @@ router.get('/usage', requireAdmin, async (req, res) => {
       WHERE date >= ?
     `, [dateFilter]);
 
-    // 학생별 사용량
+    // 학생별 사용량 (교사/관리자 제외 — 교사 데이터는 본인만 열람 가능)
     const byStudent = await queryAll(`
       SELECT
         ud.user_id AS userId,
@@ -309,7 +315,7 @@ router.get('/usage', requireAdmin, async (req, res) => {
         COALESCE(SUM(ud.request_count), 0) AS requests
       FROM usage_daily ud
       JOIN users u ON u.id = ud.user_id
-      WHERE ud.date >= ?
+      WHERE ud.date >= ? AND u.role = 'student'
       GROUP BY ud.user_id
       ORDER BY (COALESCE(SUM(ud.input_tokens), 0) + COALESCE(SUM(ud.output_tokens), 0)) DESC
     `, [dateFilter]);
@@ -442,6 +448,12 @@ router.delete('/conversations/:conversationId', requireAdmin, async (req, res) =
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
+    // 교사/관리자의 대화는 본인만 삭제 가능
+    const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
+    if (owner && (owner.role === 'teacher' || owner.role === 'admin') && conversation.user_id !== req.user.id) {
+      return res.status(403).json({ error: '교사의 채팅 기록은 본인만 관리할 수 있습니다.' });
+    }
+
     // 메시지 먼저 삭제 (외래 키 제약)
     await run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
     await run('DELETE FROM conversations WHERE id = ?', [conversationId]);
@@ -558,6 +570,70 @@ router.delete('/teachers', requireAdmin, async (req, res) => {
   } catch (error) {
     console.error('교사 삭제 오류:', error);
     res.status(500).json({ error: '교사를 삭제하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
+// GET /api/teacher/api-keys
+// API 키 설정 조회 (관리자 전용, 마스킹된 형태)
+// ──────────────────────────────────────────
+router.get('/api-keys', requireAdmin, async (req, res) => {
+  try {
+    const dbKeys = (await getSetting('api_keys')) || {};
+
+    // 키 값을 마스킹하여 반환 (앞 8자만 표시)
+    const masked = {};
+    for (const [provider, key] of Object.entries(dbKeys)) {
+      if (key && key.length > 8) {
+        masked[provider] = key.slice(0, 8) + '•'.repeat(Math.min(key.length - 8, 20));
+      } else {
+        masked[provider] = key ? '••••••••' : '';
+      }
+    }
+
+    // 환경변수 키도 마스킹하여 보여줌 (어떤 키가 설정되어 있는지 확인용)
+    const envStatus = {
+      anthropic: process.env.ANTHROPIC_API_KEY ? '환경변수 설정됨' : '미설정',
+      google: process.env.GOOGLE_API_KEY ? '환경변수 설정됨' : '미설정',
+      openai: process.env.OPENAI_API_KEY ? '환경변수 설정됨' : '미설정',
+      upstage: process.env.UPSTAGE_API_KEY ? '환경변수 설정됨' : '미설정',
+    };
+
+    res.json({ dbKeys: masked, envStatus });
+  } catch (error) {
+    console.error('API 키 조회 오류:', error);
+    res.status(500).json({ error: 'API 키를 조회하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
+// PUT /api/teacher/api-keys
+// API 키 설정 변경 (관리자 전용)
+// ──────────────────────────────────────────
+router.put('/api-keys', requireAdmin, async (req, res) => {
+  try {
+    const { provider, apiKey } = req.body;
+
+    const validProviders = ['anthropic', 'google', 'openai', 'upstage'];
+    if (!validProviders.includes(provider)) {
+      return res.status(400).json({ error: `유효하지 않은 프로바이더: ${provider}` });
+    }
+
+    const dbKeys = (await getSetting('api_keys')) || {};
+
+    if (apiKey && apiKey.trim()) {
+      dbKeys[provider] = apiKey.trim();
+    } else {
+      // 빈 값이면 해당 키 삭제 → 환경변수로 fallback
+      delete dbKeys[provider];
+    }
+
+    await setSetting('api_keys', dbKeys);
+
+    res.json({ message: `${provider} API 키가 업데이트되었습니다.` });
+  } catch (error) {
+    console.error('API 키 변경 오류:', error);
+    res.status(500).json({ error: 'API 키를 변경하는 중 오류가 발생했습니다.' });
   }
 });
 

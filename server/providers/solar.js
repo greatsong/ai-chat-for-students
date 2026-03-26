@@ -1,13 +1,14 @@
 import OpenAI from 'openai';
+import { getApiKey } from '../utils/apiKeys.js';
 
-let client;
+let cachedKey = null;
+let client = null;
 
-function getClient() {
-  if (!client) {
-    client = new OpenAI({
-      apiKey: process.env.UPSTAGE_API_KEY,
-      baseURL: 'https://api.upstage.ai/v1',
-    });
+async function getClient() {
+  const key = await getApiKey('upstage');
+  if (!client || key !== cachedKey) {
+    cachedKey = key;
+    client = new OpenAI({ apiKey: key, baseURL: 'https://api.upstage.ai/v1' });
   }
   return client;
 }
@@ -58,7 +59,7 @@ export function buildMessages(history) {
  */
 export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError }) {
   try {
-    const solar = getClient();
+    const solar = await getClient();
 
     // 시스템 프롬프트를 메시지 배열 앞에 추가
     const allMessages = [];

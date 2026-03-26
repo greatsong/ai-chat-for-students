@@ -106,7 +106,7 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRo
       {/* 메인 웰컴 콘텐츠 */}
       <div className="w-full max-w-2xl">
         {/* 타이틀 */}
-        <div className="text-center mb-10">
+        <div className="text-center mb-6">
           <div className="inline-flex items-center justify-center w-16 h-16 mb-4 bg-gradient-to-br from-blue-500 to-purple-600 rounded-2xl shadow-lg">
             <span className="text-3xl">💬</span>
           </div>
@@ -115,6 +115,15 @@ export default function WelcomeScreen({ onSendMessage, firstVisitMessage, userRo
           </h1>
           <p className="text-gray-500 text-sm">
             AI와 학습과 관련된 대화를 시작하세요! 아래 추천 주제를 눌러 바로 시작할 수도 있습니다.
+          </p>
+        </div>
+
+        {/* 안내 메시지 배너 */}
+        <div className="mb-6 p-4 bg-amber-50 border border-amber-200 rounded-xl flex items-start gap-3">
+          <span className="text-lg mt-0.5">📋</span>
+          <p className="text-xs text-amber-800 leading-relaxed">
+            이 앱은 당곡고등학교 학생들이 <strong>학습에 필요한 용도로만</strong> 사용되도록 개발되었습니다.
+            학생들의 <strong>채팅 기록은 저장</strong>되며, 교사가 수업 지도 목적으로 열람할 수 있습니다.
           </p>
         </div>
 

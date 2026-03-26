@@ -1,10 +1,14 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
+import { getApiKey } from '../utils/apiKeys.js';
 
-let genAI;
+let cachedKey = null;
+let genAI = null;
 
-function getClient() {
-  if (!genAI) {
-    genAI = new GoogleGenerativeAI(process.env.GOOGLE_API_KEY);
+async function getClient() {
+  const key = await getApiKey('google');
+  if (!genAI || key !== cachedKey) {
+    cachedKey = key;
+    genAI = new GoogleGenerativeAI(key);
   }
   return genAI;
 }
@@ -69,7 +73,7 @@ export function buildMessages(history) {
  */
 export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError, options = {} }) {
   try {
-    const client = getClient();
+    const client = await getClient();
 
     // 도구 설정
     const tools = [];
@@ -170,7 +174,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
  * @returns {{ imageData: string, mimeType: string }}
  */
 export async function generateImage({ prompt, model }) {
-  const client = getClient();
+  const client = await getClient();
   const imageModel = client.getGenerativeModel({
     model: model || 'gemini-3.1-flash-image-preview',
   });

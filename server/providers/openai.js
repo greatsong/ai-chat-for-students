@@ -1,12 +1,14 @@
 import OpenAI from 'openai';
+import { getApiKey } from '../utils/apiKeys.js';
 
-let client;
+let cachedKey = null;
+let client = null;
 
-function getClient() {
-  if (!client) {
-    client = new OpenAI({
-      apiKey: process.env.OPENAI_API_KEY,
-    });
+async function getClient() {
+  const key = await getApiKey('openai');
+  if (!client || key !== cachedKey) {
+    cachedKey = key;
+    client = new OpenAI({ apiKey: key });
   }
   return client;
 }
@@ -73,7 +75,7 @@ export function buildMessages(history) {
  */
 export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError, options = {} }) {
   try {
-    const openai = getClient();
+    const openai = await getClient();
 
     // 시스템 프롬프트를 메시지 배열 앞에 추가
     const allMessages = [];
@@ -129,7 +131,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
  * @returns {{ imageData: string, mimeType: string }}
  */
 export async function generateImage({ prompt, model, size }) {
-  const openai = getClient();
+  const openai = await getClient();
 
   const result = await openai.images.generate({
     model: model || 'gpt-image-1.5',

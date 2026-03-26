@@ -1,8 +1,17 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { getApiKey } from '../utils/apiKeys.js';
 
-const anthropic = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+let cachedKey = null;
+let anthropic = null;
+
+async function getClient() {
+  const key = await getApiKey('anthropic');
+  if (!anthropic || key !== cachedKey) {
+    cachedKey = key;
+    anthropic = new Anthropic({ apiKey: key });
+  }
+  return anthropic;
+}
 
 /**
  * 파일을 Anthropic 콘텐츠 블록으로 변환
@@ -116,7 +125,8 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
       streamParams.system = systemPrompt;
     }
 
-    const stream = anthropic.messages.stream(streamParams);
+    const client = await getClient();
+    const stream = client.messages.stream(streamParams);
 
     let fullContent = '';
 
