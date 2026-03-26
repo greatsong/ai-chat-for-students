@@ -62,6 +62,10 @@ export default function SettingsPage() {
   // 모델 추가 입력
   const [newModelInputs, setNewModelInputs] = useState({});
 
+  // 이미지 생성 모델
+  const [imageModels, setImageModels] = useState([]);
+  const [newImageModel, setNewImageModel] = useState("");
+
   useEffect(() => { loadSettings(); loadApiKeyStatus(); }, [loadSettings]);
 
   useEffect(() => {
@@ -69,6 +73,7 @@ export default function SettingsPage() {
     setEnabledProviders(settings.enabled_providers || []);
     setEnabledModels(settings.enabled_models || {});
     setImageGenEnabled(settings.image_generation_enabled || false);
+    setImageModels(settings.image_models || ["gpt-image-1.5", "gemini-3.1-flash-image-preview"]);
     setSystemPrompt(settings.system_prompt || "");
     setDailyLimit(settings.default_daily_limit || 100000);
 
@@ -177,6 +182,7 @@ export default function SettingsPage() {
       await updateSettings("enabled_models", enabledModels);
       await updateSettings("available_models", availableModels);
       await updateSettings("image_generation_enabled", imageGenEnabled);
+      await updateSettings("image_models", imageModels);
       await updateSettings("system_prompt", systemPrompt);
       await updateSettings("default_daily_limit", dailyLimit);
       setSaveSuccess(true);
@@ -359,7 +365,7 @@ export default function SettingsPage() {
         {/* ── 이미지 생성 ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">이미지 생성</h2>
-          <p className="text-xs text-gray-400 mb-4">AI 이미지 생성 기능을 활성화/비활성화합니다.</p>
+          <p className="text-xs text-gray-400 mb-4">AI 이미지 생성 기능과 사용 가능한 모델을 관리합니다.</p>
           <label className="flex items-center gap-3 cursor-pointer">
             <div className="relative">
               <input type="checkbox" checked={imageGenEnabled} onChange={(e) => setImageGenEnabled(e.target.checked)} className="sr-only" />
@@ -370,8 +376,58 @@ export default function SettingsPage() {
             <span className="text-sm font-medium text-gray-700">이미지 생성 허용</span>
           </label>
           {imageGenEnabled && (
-            <div className="mt-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-              <p className="text-xs text-yellow-700">이미지 생성은 추가 API 비용이 발생합니다.</p>
+            <div className="mt-4 space-y-3">
+              <div className="text-xs font-medium text-gray-500">이미지 생성 모델</div>
+              <div className="flex flex-wrap gap-1.5">
+                {imageModels.map((model) => (
+                  <div key={model} className="group relative">
+                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-pink-100 text-pink-700 border border-pink-200">
+                      {model}
+                    </span>
+                    <button
+                      onClick={() => {
+                        if (imageModels.length <= 1) { alert("최소 1개 모델은 필요합니다."); return; }
+                        if (!confirm(`"${model}" 모델을 삭제하시겠습니까?`)) return;
+                        setImageModels((prev) => prev.filter((m) => m !== model));
+                      }}
+                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs leading-none hidden group-hover:flex items-center justify-center"
+                    >
+                      &times;
+                    </button>
+                  </div>
+                ))}
+              </div>
+              <div className="flex gap-2">
+                <input
+                  type="text"
+                  value={newImageModel}
+                  onChange={(e) => setNewImageModel(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") {
+                      const id = newImageModel.trim();
+                      if (!id || imageModels.includes(id)) return;
+                      setImageModels((prev) => [...prev, id]);
+                      setNewImageModel("");
+                    }
+                  }}
+                  placeholder="새 이미지 모델 ID 입력..."
+                  className="flex-1 px-2.5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                />
+                <button
+                  onClick={() => {
+                    const id = newImageModel.trim();
+                    if (!id || imageModels.includes(id)) return;
+                    setImageModels((prev) => [...prev, id]);
+                    setNewImageModel("");
+                  }}
+                  className="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap"
+                >
+                  + 추가
+                </button>
+              </div>
+              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                <p className="text-xs text-yellow-700">이미지 생성은 추가 API 비용이 발생합니다.</p>
+              </div>
             </div>
           )}
         </section>

@@ -239,7 +239,10 @@ router.get('/conversations/:conversationId/messages', requireAdmin, async (req, 
 
     // 교사/관리자의 대화는 본인만 열람 가능
     const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
-    if (owner && (owner.role === 'teacher' || owner.role === 'admin') && conversation.user_id !== req.user.id) {
+    if (!owner) {
+      return res.status(404).json({ error: '대화 소유자를 찾을 수 없습니다.' });
+    }
+    if ((owner.role === 'teacher' || owner.role === 'admin') && conversation.user_id !== req.user.id) {
       return res.status(403).json({ error: '교사의 채팅 기록은 본인만 열람할 수 있습니다.' });
     }
 
@@ -399,6 +402,7 @@ router.put('/settings', requireAdmin, async (req, res) => {
       'enabled_models',
       'available_models',
       'image_generation_enabled',
+      'image_models',
       'system_prompt',
       'default_daily_limit',
     ];
