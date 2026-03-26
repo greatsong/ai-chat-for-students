@@ -20,25 +20,55 @@ export default function AuthGuard({ children, requireTeacher = false }) {
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-indigo-950 to-gray-900 relative overflow-hidden">
-        {/* 별 배경 */}
+        <style>{`
+          @keyframes drift { 0% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-20px) translateX(10px); } 100% { transform: translateY(0) translateX(0); } }
+          @keyframes twinkle { 0%, 100% { opacity: 0.2; transform: scale(1); } 50% { opacity: 1; transform: scale(1.5); } }
+          @keyframes shootingStar { 0% { transform: translateX(0) translateY(0); opacity: 1; } 100% { transform: translateX(300px) translateY(200px); opacity: 0; } }
+          @keyframes float { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-15px) rotate(5deg); } }
+        `}</style>
+
+        {/* 별 배경 — 천천히 떠다니는 별들 */}
         <div className="absolute inset-0">
-          {[...Array(20)].map((_, i) => (
+          {[...Array(30)].map((_, i) => (
             <div
               key={i}
-              className="absolute w-1 h-1 bg-white rounded-full animate-pulse"
+              className="absolute bg-white rounded-full"
               style={{
                 top: `${Math.sin(i * 7.3) * 50 + 50}%`,
                 left: `${Math.cos(i * 5.1) * 50 + 50}%`,
-                animationDelay: `${(i * 0.2) % 2}s`,
-                opacity: 0.3 + (i % 5) * 0.15,
+                width: `${1 + (i % 3)}px`,
+                height: `${1 + (i % 3)}px`,
+                animation: `drift ${6 + (i % 5) * 2}s ease-in-out infinite, twinkle ${2 + (i % 4)}s ease-in-out infinite`,
+                animationDelay: `${(i * 0.3) % 4}s`,
               }}
             />
           ))}
         </div>
+
+        {/* 유성 */}
+        <div
+          className="absolute w-1 h-1 bg-white rounded-full"
+          style={{
+            top: "15%", left: "10%",
+            boxShadow: "0 0 4px 2px rgba(255,255,255,0.3)",
+            animation: "shootingStar 3s ease-in infinite",
+            animationDelay: "1s",
+          }}
+        />
+        <div
+          className="absolute w-0.5 h-0.5 bg-white rounded-full"
+          style={{
+            top: "30%", left: "60%",
+            boxShadow: "0 0 3px 1px rgba(255,255,255,0.2)",
+            animation: "shootingStar 4s ease-in infinite",
+            animationDelay: "3s",
+          }}
+        />
+
         <div className="text-center relative z-10">
-          <div className="text-5xl animate-bounce mb-4">&#x1F680;</div>
-          <p className="text-sm text-indigo-200 tracking-widest">우주최강 당곡고 접속 중...</p>
-          <div className="mt-3 flex justify-center gap-1">
+          <div className="text-6xl mb-5" style={{ animation: "float 3s ease-in-out infinite" }}>&#x1F680;</div>
+          <p className="text-lg font-bold text-white/80">우주최강 당곡고 접속 중...</p>
+          <div className="mt-3 flex justify-center gap-1.5">
             {[0, 1, 2].map((i) => (
               <div
                 key={i}

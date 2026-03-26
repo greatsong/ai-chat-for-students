@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { validate, chatSchema } from '../middleware/validate.js';
 import { queryOne, queryAll, run, getSetting } from '../db/database.js';
 import crypto from 'crypto';
 import { PROVIDERS } from '../utils/shared.js';
@@ -18,7 +19,7 @@ const providers = { claude, gemini, openai, solar };
 const NOW = "datetime('now')";
 
 // POST /api/chat
-router.post('/', authenticate, async (req, res) => {
+router.post('/', authenticate, validate(chatSchema), async (req, res) => {
   const {
     conversationId,
     message,
@@ -97,7 +98,9 @@ router.post('/', authenticate, async (req, res) => {
     // 6. 사용자 메시지 저장 (enrichedMessage에 URL 내용 포함)
     const userMsgId = crypto.randomUUID();
     const filesJson = JSON.stringify(files || []);
-    console.log(`[chat] 파일 ${files?.length || 0}개 수신:`, files?.map(f => ({ name: f.name, type: f.type, mimeType: f.mimeType, dataLen: f.data?.length || 0 })));
+    if (process.env.NODE_ENV !== 'production') {
+      console.log(`[chat] 파일 ${files?.length || 0}개 수신:`, files?.map(f => ({ name: f.name, type: f.type })));
+    }
     await run(
       'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, ?)',
       [userMsgId, convId, 'user', enrichedMessage, filesJson, now]
@@ -108,11 +111,12 @@ router.post('/', authenticate, async (req, res) => {
       'SELECT role, content, files FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
       [convId]
     );
-    // 디버그: 파일 포함 메시지 확인
-    const filesInHistory = history.filter(m => {
-      try { const f = JSON.parse(m.files); return f.length > 0; } catch { return false; }
-    });
-    console.log(`[chat] 히스토리 ${history.length}개 메시지, 파일 포함 ${filesInHistory.length}개`);
+    if (process.env.NODE_ENV !== 'production') {
+      const filesInHistory = history.filter(m => {
+        try { const f = JSON.parse(m.files); return f.length > 0; } catch { return false; }
+      });
+      console.log(`[chat] 히스토리 ${history.length}개 메시지, 파일 포함 ${filesInHistory.length}개`);
+    }
 
     // 7. SSE 헤더 설정
     res.setHeader('Content-Type', 'text/event-stream');
@@ -207,14 +211,19 @@ router.post('/', authenticate, async (req, res) => {
   } catch (error) {
     console.error('채팅 오류:', error);
 
+    // 프로덕션에서는 내부 에러 메시지 노출 방지
+    const safeMessage = process.env.NODE_ENV === 'production'
+      ? 'AI 응답 중 오류가 발생했습니다.'
+      : (error.message || 'AI 응답 중 오류가 발생했습니다.');
+
     // SSE 헤더가 이미 전송된 경우 에러 이벤트 전송
     if (res.headersSent) {
       res.write(
-        `data: ${JSON.stringify({ type: 'error', message: error.message || 'AI 응답 중 오류가 발생했습니다.' })}\n\n`
+        `data: ${JSON.stringify({ type: 'error', message: safeMessage })}\n\n`
       );
       res.end();
     } else {
-      res.status(500).json({ error: error.message || 'AI 응답 중 오류가 발생했습니다.' });
+      res.status(500).json({ error: safeMessage });
     }
   }
 });

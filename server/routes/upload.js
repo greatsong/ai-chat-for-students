@@ -26,10 +26,32 @@ const storage = multer.diskStorage({
   },
 });
 
+// 허용된 MIME 타입 화이트리스트
+const ALLOWED_MIME_TYPES = [
+  ...IMAGE_MIME_TYPES,
+  PDF_MIME_TYPE,
+  'text/plain', 'text/csv', 'text/markdown',
+  'application/json', 'application/xml',
+  'text/html', 'text/css', 'text/javascript',
+  'application/x-yaml',
+];
+
 const upload = multer({
   storage,
   limits: {
     fileSize: DEFAULTS.MAX_FILE_SIZE, // 10MB
+  },
+  fileFilter: (req, file, cb) => {
+    // MIME 타입 검사
+    if (ALLOWED_MIME_TYPES.includes(file.mimetype)) {
+      return cb(null, true);
+    }
+    // 텍스트 파일은 확장자로도 허용
+    const ext = extname(file.originalname).toLowerCase();
+    if (TEXT_FILE_EXTENSIONS.includes(ext)) {
+      return cb(null, true);
+    }
+    cb(new Error('허용되지 않는 파일 형식입니다.'));
   },
 });
 
@@ -58,7 +80,13 @@ function getFileType(mimeType, originalName) {
 }
 
 // POST /api/upload
-router.post('/', authenticate, upload.single('file'), (req, res) => {
+router.post('/', authenticate, (req, res, next) => {
+  // 비활성 학생 차단
+  if (!req.user.is_active && req.user.role === 'student') {
+    return res.status(403).json({ error: '계정이 비활성 상태입니다. 교사에게 활성화를 요청하세요.' });
+  }
+  next();
+}, upload.single('file'), (req, res) => {
   try {
     if (!req.file) {
       return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });

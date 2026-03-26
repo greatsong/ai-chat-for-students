@@ -10,6 +10,7 @@ const PROVIDERS = [
     placeholder: "sk-ant-api03-...",
     defaultModels: ["claude-sonnet-4-6", "claude-haiku-4"],
     color: "orange",
+    modelsUrl: "https://docs.anthropic.com/en/docs/about-claude/models",
   },
   {
     id: "gemini", apiKeyId: "google",
@@ -17,6 +18,7 @@ const PROVIDERS = [
     placeholder: "AIzaSy...",
     defaultModels: ["gemini-3-flash-preview", "gemini-2.5-pro-preview-06-05"],
     color: "blue",
+    modelsUrl: "https://ai.google.dev/gemini-api/docs/models",
   },
   {
     id: "openai", apiKeyId: "openai",
@@ -24,6 +26,7 @@ const PROVIDERS = [
     placeholder: "sk-proj-...",
     defaultModels: ["gpt-5.4", "gpt-4.1-mini"],
     color: "green",
+    modelsUrl: "https://platform.openai.com/docs/models",
   },
   {
     id: "solar", apiKeyId: "upstage",
@@ -31,6 +34,7 @@ const PROVIDERS = [
     placeholder: "up_...",
     defaultModels: ["solar-pro3"],
     color: "purple",
+    modelsUrl: "https://developers.upstage.ai/docs/apis/chat",
   },
 ];
 
@@ -314,6 +318,17 @@ export default function SettingsPage() {
                           >
                             + 추가
                           </button>
+                          {provider.modelsUrl && (
+                            <a
+                              href={provider.modelsUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-2.5 py-1 text-xs font-medium text-gray-500 border border-gray-200 rounded-lg hover:bg-gray-50 transition-colors whitespace-nowrap"
+                              title="모델 목록 보기"
+                            >
+                              모델 목록 &#x2197;
+                            </a>
+                          )}
                         </div>
                       </div>
 

@@ -9,6 +9,47 @@ import { isYouTubeUrl, getYouTubeTranscript } from './youtube.js';
 // URL 정규식 패턴
 const URL_REGEX = /https?:\/\/[^\s<>"')\]]+/gi;
 
+// SSRF 방지 — 내부 네트워크 호스트네임/IP 블랙리스트
+const BLOCKED_HOSTNAMES = [
+  'localhost', '127.0.0.1', '0.0.0.0', '[::1]',
+  'metadata.google.internal',
+  'instance-data',
+];
+
+/**
+ * URL이 내부 네트워크를 가리키는지 검사 (SSRF 방지)
+ * @param {string} url
+ * @returns {boolean} 차단해야 하면 true
+ */
+function isInternalUrl(url) {
+  try {
+    const parsed = new URL(url);
+    const hostname = parsed.hostname.toLowerCase();
+
+    // 명시적 블랙리스트
+    if (BLOCKED_HOSTNAMES.includes(hostname)) return true;
+
+    // 사설 IP 대역 검사
+    // 10.x.x.x
+    if (/^10\./.test(hostname)) return true;
+    // 172.16-31.x.x
+    if (/^172\.(1[6-9]|2\d|3[01])\./.test(hostname)) return true;
+    // 192.168.x.x
+    if (/^192\.168\./.test(hostname)) return true;
+    // 169.254.x.x (링크-로컬, AWS 메타데이터 등)
+    if (/^169\.254\./.test(hostname)) return true;
+    // 0.x.x.x
+    if (/^0\./.test(hostname)) return true;
+
+    // file:// 프로토콜 차단
+    if (parsed.protocol === 'file:') return true;
+
+    return false;
+  } catch {
+    return true; // 파싱 실패 시 안전하게 차단
+  }
+}
+
 /**
  * 메시지에서 URL 추출
  */
@@ -16,8 +57,8 @@ export function extractUrls(text) {
   if (!text) return [];
   const matches = text.match(URL_REGEX);
   if (!matches) return [];
-  // 중복 제거, 최대 3개
-  return [...new Set(matches)].slice(0, 3);
+  // URL 길이 제한 (2000자), 중복 제거, 최대 3개
+  return [...new Set(matches)].filter(url => url.length <= 2000).slice(0, 3);
 }
 
 /**
@@ -41,6 +82,11 @@ export function hasYouTubeUrl(text) {
  * YouTube URL → 자막 추출, 일반 URL → HTML 텍스트 추출
  */
 export async function fetchUrlContent(url, maxLength = 8000) {
+  // SSRF 방지: 내부 네트워크 URL 차단
+  if (isInternalUrl(url)) {
+    return { url, error: '내부 네트워크 URL은 접근할 수 없습니다.', content: null };
+  }
+
   // YouTube URL인 경우 자막 추출
   if (isYouTubeUrl(url)) {
     try {
@@ -65,8 +111,48 @@ export async function fetchUrlContent(url, maxLength = 8000) {
         'User-Agent': 'Mozilla/5.0 (compatible; DanggokAI/1.0)',
         Accept: 'text/html,application/xhtml+xml,text/plain,application/json',
       },
-      redirect: 'follow',
+      redirect: 'manual', // 리디렉트를 직접 처리하여 SSRF 방지
     });
+
+    // 리디렉트 응답 시 대상 URL 검증
+    if ([301, 302, 303, 307, 308].includes(response.status)) {
+      const redirectUrl = response.headers.get('location');
+      if (redirectUrl && isInternalUrl(new URL(redirectUrl, url).href)) {
+        clearTimeout(timeout);
+        return { url, error: '리디렉트 대상이 내부 네트워크입니다.', content: null };
+      }
+      // 안전한 리디렉트면 다시 fetch (최대 1회)
+      const safeRedirect = await fetch(new URL(redirectUrl, url).href, {
+        signal: controller.signal,
+        headers: {
+          'User-Agent': 'Mozilla/5.0 (compatible; DanggokAI/1.0)',
+          Accept: 'text/html,application/xhtml+xml,text/plain,application/json',
+        },
+        redirect: 'manual',
+      });
+      clearTimeout(timeout);
+
+      if (!safeRedirect.ok) {
+        return { url, error: `HTTP ${safeRedirect.status}`, content: null };
+      }
+
+      const contentType2 = safeRedirect.headers.get('content-type') || '';
+      if (contentType2.includes('application/json')) {
+        const json = await safeRedirect.json();
+        return { url, content: JSON.stringify(json, null, 2).slice(0, maxLength), type: 'json' };
+      }
+      const html2 = await safeRedirect.text();
+      let text2 = html2
+        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+        .replace(/<noscript[^>]*>[\s\S]*?<\/noscript>/gi, '')
+        .replace(/<[^>]+>/g, ' ')
+        .replace(/&nbsp;/g, ' ').replace(/&amp;/g, '&').replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>').replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+        .replace(/&[a-zA-Z]+;/g, ' ').replace(/\s+/g, ' ').trim();
+      if (text2.length > maxLength) text2 = text2.slice(0, maxLength) + '\n\n... (내용이 잘렸습니다)';
+      return { url, content: text2, type: 'html' };
+    }
 
     clearTimeout(timeout);
 

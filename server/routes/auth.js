@@ -2,9 +2,14 @@ import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { authenticate } from '../middleware/auth.js';
+import { validate, googleAuthSchema } from '../middleware/validate.js';
 
 const router = Router();
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET 환경변수가 설정되지 않았습니다.');
+  process.exit(1);
+}
 const ADMIN_EMAILS = (process.env.ADMIN_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
 const TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e => e.trim()).filter(Boolean);
 
@@ -12,12 +17,8 @@ const TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e => e.
  * POST /api/auth/google
  * Google One Tap / Sign-In 로그인 처리
  */
-router.post('/google', async (req, res) => {
+router.post('/google', validate(googleAuthSchema), async (req, res) => {
   const { credential } = req.body;
-
-  if (!credential) {
-    return res.status(400).json({ error: 'Google credential이 필요합니다.' });
-  }
 
   try {
     // 1. Google ID 토큰 검증
@@ -30,10 +31,16 @@ router.post('/google', async (req, res) => {
     }
 
     const payload = await response.json();
-    const { sub: googleId, email, name, picture } = payload;
+    const { sub: googleId, email, name, picture, aud } = payload;
 
     if (!googleId || !email) {
       return res.status(401).json({ error: 'Google 토큰에서 사용자 정보를 추출할 수 없습니다.' });
+    }
+
+    // audience(aud) 검증 — 다른 앱에서 발급된 토큰 차단
+    const expectedClientId = process.env.GOOGLE_CLIENT_ID;
+    if (expectedClientId && aud !== expectedClientId) {
+      return res.status(401).json({ error: '유효하지 않은 토큰 대상(audience)입니다.' });
     }
 
     // 역할 판별 소스 3곳: 환경변수, DB settings, DB users 테이블

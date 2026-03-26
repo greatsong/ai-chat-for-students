@@ -125,7 +125,7 @@ export async function initDatabase() {
     });
   }
 
-  console.log('Turso 데이터베이스 초기화 완료:', process.env.TURSO_DATABASE_URL);
+  console.log('Turso 데이터베이스 초기화 완료');
   return client;
 }
 

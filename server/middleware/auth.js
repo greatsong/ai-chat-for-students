@@ -1,7 +1,11 @@
 import jwt from 'jsonwebtoken';
 import { queryOne } from '../db/database.js';
 
-const JWT_SECRET = process.env.JWT_SECRET || 'change-this-secret';
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  console.error('FATAL: JWT_SECRET 환경변수가 설정되지 않았습니다. 서버를 시작할 수 없습니다.');
+  process.exit(1);
+}
 
 /**
  * JWT 인증 미들웨어
