@@ -9,7 +9,9 @@ export function validate(schema, source = 'body') {
   return (req, res, next) => {
     const result = schema.safeParse(req[source]);
     if (!result.success) {
-      const errors = result.error.errors.map(e => `${e.path.join('.')}: ${e.message}`);
+      const errors = result.error?.errors?.map((e) => `${e.path.join('.')}: ${e.message}`) || [
+        '유효하지 않은 요청',
+      ];
       return res.status(400).json({ error: '입력값이 유효하지 않습니다.', details: errors });
     }
     req[source] = result.data; // 정제된 데이터로 교체
@@ -25,14 +27,20 @@ export const chatSchema = z.object({
   message: z.string().min(1).max(50000),
   provider: z.enum(['claude', 'gemini', 'openai', 'solar']).default('claude'),
   model: z.string().max(100).optional().nullable(),
-  files: z.array(z.object({
-    id: z.string(),
-    name: z.string().max(500),
-    type: z.enum(['image', 'pdf', 'text', 'unsupported']),
-    mimeType: z.string().max(200),
-    content: z.string().optional().nullable(),
-    data: z.string().optional().nullable(),
-  })).max(10).optional().nullable(),
+  files: z
+    .array(
+      z.object({
+        id: z.string(),
+        name: z.string().max(500),
+        type: z.enum(['image', 'pdf', 'text', 'unsupported']),
+        mimeType: z.string().max(200),
+        content: z.string().optional().nullable(),
+        data: z.string().optional().nullable(),
+      }),
+    )
+    .max(10)
+    .optional()
+    .nullable(),
   web_search: z.boolean().default(false),
   code_execution: z.boolean().default(false),
 });
@@ -44,13 +52,20 @@ export const studentUpdateSchema = z.object({
 });
 
 // 설정 업데이트
-export const settingsUpdateSchema = z.object({
-  key: z.enum([
-    'enabled_providers', 'enabled_models', 'image_generation_enabled',
-    'system_prompt', 'default_daily_limit',
-  ]).optional(),
-  value: z.unknown().optional(),
-}).passthrough();
+export const settingsUpdateSchema = z
+  .object({
+    key: z
+      .enum([
+        'enabled_providers',
+        'enabled_models',
+        'image_generation_enabled',
+        'system_prompt',
+        'default_daily_limit',
+      ])
+      .optional(),
+    value: z.unknown().optional(),
+  })
+  .passthrough();
 
 // API 키 업데이트
 export const apiKeyUpdateSchema = z.object({
