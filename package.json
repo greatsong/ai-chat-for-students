@@ -2,6 +2,7 @@
   "name": "ai-chat-for-students",
   "version": "1.0.0",
   "description": "수업용 AI 채팅 도구 — 프리미엄 AI + 교육적 모니터링",
+  "type": "module",
   "private": true,
   "workspaces": [
     "client",
@@ -12,12 +13,39 @@
     "dev": "concurrently \"npm run dev:server\" \"npm run dev:client\"",
     "dev:client": "npm run dev --workspace=client",
     "dev:server": "npm run dev --workspace=server",
-    "build": "npm run build --workspace=client"
+    "build": "npm run build --workspace=client",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "npm run test:client && npm run test:server",
+    "test:client": "npm run test --workspace=client",
+    "test:server": "npm run test --workspace=server",
+    "check-env": "node scripts/check-env.js",
+    "precommit": "lint-staged",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,css,html}": [
+      "prettier --write"
+    ]
   },
   "keywords": [],
   "author": "greatsong",
   "license": "ISC",
   "devDependencies": {
-    "concurrently": "^9.2.1"
+    "@eslint/js": "^9",
+    "concurrently": "^9.2.1",
+    "eslint": "^9",
+    "eslint-plugin-react-hooks": "^5",
+    "eslint-plugin-react-refresh": "^0.4",
+    "globals": "^16",
+    "husky": "^9",
+    "lint-staged": "^15",
+    "prettier": "^3"
   }
 }

@@ -8,3 +8,9 @@ server/uploads/
 .DS_Store
 .vercel
 .env*.local
+
+# 테스트 커버리지
+coverage/
+
+# 빌드 아티팩트
+*.tsbuildinfo

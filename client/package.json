@@ -6,7 +6,10 @@
   "scripts": {
     "dev": "vite --port 4021",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:coverage": "vitest run --coverage"
   },
   "dependencies": {
     "react": "^19",
@@ -23,6 +26,10 @@
     "@tailwindcss/vite": "^4",
     "tailwindcss": "^4",
     "@types/react": "^19",
-    "@types/react-dom": "^19"
+    "@types/react-dom": "^19",
+    "vitest": "^3",
+    "jsdom": "^26",
+    "@testing-library/react": "^16",
+    "@testing-library/jest-dom": "^6"
   }
 }
