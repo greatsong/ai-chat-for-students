@@ -305,17 +305,17 @@ router.get('/usage', requireAdmin, async (req, res) => {
       WHERE date >= ?
     `, [dateFilter]);
 
-    // 학생별 사용량 (교사/관리자 제외 — 교사 데이터는 본인만 열람 가능)
+    // 사용자별 사용량 (교사 포함 — 채팅 내용만 비공개, 사용량은 관리자 열람 가능)
     const byStudent = await queryAll(`
       SELECT
         ud.user_id AS userId,
-        u.name, u.email,
+        u.name, u.email, u.role,
         COALESCE(SUM(ud.input_tokens), 0) AS inputTokens,
         COALESCE(SUM(ud.output_tokens), 0) AS outputTokens,
         COALESCE(SUM(ud.request_count), 0) AS requests
       FROM usage_daily ud
       JOIN users u ON u.id = ud.user_id
-      WHERE ud.date >= ? AND u.role = 'student'
+      WHERE ud.date >= ?
       GROUP BY ud.user_id
       ORDER BY (COALESCE(SUM(ud.input_tokens), 0) + COALESCE(SUM(ud.output_tokens), 0)) DESC
     `, [dateFilter]);
