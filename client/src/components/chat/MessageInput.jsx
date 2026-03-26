@@ -17,7 +17,7 @@ export default function MessageInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const [showImageGen, setShowImageGen] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
-  const [imageProvider, setImageProvider] = useState('gemini');
+  const imageProvider = 'gemini';
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const textareaRef = useRef(null);
@@ -299,15 +299,7 @@ export default function MessageInput({
       {showImageGen && isTeacher && (
         <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium text-purple-800">🎨 이미지 생성</span>
-            <select
-              value={imageProvider}
-              onChange={(e) => setImageProvider(e.target.value)}
-              className="text-xs px-2 py-1 rounded-md border border-purple-300 bg-white text-purple-700"
-            >
-              <option value="gemini">Gemini</option>
-              <option value="openai">OpenAI</option>
-            </select>
+            <span className="text-sm font-medium text-purple-800">🎨 이미지 생성 (Gemini)</span>
             <button
               onClick={() => setShowImageGen(false)}
               className="ml-auto text-purple-400 hover:text-purple-600 text-xs"

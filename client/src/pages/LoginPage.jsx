@@ -160,7 +160,7 @@ export default function LoginPage() {
             className="text-2xl sm:text-3xl font-bold text-center text-gray-900 shimmer-text animate-fade-in-up"
             style={{ animationDelay: '100ms' }}
           >
-            ✨ 유료 AI 4종 세트 for 당곡고
+            ✨ 유료 AI 3종 세트 for 당곡고
           </h1>
           <p
             className="mt-3 text-center text-gray-400 text-sm animate-fade-in-up"
@@ -179,9 +179,6 @@ export default function LoginPage() {
             </span>
             <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-blue-50 to-blue-100 text-blue-600 rounded-full border border-blue-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-blue-100 cursor-default">
               Gemini
-            </span>
-            <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-green-50 to-green-100 text-green-600 rounded-full border border-green-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-green-100 cursor-default">
-              ChatGPT
             </span>
             <span className="px-3 py-1.5 text-xs font-semibold bg-gradient-to-r from-purple-50 to-purple-100 text-purple-600 rounded-full border border-purple-200/60 shadow-sm transition-all duration-300 hover:scale-105 hover:shadow-md hover:shadow-purple-100 cursor-default">
               Solar

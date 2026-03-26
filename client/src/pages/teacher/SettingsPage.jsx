@@ -26,17 +26,6 @@ const PROVIDERS = [
     modelsUrl: 'https://ai.google.dev/gemini-api/docs/models',
   },
   {
-    id: 'openai',
-    apiKeyId: 'openai',
-    name: 'ChatGPT',
-    company: 'OpenAI',
-    placeholder: 'sk-proj-...',
-    defaultModels: ['gpt-5.4', 'gpt-4.1-mini'],
-    defaultImageModels: ['gpt-image-1.5'],
-    color: 'green',
-    modelsUrl: 'https://platform.openai.com/docs/models',
-  },
-  {
     id: 'solar',
     apiKeyId: 'upstage',
     name: 'Solar',
