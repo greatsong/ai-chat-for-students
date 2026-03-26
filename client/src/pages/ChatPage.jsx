@@ -39,7 +39,7 @@ export default function ChatPage() {
   const setModel = useChatStore((s) => s.setModel);
   const loadConversations = useChatStore((s) => s.loadConversations);
 
-  const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'solar'];
+  const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
   const enabledModels = settings?.enabled_models || {};
   const availableModels = settings?.available_models || {};
 
