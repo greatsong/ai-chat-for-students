@@ -533,24 +533,8 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* STT 설정 */}
-            <div className="flex items-center gap-4">
-              <label className="flex items-center gap-3 cursor-pointer min-w-[180px]">
-                <div className="relative">
-                  <input type="checkbox" checked={sttEnabled} onChange={() => setSttEnabled(!sttEnabled)} className="sr-only" />
-                  <div className={`w-10 h-5 rounded-full transition-colors ${sttEnabled ? "bg-teal-600" : "bg-gray-300"}`}>
-                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${sttEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"}`} />
-                  </div>
-                </div>
-                <div>
-                  <span className="text-sm font-bold text-gray-800">STT</span>
-                  <span className="text-xs text-gray-400 ml-1.5">학생에게 허용 (Whisper)</span>
-                </div>
-              </label>
-            </div>
-
             <div className="text-xs text-gray-400 bg-teal-50 px-3 py-2 rounded-lg">
-              교사/관리자는 설정과 무관하게 항상 사용 가능합니다. 비용: TTS ~3-10원/회, STT ~2-4원/회
+              교사/관리자는 설정과 무관하게 항상 사용 가능합니다. 비용: TTS ~3-10원/회
             </div>
           </div>
         </section>

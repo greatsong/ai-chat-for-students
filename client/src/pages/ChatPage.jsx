@@ -278,7 +278,7 @@ export default function ChatPage() {
           disabled={false}
           isStreaming={isStreaming}
           isTeacher={isTeacher}
-          sttEnabled={isTeacher || !!publicSettings.stt_enabled}
+          sttEnabled={false}
         />
       </main>
     </div>
