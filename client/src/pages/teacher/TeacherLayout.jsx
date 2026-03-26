@@ -150,7 +150,7 @@ export default function TeacherLayout() {
   const dashboardSubtitle = isAdmin ? '전체 관리 및 모니터링' : '내 사용량 확인';
 
   return (
-    <div className="flex min-h-screen bg-gray-50">
+    <div className="flex h-screen bg-gray-50">
       {/* 모바일 오버레이 */}
       {sidebarOpen && (
         <div
@@ -167,7 +167,7 @@ export default function TeacherLayout() {
           transform transition-transform duration-200 ease-in-out
           ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           lg:translate-x-0
-          flex flex-col
+          flex flex-col lg:h-screen
         `}
       >
         {/* 헤더 */}
@@ -218,11 +218,11 @@ export default function TeacherLayout() {
 
       {/* 메인 영역 */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* 모바일 헤더 */}
-        <header className="lg:hidden flex items-center gap-3 px-4 py-3 bg-white border-b border-gray-100">
+        {/* 헤더 */}
+        <header className="flex items-center gap-3 px-4 lg:px-6 py-3 bg-white border-b border-gray-100 shrink-0">
           <button
             onClick={() => setSidebarOpen(true)}
-            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100"
+            className="p-2 rounded-lg text-gray-600 hover:bg-gray-100 lg:hidden"
             aria-label="메뉴 열기"
           >
             <svg
@@ -236,10 +236,13 @@ export default function TeacherLayout() {
             </svg>
           </button>
           <h1 className="text-base font-bold text-gray-800">{dashboardTitle}</h1>
+          <span className="text-sm text-gray-400 hidden lg:inline">
+            | {user?.name || user?.email}
+          </span>
         </header>
 
         {/* 페이지 콘텐츠 */}
-        <main className="flex-1 p-4 lg:p-6 overflow-auto">
+        <main className="flex-1 p-4 lg:p-6 overflow-y-auto min-h-0">
           <Outlet />
         </main>
       </div>
