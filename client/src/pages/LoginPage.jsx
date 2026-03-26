@@ -136,10 +136,10 @@ export default function LoginPage() {
 
           {/* 타이틀 */}
           <h1 className="text-2xl sm:text-3xl font-bold text-gray-900 text-center">
-            AI 학습 도우미
+            &#x2B50; AI 학습 도우미 &#x2B50;
           </h1>
           <p className="mt-2 text-center text-gray-500 text-sm">
-            당곡고등학교 학생과 선생님을 위한 AI 채팅
+            &#x1F680; 우주최강 당곡고등학교 학생들의 학습을 위한 AI 학습 도우미
           </p>
 
           {/* AI 모델 뱃지 */}
