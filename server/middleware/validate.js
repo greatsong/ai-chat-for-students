@@ -30,12 +30,13 @@ export const chatSchema = z.object({
   files: z
     .array(
       z.object({
-        id: z.string(),
+        id: z.string().optional(),
         name: z.string().max(500),
         type: z.enum(['image', 'pdf', 'text', 'unsupported']),
         mimeType: z.string().max(200),
         content: z.string().optional().nullable(),
         data: z.string().optional().nullable(),
+        size: z.number().optional(),
       }),
     )
     .max(10)
