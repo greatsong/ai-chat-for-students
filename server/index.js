@@ -61,6 +61,7 @@ const globalLimiter = rateLimit({
   max: 500,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: false,
   message: { error: '요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
 });
 app.use('/api/', globalLimiter);
@@ -71,6 +72,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: false,
   message: { error: '로그인 시도가 너무 많습니다. 1분 후 다시 시도해주세요.' },
 });
 
@@ -80,6 +82,7 @@ const chatLimiter = rateLimit({
   max: 30,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: false,
   keyGenerator: (req) => req.user?.id || req.ip,
   message: { error: '채팅 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
 });
@@ -90,6 +93,7 @@ const uploadLimiter = rateLimit({
   max: 15,
   standardHeaders: true,
   legacyHeaders: false,
+  validate: false,
   keyGenerator: (req) => req.user?.id || req.ip,
   message: { error: '파일 업로드가 너무 많습니다. 잠시 후 다시 시도해주세요.' },
 });
