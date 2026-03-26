@@ -151,3 +151,49 @@ export async function generateImage({ prompt, model, size }) {
     mimeType: 'image/png',
   };
 }
+
+/**
+ * OpenAI TTS (텍스트 → 음성)
+ * @param {Object} params
+ * @param {string} params.text - 읽을 텍스트
+ * @param {string} params.voice - 음성 (alloy, echo, fable, onyx, nova, shimmer)
+ * @param {string} params.model - 모델 (tts-1, tts-1-hd)
+ * @returns {{ audioData: string, mimeType: string }}
+ */
+export async function generateSpeech({ text, voice, model }) {
+  const openai = await getClient();
+
+  const response = await openai.audio.speech.create({
+    model: model || 'tts-1',
+    voice: voice || 'alloy',
+    input: text.slice(0, 4096),
+    response_format: 'mp3',
+  });
+
+  const buffer = Buffer.from(await response.arrayBuffer());
+  return {
+    audioData: buffer.toString('base64'),
+    mimeType: 'audio/mpeg',
+  };
+}
+
+/**
+ * OpenAI STT (음성 → 텍스트)
+ * @param {Object} params
+ * @param {Buffer} params.audioBuffer - 오디오 바이너리
+ * @param {string} params.mimeType - MIME 타입
+ * @returns {{ text: string }}
+ */
+export async function transcribeAudio({ audioBuffer, mimeType }) {
+  const openai = await getClient();
+
+  const ext = mimeType?.includes('mp4') ? 'mp4' : 'webm';
+  const file = new File([audioBuffer], `recording.${ext}`, { type: mimeType || 'audio/webm' });
+
+  const transcription = await openai.audio.transcriptions.create({
+    model: 'whisper-1',
+    file,
+  });
+
+  return { text: transcription.text };
+}

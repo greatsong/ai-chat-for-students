@@ -14,6 +14,27 @@ const ENV_TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '').split(',').map(e =
 router.use(authenticate);
 
 // ──────────────────────────────────────────
+// GET /api/teacher/public-settings
+// 모든 인증된 사용자가 접근 가능한 공개 설정 (TTS/STT 활성화 상태 등)
+// ──────────────────────────────────────────
+router.get('/public-settings', async (req, res) => {
+  try {
+    const publicKeys = [
+      'tts_enabled', 'stt_enabled', 'tts_default_voice', 'tts_default_model',
+      'enabled_providers', 'enabled_models', 'available_models',
+    ];
+    const result = {};
+    for (const key of publicKeys) {
+      result[key] = await getSetting(key);
+    }
+    res.json(result);
+  } catch (error) {
+    console.error('공개 설정 조회 오류:', error);
+    res.status(500).json({ error: '설정을 불러오는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
 // GET /api/teacher/my-usage
 // 현재 사용자 본인의 사용량 (교사 + 관리자)
 // ──────────────────────────────────────────
@@ -27,7 +48,9 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
         COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
         COALESCE(SUM(request_count), 0) AS totalRequests,
-        COALESCE(SUM(image_count), 0) AS totalImages
+        COALESCE(SUM(image_count), 0) AS totalImages,
+        COALESCE(SUM(tts_count), 0) AS totalTts,
+        COALESCE(SUM(stt_count), 0) AS totalStt
       FROM usage_daily
       WHERE user_id = ?
     `, [userId]);
@@ -52,7 +75,7 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
     `, [userId, thirtyDaysAgoStr]);
 
     res.json({
-      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0 },
+      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0, totalTts: 0, totalStt: 0 },
       daily,
     });
   } catch (error) {
@@ -306,6 +329,8 @@ router.get('/usage', requireAdmin, async (req, res) => {
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
         COALESCE(SUM(request_count), 0) AS totalRequests,
         COALESCE(SUM(image_count), 0) AS totalImages,
+        COALESCE(SUM(tts_count), 0) AS totalTts,
+        COALESCE(SUM(stt_count), 0) AS totalStt,
         COUNT(DISTINCT user_id) AS activeStudents
       FROM usage_daily
       WHERE date >= ?
@@ -356,7 +381,7 @@ router.get('/usage', requireAdmin, async (req, res) => {
     `, [thirtyDaysAgoStr]);
 
     res.json({
-      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0, activeStudents: 0 },
+      summary: summary || { totalInputTokens: 0, totalOutputTokens: 0, totalRequests: 0, totalImages: 0, totalTts: 0, totalStt: 0, activeStudents: 0 },
       byStudent,
       byProvider,
       daily,
@@ -405,6 +430,10 @@ router.put('/settings', requireAdmin, async (req, res) => {
       'image_models',
       'system_prompt',
       'default_daily_limit',
+      'tts_enabled',
+      'stt_enabled',
+      'tts_default_voice',
+      'tts_default_model',
     ];
 
     if (settings && typeof settings === 'object') {

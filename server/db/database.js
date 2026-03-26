@@ -89,6 +89,15 @@ export async function initDatabase() {
     )
   `);
 
+  // TTS/STT 사용량 컬럼 추가 (마이그레이션)
+  for (const col of ['tts_count', 'stt_count']) {
+    try {
+      await client.execute(`ALTER TABLE usage_daily ADD COLUMN ${col} INTEGER DEFAULT 0`);
+    } catch {
+      // 이미 존재하면 무시
+    }
+  }
+
   // 인덱스 생성
   await client.execute('CREATE INDEX IF NOT EXISTS idx_conversations_user ON conversations(user_id)');
   await client.execute('CREATE INDEX IF NOT EXISTS idx_messages_conversation ON messages(conversation_id)');
@@ -113,6 +122,10 @@ export async function initDatabase() {
       solar: ["solar-pro3"],
     },
     image_generation_enabled: false,
+    tts_enabled: false,
+    stt_enabled: false,
+    tts_default_voice: "alloy",
+    tts_default_model: "tts-1",
     system_prompt: "당신은 당곡고등학교 학생들의 학습을 돕는 AI 도우미입니다. 오직 수업 및 학습과 관련된 내용에 대해서만 답변해주세요. 상담, 개인적인 고민, 학습과 무관한 잡담 등에는 정중히 거절하고 학습 관련 질문을 하도록 안내해주세요. 학생들이 스스로 생각하고 탐구할 수 있도록 도와주되, 답을 바로 알려주기보다는 사고 과정을 안내해주세요.",
     default_daily_limit: 100000,
     teacher_emails: [],

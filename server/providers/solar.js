@@ -72,6 +72,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
       model: model || 'solar-pro3',
       messages: allMessages,
       stream: true,
+      stream_options: { include_usage: true },
     });
 
     let fullContent = '';

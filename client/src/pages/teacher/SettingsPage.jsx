@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import useTeacherStore from "../../stores/teacherStore";
 import { apiGet, apiPut } from "../../lib/api";
 
@@ -17,6 +17,7 @@ const PROVIDERS = [
     name: "Gemini", company: "Google",
     placeholder: "AIzaSy...",
     defaultModels: ["gemini-3-flash-preview", "gemini-2.5-pro-preview-06-05"],
+    defaultImageModels: ["gemini-3.1-flash-image-preview"],
     color: "blue",
     modelsUrl: "https://ai.google.dev/gemini-api/docs/models",
   },
@@ -25,6 +26,7 @@ const PROVIDERS = [
     name: "ChatGPT", company: "OpenAI",
     placeholder: "sk-proj-...",
     defaultModels: ["gpt-5.4", "gpt-4.1-mini"],
+    defaultImageModels: ["gpt-image-1.5"],
     color: "green",
     modelsUrl: "https://platform.openai.com/docs/models",
   },
@@ -46,14 +48,18 @@ const COLOR_MAP = {
 };
 
 export default function SettingsPage() {
-  const { settings, isLoading, loadSettings, updateSettings } = useTeacherStore();
+  const { settings, isLoading, loadSettings, updateMultipleSettings } = useTeacherStore();
 
   const [enabledProviders, setEnabledProviders] = useState([]);
   const [enabledModels, setEnabledModels] = useState({});
   const [availableModels, setAvailableModels] = useState({});
-  const [imageGenEnabled, setImageGenEnabled] = useState(false);
+  const [imageModels, setImageModels] = useState({});
   const [systemPrompt, setSystemPrompt] = useState("");
   const [dailyLimit, setDailyLimit] = useState(100000);
+  const [ttsEnabled, setTtsEnabled] = useState(false);
+  const [sttEnabled, setSttEnabled] = useState(false);
+  const [ttsDefaultVoice, setTtsDefaultVoice] = useState("alloy");
+  const [ttsDefaultModel, setTtsDefaultModel] = useState("tts-1");
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -65,32 +71,47 @@ export default function SettingsPage() {
 
   // 모델 추가 입력
   const [newModelInputs, setNewModelInputs] = useState({});
+  // 이미지 모델 추가 입력
+  const [newImageModelInputs, setNewImageModelInputs] = useState({});
 
-  // 이미지 생성 모델
-  const [imageModels, setImageModels] = useState([]);
-  const [newImageModel, setNewImageModel] = useState("");
+  // 저장 중 useEffect 재실행 방지
+  const isSavingRef = useRef(false);
 
   useEffect(() => { loadSettings(); loadApiKeyStatus(); }, [loadSettings]);
 
   useEffect(() => {
-    if (!settings) return;
+    if (!settings || isSavingRef.current) return;
     setEnabledProviders(settings.enabled_providers || []);
     setEnabledModels(settings.enabled_models || {});
-    setImageGenEnabled(settings.image_generation_enabled || false);
-    setImageModels(settings.image_models || ["gpt-image-1.5", "gemini-3.1-flash-image-preview"]);
     setSystemPrompt(settings.system_prompt || "");
     setDailyLimit(settings.default_daily_limit || 100000);
+    setTtsEnabled(settings.tts_enabled || false);
+    setSttEnabled(settings.stt_enabled || false);
+    setTtsDefaultVoice(settings.tts_default_voice || "alloy");
+    setTtsDefaultModel(settings.tts_default_model || "tts-1");
 
-    // available_models: DB 저장값 또는 기본값
+    // available_models: DB 저장값 + 기본값 병합
     const saved = settings.available_models || {};
     const merged = {};
     for (const p of PROVIDERS) {
       const defaults = p.defaultModels;
       const custom = saved[p.id] || [];
-      // 기본 모델 + 커스텀 모델 합치되 중복 제거
       merged[p.id] = [...new Set([...defaults, ...custom])];
     }
     setAvailableModels(merged);
+
+    // image_models: 프로바이더별 이미지 모델
+    const savedImg = settings.image_models || {};
+    const mergedImg = {};
+    for (const p of PROVIDERS) {
+      if (p.defaultImageModels) {
+        const defaults = p.defaultImageModels;
+        // 기존에 flat array로 저장된 경우 무시하고 기본값 사용
+        const custom = (savedImg && !Array.isArray(savedImg)) ? (savedImg[p.id] || []) : [];
+        mergedImg[p.id] = [...new Set([...defaults, ...custom])];
+      }
+    }
+    setImageModels(mergedImg);
   }, [settings]);
 
   const loadApiKeyStatus = async () => {
@@ -153,7 +174,6 @@ export default function SettingsPage() {
       ...prev,
       [providerId]: [...(prev[providerId] || []), modelId],
     }));
-    // 새 모델은 자동으로 활성화
     setEnabledModels((prev) => ({
       ...prev,
       [providerId]: [...(prev[providerId] || []), modelId],
@@ -178,22 +198,58 @@ export default function SettingsPage() {
     }));
   };
 
+  // 이미지 모델 관리
+  const handleAddImageModel = (providerId) => {
+    const modelId = (newImageModelInputs[providerId] || "").trim();
+    if (!modelId) return;
+    if ((imageModels[providerId] || []).includes(modelId)) {
+      alert("이미 등록된 이미지 모델입니다.");
+      return;
+    }
+    setImageModels((prev) => ({
+      ...prev,
+      [providerId]: [...(prev[providerId] || []), modelId],
+    }));
+    setNewImageModelInputs((prev) => ({ ...prev, [providerId]: "" }));
+  };
+
+  const handleRemoveImageModel = (providerId, modelId) => {
+    const provider = PROVIDERS.find((p) => p.id === providerId);
+    if (provider?.defaultImageModels?.includes(modelId)) {
+      alert("기본 이미지 모델은 삭제할 수 없습니다.");
+      return;
+    }
+    if (!confirm(`"${modelId}" 이미지 모델을 삭제하시겠습니까?`)) return;
+    setImageModels((prev) => ({
+      ...prev,
+      [providerId]: (prev[providerId] || []).filter((m) => m !== modelId),
+    }));
+  };
+
+  // 일괄 저장 (race condition 방지)
   const handleSave = async () => {
     setSaving(true);
     setSaveSuccess(false);
+    isSavingRef.current = true;
     try {
-      await updateSettings("enabled_providers", enabledProviders);
-      await updateSettings("enabled_models", enabledModels);
-      await updateSettings("available_models", availableModels);
-      await updateSettings("image_generation_enabled", imageGenEnabled);
-      await updateSettings("image_models", imageModels);
-      await updateSettings("system_prompt", systemPrompt);
-      await updateSettings("default_daily_limit", dailyLimit);
+      await updateMultipleSettings({
+        enabled_providers: enabledProviders,
+        enabled_models: enabledModels,
+        available_models: availableModels,
+        image_models: imageModels,
+        system_prompt: systemPrompt,
+        default_daily_limit: dailyLimit,
+        tts_enabled: ttsEnabled,
+        stt_enabled: sttEnabled,
+        tts_default_voice: ttsDefaultVoice,
+        tts_default_model: ttsDefaultModel,
+      });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
     } catch (err) {
       alert("설정 저장에 실패했습니다: " + err.message);
     } finally {
+      isSavingRef.current = false;
       setSaving(false);
     }
   };
@@ -225,6 +281,7 @@ export default function SettingsPage() {
               const dbKey = apiKeyStatus?.dbKeys?.[provider.apiKeyId] || "";
               const envStatus = apiKeyStatus?.envStatus?.[provider.apiKeyId] || "미설정";
               const models = availableModels[provider.id] || provider.defaultModels;
+              const imgModels = imageModels[provider.id] || [];
               const hasKey = dbKey || envStatus === "환경변수 설정됨";
 
               return (
@@ -265,9 +322,9 @@ export default function SettingsPage() {
                   {/* 본문: 모델 + API 키 (활성화된 경우만 펼침) */}
                   {isEnabled && (
                     <div className="p-4 pt-3 space-y-3">
-                      {/* 모델 관리 */}
+                      {/* 채팅 모델 관리 */}
                       <div>
-                        <div className="text-xs font-medium text-gray-500 mb-2">모델</div>
+                        <div className="text-xs font-medium text-gray-500 mb-2">채팅 모델</div>
                         <div className="flex flex-wrap gap-1.5">
                           {models.map((model) => {
                             const modelEnabled = (enabledModels[provider.id] || []).includes(model);
@@ -332,6 +389,53 @@ export default function SettingsPage() {
                         </div>
                       </div>
 
+                      {/* 이미지 생성 모델 (해당 프로바이더만) */}
+                      {provider.defaultImageModels && (
+                        <div className="border-t border-gray-200/60 pt-3">
+                          <div className="text-xs font-medium text-gray-500 mb-2">
+                            <span className="mr-1">🎨</span>이미지 생성 모델
+                            <span className="text-gray-400 font-normal ml-2">(교사/관리자 전용)</span>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {imgModels.map((model) => {
+                              const isDefault = provider.defaultImageModels.includes(model);
+                              return (
+                                <div key={model} className="group relative">
+                                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-pink-100 text-pink-700 border border-pink-200">
+                                    {model}
+                                  </span>
+                                  {!isDefault && (
+                                    <button
+                                      onClick={() => handleRemoveImageModel(provider.id, model)}
+                                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs leading-none hidden group-hover:flex items-center justify-center"
+                                      title="이미지 모델 삭제"
+                                    >
+                                      &times;
+                                    </button>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                          <div className="flex gap-2 mt-2">
+                            <input
+                              type="text"
+                              value={newImageModelInputs[provider.id] || ""}
+                              onChange={(e) => setNewImageModelInputs((p) => ({ ...p, [provider.id]: e.target.value }))}
+                              onKeyDown={(e) => e.key === "Enter" && handleAddImageModel(provider.id)}
+                              placeholder="새 이미지 모델 ID 입력..."
+                              className="flex-1 px-2.5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
+                            />
+                            <button
+                              onClick={() => handleAddImageModel(provider.id)}
+                              className="px-2.5 py-1 text-xs font-medium text-pink-600 border border-pink-200 rounded-lg hover:bg-pink-50 transition-colors whitespace-nowrap"
+                            >
+                              + 추가
+                            </button>
+                          </div>
+                        </div>
+                      )}
+
                       {/* API 키 */}
                       <div className="border-t border-gray-200/60 pt-3">
                         <div className="text-xs font-medium text-gray-500 mb-2">API 키</div>
@@ -377,74 +481,78 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ── 이미지 생성 ── */}
-        <section className="bg-white rounded-xl border border-gray-200 p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">이미지 생성</h2>
-          <p className="text-xs text-gray-400 mb-4">AI 이미지 생성 기능과 사용 가능한 모델을 관리합니다.</p>
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div className="relative">
-              <input type="checkbox" checked={imageGenEnabled} onChange={(e) => setImageGenEnabled(e.target.checked)} className="sr-only" />
-              <div className={`w-10 h-5 rounded-full transition-colors ${imageGenEnabled ? "bg-blue-600" : "bg-gray-300"}`}>
-                <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${imageGenEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"}`} />
-              </div>
-            </div>
-            <span className="text-sm font-medium text-gray-700">이미지 생성 허용</span>
-          </label>
-          {imageGenEnabled && (
-            <div className="mt-4 space-y-3">
-              <div className="text-xs font-medium text-gray-500">이미지 생성 모델</div>
-              <div className="flex flex-wrap gap-1.5">
-                {imageModels.map((model) => (
-                  <div key={model} className="group relative">
-                    <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium bg-pink-100 text-pink-700 border border-pink-200">
-                      {model}
-                    </span>
-                    <button
-                      onClick={() => {
-                        if (imageModels.length <= 1) { alert("최소 1개 모델은 필요합니다."); return; }
-                        if (!confirm(`"${model}" 모델을 삭제하시겠습니까?`)) return;
-                        setImageModels((prev) => prev.filter((m) => m !== model));
-                      }}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-red-500 text-white rounded-full text-xs leading-none hidden group-hover:flex items-center justify-center"
-                    >
-                      &times;
-                    </button>
+        {/* ── TTS / STT (음성 기능) ── */}
+        <section className="bg-white rounded-xl border-2 border-teal-200 p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">TTS / STT (음성 기능)</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            OpenAI API를 사용합니다. OpenAI API 키가 설정되어 있어야 합니다.
+          </p>
+
+          <div className="space-y-4">
+            {/* TTS 설정 */}
+            <div className="flex items-start gap-4">
+              <label className="flex items-center gap-3 cursor-pointer min-w-[180px]">
+                <div className="relative">
+                  <input type="checkbox" checked={ttsEnabled} onChange={() => setTtsEnabled(!ttsEnabled)} className="sr-only" />
+                  <div className={`w-10 h-5 rounded-full transition-colors ${ttsEnabled ? "bg-teal-600" : "bg-gray-300"}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${ttsEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"}`} />
                   </div>
-                ))}
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={newImageModel}
-                  onChange={(e) => setNewImageModel(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const id = newImageModel.trim();
-                      if (!id || imageModels.includes(id)) return;
-                      setImageModels((prev) => [...prev, id]);
-                      setNewImageModel("");
-                    }
-                  }}
-                  placeholder="새 이미지 모델 ID 입력..."
-                  className="flex-1 px-2.5 py-1 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-400 font-mono"
-                />
-                <button
-                  onClick={() => {
-                    const id = newImageModel.trim();
-                    if (!id || imageModels.includes(id)) return;
-                    setImageModels((prev) => [...prev, id]);
-                    setNewImageModel("");
-                  }}
-                  className="px-2.5 py-1 text-xs font-medium text-blue-600 border border-blue-200 rounded-lg hover:bg-blue-50 transition-colors whitespace-nowrap"
-                >
-                  + 추가
-                </button>
-              </div>
-              <div className="p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
-                <p className="text-xs text-yellow-700">이미지 생성은 추가 API 비용이 발생합니다.</p>
-              </div>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-gray-800">TTS</span>
+                  <span className="text-xs text-gray-400 ml-1.5">텍스트 읽기</span>
+                </div>
+              </label>
+
+              {ttsEnabled && (
+                <div className="flex flex-wrap gap-3">
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">음성</label>
+                    <select
+                      value={ttsDefaultVoice}
+                      onChange={(e) => setTtsDefaultVoice(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400"
+                    >
+                      {["alloy", "echo", "fable", "onyx", "nova", "shimmer"].map((v) => (
+                        <option key={v} value={v}>{v}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label className="text-xs text-gray-500 mb-1 block">모델</label>
+                    <select
+                      value={ttsDefaultModel}
+                      onChange={(e) => setTtsDefaultModel(e.target.value)}
+                      className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400"
+                    >
+                      <option value="tts-1">tts-1 (빠름)</option>
+                      <option value="tts-1-hd">tts-1-hd (고품질)</option>
+                    </select>
+                  </div>
+                </div>
+              )}
             </div>
-          )}
+
+            {/* STT 설정 */}
+            <div className="flex items-center gap-4">
+              <label className="flex items-center gap-3 cursor-pointer min-w-[180px]">
+                <div className="relative">
+                  <input type="checkbox" checked={sttEnabled} onChange={() => setSttEnabled(!sttEnabled)} className="sr-only" />
+                  <div className={`w-10 h-5 rounded-full transition-colors ${sttEnabled ? "bg-teal-600" : "bg-gray-300"}`}>
+                    <div className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${sttEnabled ? "translate-x-5.5 ml-0.5" : "translate-x-0.5"}`} />
+                  </div>
+                </div>
+                <div>
+                  <span className="text-sm font-bold text-gray-800">STT</span>
+                  <span className="text-xs text-gray-400 ml-1.5">음성 입력 (Whisper)</span>
+                </div>
+              </label>
+            </div>
+
+            <div className="text-xs text-gray-400 bg-teal-50 px-3 py-2 rounded-lg">
+              TTS/STT는 모든 사용자(학생 포함)가 사용할 수 있습니다. 비용: TTS ~3-10원/회, STT ~2-4원/회
+            </div>
+          </div>
         </section>
 
         {/* ── 시스템 프롬프트 ── */}

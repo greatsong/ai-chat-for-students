@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
@@ -148,8 +148,69 @@ function FileAttachments({ files }) {
   );
 }
 
+// TTS 스피커 버튼
+function TtsButton({ text, onSpeak }) {
+  const [state, setState] = useState('idle'); // idle | loading | playing
+  const audioRef = useRef(null);
+
+  const handleClick = async () => {
+    if (state === 'playing') {
+      audioRef.current?.pause();
+      audioRef.current = null;
+      setState('idle');
+      return;
+    }
+
+    setState('loading');
+    try {
+      const audio = await onSpeak(text);
+      audioRef.current = audio;
+      setState('playing');
+      audio.onended = () => {
+        audioRef.current = null;
+        setState('idle');
+      };
+      audio.onerror = () => {
+        audioRef.current = null;
+        setState('idle');
+      };
+    } catch {
+      setState('idle');
+    }
+  };
+
+  return (
+    <button
+      onClick={handleClick}
+      className={`p-1 rounded-md transition-colors ${
+        state === 'playing'
+          ? 'text-blue-600 bg-blue-100'
+          : state === 'loading'
+          ? 'text-gray-400 animate-pulse'
+          : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200'
+      }`}
+      title={state === 'playing' ? '정지' : '읽어주기'}
+    >
+      {state === 'loading' ? (
+        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+        </svg>
+      ) : state === 'playing' ? (
+        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
+          <rect x="6" y="6" width="12" height="12" rx="1" />
+        </svg>
+      ) : (
+        <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+          <path strokeLinecap="round" strokeLinejoin="round" d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z" />
+        </svg>
+      )}
+    </button>
+  );
+}
+
 // 개별 메시지 컴포넌트
-function MessageBubble({ message }) {
+function MessageBubble({ message, ttsEnabled, onSpeak }) {
   const isUser = message.role === 'user';
   const timeStr = message.created_at
     ? new Date(message.created_at).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
@@ -203,18 +264,21 @@ function MessageBubble({ message }) {
           <FileAttachments files={message.files} />
         </div>
 
-        {/* 시간 */}
-        {timeStr && (
-          <span className={`text-xs text-gray-400 mt-1 ${isUser ? 'text-right' : 'text-left'}`}>
-            {timeStr}
-          </span>
-        )}
+        {/* 시간 + TTS 버튼 */}
+        <div className={`flex items-center gap-2 mt-1 ${isUser ? 'flex-row-reverse' : ''}`}>
+          {timeStr && (
+            <span className="text-xs text-gray-400">{timeStr}</span>
+          )}
+          {!isUser && ttsEnabled && onSpeak && message.content?.trim() && (
+            <TtsButton text={message.content} onSpeak={onSpeak} />
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-export default function MessageList({ messages = [], isStreaming = false, streamingContent = '' }) {
+export default function MessageList({ messages = [], isStreaming = false, streamingContent = '', ttsEnabled = false, onSpeak }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
 
@@ -233,7 +297,7 @@ export default function MessageList({ messages = [], isStreaming = false, stream
     <div ref={containerRef} className="flex-1 overflow-y-auto">
       <div className="max-w-3xl mx-auto py-4">
         {messages.map((msg) => (
-          <MessageBubble key={msg.id || msg.temp_id || Math.random()} message={msg} />
+          <MessageBubble key={msg.id || msg.temp_id || Math.random()} message={msg} ttsEnabled={ttsEnabled} onSpeak={onSpeak} />
         ))}
 
         {/* 스트리밍 중인 응답 */}

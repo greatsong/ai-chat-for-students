@@ -6,9 +6,11 @@ const LINE_HEIGHT = 24; // approximate line height in px
 export default function MessageInput({
   onSend,
   onGenerateImage,
+  onTranscribe,
   disabled = false,
   isStreaming = false,
   isTeacher = false,
+  sttEnabled = false,
 }) {
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState([]);
@@ -16,8 +18,12 @@ export default function MessageInput({
   const [showImageGen, setShowImageGen] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageProvider, setImageProvider] = useState('gemini');
+  const [isRecording, setIsRecording] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
+  const mediaRecorderRef = useRef(null);
+  const audioChunksRef = useRef([]);
 
   // 자동 리사이즈
   useEffect(() => {
@@ -117,6 +123,63 @@ export default function MessageInput({
     if (imageFiles.length > 0) {
       e.preventDefault();
       addFiles(imageFiles);
+    }
+  };
+
+  // STT 녹음 시작/중지
+  const handleToggleRecording = async () => {
+    if (isRecording) {
+      // 녹음 중지
+      mediaRecorderRef.current?.stop();
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
+        ? 'audio/webm;codecs=opus'
+        : MediaRecorder.isTypeSupported('audio/mp4')
+        ? 'audio/mp4'
+        : 'audio/webm';
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType });
+      mediaRecorderRef.current = mediaRecorder;
+      audioChunksRef.current = [];
+
+      mediaRecorder.ondataavailable = (e) => {
+        if (e.data.size > 0) audioChunksRef.current.push(e.data);
+      };
+
+      mediaRecorder.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        setIsRecording(false);
+
+        const blob = new Blob(audioChunksRef.current, { type: mimeType });
+        if (blob.size === 0) return;
+
+        setIsTranscribing(true);
+        try {
+          const reader = new FileReader();
+          const base64 = await new Promise((resolve, reject) => {
+            reader.onloadend = () => resolve(reader.result.split(',')[1]);
+            reader.onerror = reject;
+            reader.readAsDataURL(blob);
+          });
+
+          const text = await onTranscribe?.(base64, mimeType.split(';')[0]);
+          if (text) setMessage((prev) => prev + (prev ? ' ' : '') + text);
+        } catch (err) {
+          console.error('STT 실패:', err);
+        } finally {
+          setIsTranscribing(false);
+        }
+      };
+
+      mediaRecorder.start();
+      setIsRecording(true);
+    } catch (err) {
+      console.error('마이크 접근 실패:', err);
+      alert('마이크 접근 권한이 필요합니다.');
     }
   };
 
@@ -299,6 +362,33 @@ export default function MessageInput({
           className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
           style={{ lineHeight: LINE_HEIGHT + 'px' }}
         />
+
+        {/* STT 마이크 버튼 */}
+        {sttEnabled && onTranscribe && (
+          <button
+            onClick={handleToggleRecording}
+            disabled={disabled || isTranscribing}
+            className={`flex-shrink-0 p-2.5 rounded-lg transition-colors disabled:opacity-50 ${
+              isRecording
+                ? 'text-red-600 bg-red-100 animate-pulse'
+                : isTranscribing
+                ? 'text-gray-400'
+                : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
+            }`}
+            title={isRecording ? '녹음 중지' : isTranscribing ? '변환 중...' : '음성 입력'}
+          >
+            {isTranscribing ? (
+              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+              </svg>
+            ) : (
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z" />
+              </svg>
+            )}
+          </button>
+        )}
 
         {/* 전송 버튼 */}
         <button

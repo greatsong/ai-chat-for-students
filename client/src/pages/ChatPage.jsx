@@ -1,10 +1,11 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import Sidebar from '../components/chat/Sidebar';
 import ProviderSelector from '../components/chat/ProviderSelector';
 import MessageList from '../components/chat/MessageList';
 import MessageInput from '../components/chat/MessageInput';
 import WelcomeScreen from '../components/chat/WelcomeScreen';
+import { apiGet } from '../lib/api';
 
 // Store imports - 병렬 개발 중이므로 안전하게 가져오기
 // 스토어 파일이 아직 없으면 null 유지
@@ -88,6 +89,7 @@ export default function ChatPage() {
 
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [publicSettings, setPublicSettings] = useState({});
 
   // Auth store
   const user = useSafeAuthStore((s) => s.user);
@@ -108,6 +110,8 @@ export default function ChatPage() {
   const deleteConversation = useSafeChatStore((s) => s.deleteConversation);
   const sendMessage = useSafeChatStore((s) => s.sendMessage);
   const generateImage = useSafeChatStore((s) => s.generateImage);
+  const speakMessage = useSafeChatStore((s) => s.speakMessage);
+  const transcribeAudio = useSafeChatStore((s) => s.transcribeAudio);
   const setProvider = useSafeChatStore((s) => s.setProvider);
   const setModel = useSafeChatStore((s) => s.setModel);
   const loadConversations = useSafeChatStore((s) => s.loadConversations);
@@ -122,6 +126,11 @@ export default function ChatPage() {
       navigate('/login');
     }
   }, [isAuthenticated, navigate]);
+
+  // 공개 설정 로드 (TTS/STT 상태)
+  useEffect(() => {
+    apiGet('/teacher/public-settings').then(setPublicSettings).catch(() => {});
+  }, []);
 
   // 대화 목록 로드
   const loadConversationsRef = useRef(loadConversations);
@@ -183,6 +192,16 @@ export default function ChatPage() {
     generateImage?.(prompt, provider);
   }, [generateImage]);
 
+  // TTS 음성 합성
+  const handleSpeak = useCallback((text) => {
+    return speakMessage?.(text, publicSettings.tts_default_voice, publicSettings.tts_default_model);
+  }, [speakMessage, publicSettings.tts_default_voice, publicSettings.tts_default_model]);
+
+  // STT 음성 인식
+  const handleTranscribe = useCallback(async (audioBase64, mimeType) => {
+    return transcribeAudio?.(audioBase64, mimeType);
+  }, [transcribeAudio]);
+
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
   const hasActiveConversation = !!activeConversationId && messages.length > 0;
@@ -239,6 +258,8 @@ export default function ChatPage() {
             <MessageList
               messages={messages}
               isStreaming={isStreaming}
+              ttsEnabled={!!publicSettings.tts_enabled}
+              onSpeak={handleSpeak}
             />
           ) : (
             <WelcomeScreen
@@ -253,9 +274,11 @@ export default function ChatPage() {
         <MessageInput
           onSend={handleSendMessage}
           onGenerateImage={handleGenerateImage}
+          onTranscribe={handleTranscribe}
           disabled={false}
           isStreaming={isStreaming}
           isTeacher={isTeacher}
+          sttEnabled={!!publicSettings.stt_enabled}
         />
       </main>
     </div>

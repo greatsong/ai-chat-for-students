@@ -255,6 +255,24 @@ const useChatStore = create((set, get) => ({
   },
 
   /**
+   * TTS 음성 합성 (텍스트 → 음성 재생)
+   */
+  speakMessage: async (text, voice, model) => {
+    const result = await apiPost('/tts/generate', { text, voice, model });
+    const audio = new Audio(result.audioUrl);
+    audio.play();
+    return audio;
+  },
+
+  /**
+   * STT 음성 인식 (음성 → 텍스트)
+   */
+  transcribeAudio: async (audioBase64, mimeType) => {
+    const result = await apiPost('/stt/transcribe', { audio: audioBase64, mimeType });
+    return result.text;
+  },
+
+  /**
    * 대화 삭제
    */
   deleteConversation: async (id) => {

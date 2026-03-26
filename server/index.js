@@ -9,6 +9,8 @@ import chatRoutes from './routes/chat.js';
 import conversationRoutes from './routes/conversations.js';
 import uploadRoutes from './routes/upload.js';
 import imageRoutes from './routes/image.js';
+import ttsRoutes from './routes/tts.js';
+import sttRoutes from './routes/stt.js';
 import teacherRoutes from './routes/teacher.js';
 
 const app = express();
@@ -27,8 +29,8 @@ app.use(cors({
   credentials: true,
 }));
 
-// JSON 파싱 (5MB 제한 — base64 파일은 업로드 엔드포인트에서 별도 처리)
-app.use(express.json({ limit: '5mb' }));
+// JSON 파싱 (10MB 제한 — base64 오디오/파일 전송 지원)
+app.use(express.json({ limit: '10mb' }));
 
 // 헬스 체크 엔드포인트 (rate limiting 전에 선언 — 모니터링 제외)
 app.get('/api/health', (req, res) => {
@@ -82,6 +84,8 @@ async function start() {
   app.use('/api/conversations', conversationRoutes);
   app.use('/api/upload', uploadLimiter, uploadRoutes);
   app.use('/api/image', uploadLimiter, imageRoutes);
+  app.use('/api/tts', uploadLimiter, ttsRoutes);
+  app.use('/api/stt', uploadLimiter, sttRoutes);
   app.use('/api/teacher', teacherRoutes);
 
   app.listen(PORT, () => {

@@ -16,58 +16,103 @@ export default function AuthGuard({ children, requireTeacher = false }) {
     checkAuth();
   }, [checkAuth]);
 
-  // 로딩 중 — 우주 컨셉
+  // 로딩 중 — 우주 워프 컨셉
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-screen bg-gradient-to-b from-gray-900 via-indigo-950 to-gray-900 relative overflow-hidden">
         <style>{`
-          @keyframes drift { 0% { transform: translateY(0) translateX(0); } 50% { transform: translateY(-20px) translateX(10px); } 100% { transform: translateY(0) translateX(0); } }
-          @keyframes twinkle { 0%, 100% { opacity: 0.2; transform: scale(1); } 50% { opacity: 1; transform: scale(1.5); } }
-          @keyframes shootingStar { 0% { transform: translateX(0) translateY(0); opacity: 1; } 100% { transform: translateX(300px) translateY(200px); opacity: 0; } }
-          @keyframes float { 0%, 100% { transform: translateY(0) rotate(-5deg); } 50% { transform: translateY(-15px) rotate(5deg); } }
+          @keyframes starStream {
+            from { transform: translateY(-5vh); }
+            to { transform: translateY(110vh); }
+          }
+          @keyframes starStreak {
+            from { transform: translateY(-5vh) scaleY(1); opacity: 0.3; }
+            50% { opacity: 1; }
+            to { transform: translateY(110vh) scaleY(4); opacity: 0; }
+          }
+          @keyframes rocketVibrate {
+            0%, 100% { transform: translate(0, 0) rotate(-15deg); }
+            20% { transform: translate(1.5px, -1px) rotate(-14deg); }
+            40% { transform: translate(-1px, 1.5px) rotate(-16deg); }
+            60% { transform: translate(1px, 0.5px) rotate(-15.5deg); }
+            80% { transform: translate(-0.5px, -1px) rotate(-14.5deg); }
+          }
+          @keyframes speedLine {
+            0% { transform: translateX(80px); opacity: 0; width: 20px; }
+            30% { opacity: 0.5; }
+            100% { transform: translateX(-250px); opacity: 0; width: 60px; }
+          }
+          @keyframes warpGlow {
+            0%, 100% { opacity: 0.15; transform: scale(1); }
+            50% { opacity: 0.3; transform: scale(1.1); }
+          }
         `}</style>
 
-        {/* 별 배경 — 천천히 떠다니는 별들 */}
+        {/* 워프 글로우 배경 */}
+        <div
+          className="absolute rounded-full"
+          style={{
+            width: "300px", height: "300px",
+            top: "50%", left: "50%",
+            transform: "translate(-50%, -50%)",
+            background: "radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%)",
+            animation: "warpGlow 2s ease-in-out infinite",
+          }}
+        />
+
+        {/* 빠르게 쏟아지는 별들 */}
         <div className="absolute inset-0">
-          {[...Array(30)].map((_, i) => (
-            <div
-              key={i}
-              className="absolute bg-white rounded-full"
-              style={{
-                top: `${Math.sin(i * 7.3) * 50 + 50}%`,
-                left: `${Math.cos(i * 5.1) * 50 + 50}%`,
-                width: `${1 + (i % 3)}px`,
-                height: `${1 + (i % 3)}px`,
-                animation: `drift ${6 + (i % 5) * 2}s ease-in-out infinite, twinkle ${2 + (i % 4)}s ease-in-out infinite`,
-                animationDelay: `${(i * 0.3) % 4}s`,
-              }}
-            />
-          ))}
+          {[...Array(80)].map((_, i) => {
+            const size = 1 + (i % 3);
+            const isStreak = i % 4 === 0;
+            return (
+              <div
+                key={i}
+                className="absolute bg-white rounded-full"
+                style={{
+                  left: `${(i * 13 + 7) % 100}%`,
+                  width: `${size}px`,
+                  height: isStreak ? `${size * 6}px` : `${size}px`,
+                  background: isStreak
+                    ? "linear-gradient(to bottom, transparent, white, transparent)"
+                    : "white",
+                  animation: `${isStreak ? "starStreak" : "starStream"} ${0.5 + (i % 6) * 0.25}s linear infinite`,
+                  animationDelay: `${(i * 0.07) % 2}s`,
+                  opacity: 0.3 + (i % 4) * 0.2,
+                }}
+              />
+            );
+          })}
         </div>
 
-        {/* 유성 */}
-        <div
-          className="absolute w-1 h-1 bg-white rounded-full"
-          style={{
-            top: "15%", left: "10%",
-            boxShadow: "0 0 4px 2px rgba(255,255,255,0.3)",
-            animation: "shootingStar 3s ease-in infinite",
-            animationDelay: "1s",
-          }}
-        />
-        <div
-          className="absolute w-0.5 h-0.5 bg-white rounded-full"
-          style={{
-            top: "30%", left: "60%",
-            boxShadow: "0 0 3px 1px rgba(255,255,255,0.2)",
-            animation: "shootingStar 4s ease-in infinite",
-            animationDelay: "3s",
-          }}
-        />
 
+        {/* 로켓 */}
         <div className="text-center relative z-10">
-          <div className="text-6xl mb-5" style={{ animation: "float 3s ease-in-out infinite" }}>&#x1F680;</div>
-          <p className="text-lg font-bold text-white/80">우주최강 당곡고 접속 중...</p>
+          <div
+            className="text-6xl inline-block"
+            style={{ animation: "rocketVibrate 0.1s ease-in-out infinite" }}
+          >
+            &#x1F680;
+          </div>
+
+          {/* 스피드 라인 */}
+          <div className="absolute -left-32 -right-32 top-0 bottom-0 pointer-events-none">
+            {[...Array(10)].map((_, i) => (
+              <div
+                key={`speed-${i}`}
+                className="absolute bg-white/25 rounded-full"
+                style={{
+                  top: `${5 + i * 10}%`,
+                  right: "-40px",
+                  height: "1px",
+                  animation: `speedLine ${0.25 + (i % 4) * 0.07}s linear infinite`,
+                  animationDelay: `${i * 0.12}s`,
+                }}
+              />
+            ))}
+          </div>
+
+          <p className="text-lg font-bold text-white/80 mt-8">우주최강 당곡고 접속 중...</p>
           <div className="mt-3 flex justify-center gap-1.5">
             {[0, 1, 2].map((i) => (
               <div
