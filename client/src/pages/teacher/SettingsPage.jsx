@@ -483,7 +483,7 @@ export default function SettingsPage() {
 
         {/* ── TTS / STT (음성 기능) ── */}
         <section className="bg-white rounded-xl border-2 border-teal-200 p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1">TTS / STT (음성 기능)</h2>
+          <h2 className="text-base font-semibold text-gray-800 mb-1">TTS (음성 읽기)</h2>
           <p className="text-xs text-gray-400 mb-4">
             교사/관리자는 항상 사용 가능합니다. 아래 설정은 학생에게 허용할지 여부입니다. OpenAI API 키 필요.
           </p>
