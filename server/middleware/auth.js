@@ -83,6 +83,19 @@ export async function authenticate(req, res, next) {
 }
 
 /**
+ * 활성 사용자 확인 미들웨어
+ * authenticate 미들웨어 이후에 사용해야 함
+ * 비활성 학생(is_active=0)의 API 접근을 차단
+ * 교사/관리자는 항상 통과
+ */
+export function requireActive(req, res, next) {
+  if (req.user.role === 'student' && !req.user.is_active) {
+    return res.status(403).json({ error: '교사 승인 후 사용할 수 있습니다.' });
+  }
+  next();
+}
+
+/**
  * 교사 권한 확인 미들웨어
  * authenticate 미들웨어 이후에 사용해야 함
  * admin도 교사 권한을 포함함
