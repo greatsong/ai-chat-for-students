@@ -11,13 +11,16 @@ describe('환경변수 템플릿', () => {
       'PORT',
       'CLIENT_URL',
       'ANTHROPIC_API_KEY',
-      'GOOGLE_AI_API_KEY',
+      'GOOGLE_API_KEY',
       'OPENAI_API_KEY',
       'UPSTAGE_API_KEY',
       'GOOGLE_CLIENT_ID',
       'GOOGLE_CLIENT_SECRET',
       'JWT_SECRET',
+      'ADMIN_EMAILS',
       'TEACHER_EMAILS',
+      'TURSO_DATABASE_URL',
+      'TURSO_AUTH_TOKEN',
     ];
 
     const content = readFileSync(resolve(__dirname, '../../.env.example'), 'utf-8');

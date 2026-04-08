@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { validate, sttSchema } from '../middleware/validate.js';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { transcribeAudio } from '../providers/openai.js';
 import crypto from 'crypto';
@@ -7,7 +8,7 @@ import crypto from 'crypto';
 const router = Router();
 
 // POST /api/stt/transcribe
-router.post('/transcribe', authenticate, async (req, res) => {
+router.post('/transcribe', authenticate, validate(sttSchema), async (req, res) => {
   const { audio, mimeType } = req.body;
   const userId = req.user.id;
 
@@ -21,12 +22,7 @@ router.post('/transcribe', authenticate, async (req, res) => {
       }
     }
 
-    // 2. 오디오 데이터 확인
-    if (!audio) {
-      return res.status(400).json({ error: '오디오 데이터가 필요합니다.' });
-    }
-
-    // 3. base64 → Buffer
+    // 2. base64 → Buffer
     const audioBuffer = Buffer.from(audio, 'base64');
 
     // 4. 음성 인식
@@ -39,18 +35,18 @@ router.post('/transcribe', authenticate, async (req, res) => {
     const today = new Date().toISOString().split('T')[0];
     const existingUsage = await queryOne(
       'SELECT id FROM usage_daily WHERE user_id = ? AND date = ? AND provider = ?',
-      [userId, today, 'openai']
+      [userId, today, 'openai'],
     );
 
     if (existingUsage) {
       await run(
         'UPDATE usage_daily SET stt_count = stt_count + 1, request_count = request_count + 1 WHERE user_id = ? AND date = ? AND provider = ?',
-        [userId, today, 'openai']
+        [userId, today, 'openai'],
       );
     } else {
       await run(
         'INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count, stt_count) VALUES (?, ?, ?, ?, 0, 0, 1, 1)',
-        [crypto.randomUUID(), userId, today, 'openai']
+        [crypto.randomUUID(), userId, today, 'openai'],
       );
     }
 

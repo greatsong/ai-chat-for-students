@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import useAuthStore from '../stores/authStore';
 
@@ -8,6 +8,11 @@ export default function LoginPage() {
   const navigate = useNavigate();
   const buttonRef = useRef(null);
   const { loginWithGoogle, isAuthenticated, isLoading } = useAuthStore();
+
+  // 신규 사용자 동의 모달 상태
+  const [showPrivacyModal, setShowPrivacyModal] = useState(false);
+  const [pendingCredential, setPendingCredential] = useState(null);
+  const [privacyAgreed, setPrivacyAgreed] = useState(false);
 
   // 이미 인증된 상태면 /chat으로 이동
   useEffect(() => {
@@ -19,7 +24,15 @@ export default function LoginPage() {
   const handleCredentialResponse = useCallback(
     async (response) => {
       try {
-        await loginWithGoogle(response.credential);
+        const result = await loginWithGoogle(response.credential);
+
+        // 신규 사용자 → 개인정보 동의 필요
+        if (result?.privacy_required) {
+          setPendingCredential(response.credential);
+          setShowPrivacyModal(true);
+          return;
+        }
+
         navigate('/chat', { replace: true });
       } catch (err) {
         console.error('로그인 실패:', err);
@@ -28,6 +41,26 @@ export default function LoginPage() {
     },
     [loginWithGoogle, navigate],
   );
+
+  // 동의 후 가입 완료
+  const handlePrivacyAgree = async () => {
+    if (!pendingCredential) return;
+    try {
+      await loginWithGoogle(pendingCredential, true);
+      setShowPrivacyModal(false);
+      setPendingCredential(null);
+      navigate('/chat', { replace: true });
+    } catch (err) {
+      console.error('가입 실패:', err);
+      alert(err.message || '가입에 실패했습니다.');
+    }
+  };
+
+  const handlePrivacyCancel = () => {
+    setShowPrivacyModal(false);
+    setPendingCredential(null);
+    setPrivacyAgreed(false);
+  };
 
   // Google Identity Services 스크립트 로드
   useEffect(() => {
@@ -191,8 +224,8 @@ export default function LoginPage() {
           {/* 구분선 */}
           <div className="my-8 border-t border-gray-200/60" />
 
-          {/* Google 로그인 버튼 */}
-          <div className="flex justify-center">
+          {/* Google 로그인 버튼 — 항상 활성화 */}
+          <div className="flex justify-center relative">
             {isLoading ? (
               <div className="flex items-center gap-2 text-gray-500">
                 <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
@@ -242,6 +275,55 @@ export default function LoginPage() {
           </Link>
         </div>
       </div>
+
+      {/* 개인정보 동의 모달 — 신규 사용자만 */}
+      {showPrivacyModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 sm:p-8 animate-fade-in-up">
+            <h2 className="text-lg font-bold text-gray-900 mb-2">개인정보 제공 동의</h2>
+            <p className="text-sm text-gray-500 mb-5">
+              서비스 이용을 위해 아래 동의가 필요합니다. 최초 가입 시 1회만 동의하면 이후 로그인
+              시에는 다시 묻지 않습니다.
+            </p>
+
+            <label className="flex items-start gap-2.5 cursor-pointer mb-6">
+              <input
+                type="checkbox"
+                checked={privacyAgreed}
+                onChange={(e) => setPrivacyAgreed(e.target.checked)}
+                className="mt-0.5 w-4 h-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+              />
+              <span className="text-sm text-gray-700 leading-relaxed select-none">
+                <Link
+                  to="/privacy"
+                  target="_blank"
+                  className="text-indigo-600 font-medium underline underline-offset-2 hover:text-indigo-800 transition-colors"
+                >
+                  개인정보 처리방침
+                </Link>
+                에 동의하며, AI 학습 도우미 이용을 위한 개인정보(이름, 이메일, 프로필 사진) 제공에
+                동의합니다.
+              </span>
+            </label>
+
+            <div className="flex gap-3">
+              <button
+                onClick={handlePrivacyCancel}
+                className="flex-1 px-4 py-2.5 text-sm text-gray-600 bg-gray-100 rounded-xl hover:bg-gray-200 transition-colors"
+              >
+                취소
+              </button>
+              <button
+                onClick={handlePrivacyAgree}
+                disabled={!privacyAgreed || isLoading}
+                className="flex-1 px-4 py-2.5 text-sm text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                {isLoading ? '처리 중...' : '동의하고 시작하기'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

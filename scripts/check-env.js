@@ -16,14 +16,22 @@ const ROOT = resolve(__dirname, '..');
 const REQUIRED_VARS = [
   'PORT',
   'CLIENT_URL',
+  // AI API 키 — apiKeys.js ENV_KEY_MAP과 일치
   'ANTHROPIC_API_KEY',
-  'GOOGLE_AI_API_KEY',
+  'GOOGLE_API_KEY',
   'OPENAI_API_KEY',
   'UPSTAGE_API_KEY',
+  // Google OAuth
   'GOOGLE_CLIENT_ID',
   'GOOGLE_CLIENT_SECRET',
+  // 인증/보안
   'JWT_SECRET',
+  // 사용자 관리
+  'ADMIN_EMAILS',
   'TEACHER_EMAILS',
+  // Turso DB
+  'TURSO_DATABASE_URL',
+  'TURSO_AUTH_TOKEN',
 ];
 
 const isCI = process.argv.includes('--ci');
