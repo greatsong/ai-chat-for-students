@@ -10,14 +10,15 @@ const useAuthStore = create((set, get) => ({
   /**
    * Google OAuth 로그인
    * @param {string} credential - Google ID 토큰
+   * @param {boolean} privacyAgreed - 개인정보 제공 동의 여부
    */
-  loginWithGoogle: async (credential) => {
+  loginWithGoogle: async (credential, privacyAgreed = false) => {
     set({ isLoading: true });
     try {
       const res = await fetch('/api/auth/google', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ credential }),
+        body: JSON.stringify({ credential, privacyAgreed }),
       });
 
       if (!res.ok) {
@@ -26,6 +27,13 @@ const useAuthStore = create((set, get) => ({
       }
 
       const data = await res.json();
+
+      // 신규 사용자 — 개인정보 동의 필요
+      if (data.privacy_required) {
+        set({ isLoading: false });
+        return { privacy_required: true };
+      }
+
       localStorage.setItem('token', data.token);
       set({
         user: data.user,

@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { queryOne, run, getSetting } from '../db/database.js';
@@ -24,7 +25,7 @@ const TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '')
  * Google One Tap / Sign-In 로그인 처리
  */
 router.post('/google', validate(googleAuthSchema), async (req, res) => {
-  const { credential } = req.body;
+  const { credential, privacyAgreed } = req.body;
 
   try {
     // 1. Google ID 토큰 검증
@@ -68,9 +69,8 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
     // 2. 기존 사용자 확인
     let user = await queryOne('SELECT * FROM users WHERE google_id = ?', [googleId]);
 
-    // 역할 결정: 환경변수/설정 목록 + DB 기존 역할 중 가장 높은 권한 적용
-    // admin(2) > teacher(1) > student(0)
-    const rolePriority = { student: 0, teacher: 1, admin: 2 };
+    // 역할 결정: 환경변수/설정 목록이 권위 소스 (DB 역할을 덮어씀)
+    // 설정에서 교사를 제거하면 다음 로그인 시 student로 강등됨
     let role;
     if (isAdminEmail) {
       role = 'admin';
@@ -78,10 +78,6 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
       role = 'teacher';
     } else {
       role = 'student';
-    }
-    // 기존 사용자의 DB 역할이 더 높으면 그것을 유지
-    if (user && (rolePriority[user.role] || 0) > (rolePriority[role] || 0)) {
-      role = user.role;
     }
 
     if (user) {
@@ -104,6 +100,11 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
           updates.push('is_active = 1');
         }
       }
+      // 개인정보 동의 기록이 없으면 업데이트
+      if (privacyAgreed && !user.privacy_agreed_at) {
+        updates.push('privacy_agreed_at = ?');
+        params.push(new Date().toISOString());
+      }
 
       if (updates.length > 0) {
         params.push(user.id);
@@ -112,7 +113,14 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
         user = await queryOne('SELECT * FROM users WHERE id = ?', [user.id]);
       }
     } else {
-      // 4. 신규 사용자 생성
+      // 4. 신규 사용자 — 개인정보 동의 필요
+      if (!privacyAgreed) {
+        return res.status(200).json({
+          privacy_required: true,
+          message: '서비스 이용을 위해 개인정보 제공에 동의해주세요.',
+        });
+      }
+
       const isActive = role === 'admin' || role === 'teacher' ? 1 : 0;
 
       // 첫 번째 학급 배정
@@ -123,8 +131,18 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
 
       const userId = crypto.randomUUID();
       await run(
-        'INSERT INTO users (id, google_id, email, name, avatar, role, classroom_id, is_active) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
-        [userId, googleId, email, name, picture, role, classroomId, isActive],
+        'INSERT INTO users (id, google_id, email, name, avatar, role, classroom_id, is_active, privacy_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          userId,
+          googleId,
+          email,
+          name,
+          picture,
+          role,
+          classroomId,
+          isActive,
+          new Date().toISOString(),
+        ],
       );
 
       user = await queryOne('SELECT * FROM users WHERE id = ?', [userId]);
@@ -145,6 +163,7 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
         avatar: user.avatar,
         role: user.role,
         is_active: user.is_active,
+        privacy_agreed_at: user.privacy_agreed_at || null,
       },
     });
   } catch (err) {
@@ -167,6 +186,7 @@ router.get('/me', authenticate, (req, res) => {
       avatar: user.avatar,
       role: user.role,
       is_active: user.is_active,
+      privacy_agreed_at: user.privacy_agreed_at || null,
     },
   });
 });

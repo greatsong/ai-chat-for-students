@@ -1,12 +1,17 @@
 import { Router } from 'express';
-import { authenticate } from '../middleware/auth.js';
 import { queryOne, queryAll, run } from '../db/database.js';
+import {
+  validate,
+  conversationCreateSchema,
+  conversationUpdateSchema,
+  uuidParamSchema,
+} from '../middleware/validate.js';
 import crypto from 'crypto';
 
 const router = Router();
 
 // GET /api/conversations - 사용자의 대화 목록 조회 (최신순, 최대 50개)
-router.get('/', authenticate, async (req, res) => {
+router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
 
@@ -31,21 +36,16 @@ router.get('/', authenticate, async (req, res) => {
 });
 
 // GET /api/conversations/:id - 특정 대화의 메시지 목록 조회
-router.get('/:id', authenticate, async (req, res) => {
+router.get('/:id', validate(uuidParamSchema, 'params'), async (req, res) => {
   try {
     const userId = req.user.id;
     const convId = req.params.id;
 
-    // 대화 조회 (소유자 또는 교사)
-    let conversation;
-    if (req.user.role === 'teacher') {
-      conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
-    } else {
-      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [
-        convId,
-        userId,
-      ]);
-    }
+    // 대화 조회 (소유자만 — 교사/관리자는 /api/teacher/* 전용 API 사용)
+    const conversation = await queryOne(
+      'SELECT * FROM conversations WHERE id = ? AND user_id = ?',
+      [convId, userId],
+    );
 
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
@@ -82,7 +82,7 @@ router.get('/:id', authenticate, async (req, res) => {
 });
 
 // POST /api/conversations - 새 대화 생성
-router.post('/', authenticate, async (req, res) => {
+router.post('/', validate(conversationCreateSchema), async (req, res) => {
   try {
     const userId = req.user.id;
     const { title, provider = 'claude', model = 'claude-sonnet-4-6' } = req.body;
@@ -103,51 +103,51 @@ router.post('/', authenticate, async (req, res) => {
 });
 
 // PATCH /api/conversations/:id - 대화 제목 수정
-router.patch('/:id', authenticate, async (req, res) => {
+router.patch(
+  '/:id',
+  validate(uuidParamSchema, 'params'),
+  validate(conversationUpdateSchema),
+  async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const convId = req.params.id;
+      const { title } = req.body;
+
+      const conversation = await queryOne(
+        'SELECT * FROM conversations WHERE id = ? AND user_id = ?',
+        [convId, userId],
+      );
+      if (!conversation) {
+        return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
+      }
+
+      const now = new Date().toISOString();
+      await run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [
+        title,
+        now,
+        convId,
+      ]);
+
+      const updated = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
+      res.json(updated);
+    } catch (error) {
+      console.error('대화 수정 오류:', error);
+      res.status(500).json({ error: '대화를 수정하는 중 오류가 발생했습니다.' });
+    }
+  },
+);
+
+// DELETE /api/conversations/:id - 대화 삭제 (소유자 또는 교사만 가능)
+router.delete('/:id', validate(uuidParamSchema, 'params'), async (req, res) => {
   try {
     const userId = req.user.id;
     const convId = req.params.id;
-    const { title } = req.body;
 
+    // 소유자 확인 (교사/관리자는 /api/teacher/* 전용 API 사용)
     const conversation = await queryOne(
       'SELECT * FROM conversations WHERE id = ? AND user_id = ?',
       [convId, userId],
     );
-    if (!conversation) {
-      return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
-    }
-
-    const now = new Date().toISOString();
-    await run('UPDATE conversations SET title = ?, updated_at = ? WHERE id = ?', [
-      title,
-      now,
-      convId,
-    ]);
-
-    const updated = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
-    res.json(updated);
-  } catch (error) {
-    console.error('대화 수정 오류:', error);
-    res.status(500).json({ error: '대화를 수정하는 중 오류가 발생했습니다.' });
-  }
-});
-
-// DELETE /api/conversations/:id - 대화 삭제 (소유자 또는 교사만 가능)
-router.delete('/:id', authenticate, async (req, res) => {
-  try {
-    const userId = req.user.id;
-    const convId = req.params.id;
-
-    // 소유자 또는 교사 확인
-    let conversation;
-    if (req.user.role === 'teacher') {
-      conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [convId]);
-    } else {
-      conversation = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [
-        convId,
-        userId,
-      ]);
-    }
 
     if (!conversation) {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });

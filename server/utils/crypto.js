@@ -5,16 +5,29 @@ const IV_LENGTH = 16;
 const TAG_LENGTH = 16;
 
 /**
- * 암호화 키 가져오기 (JWT_SECRET 기반 파생)
- * 별도의 ENCRYPTION_KEY 환경변수가 있으면 우선 사용
+ * 암호화 키 가져오기
+ * ENCRYPTION_KEY 우선 → 없으면 JWT_SECRET fallback (경고 1회)
+ * JWT_SECRET 회전 시 암호화된 키가 깨지지 않도록 별도 ENCRYPTION_KEY 권장
  */
+let _warnedJwtFallback = false;
+
 function getEncryptionKey() {
-  const secret = process.env.ENCRYPTION_KEY || process.env.JWT_SECRET;
-  if (!secret) {
-    throw new Error('암호화 키를 사용할 수 없습니다.');
+  const encKey = process.env.ENCRYPTION_KEY;
+  if (encKey) {
+    return crypto.createHash('sha256').update(encKey).digest();
   }
-  // SHA-256으로 32바이트 키 파생
-  return crypto.createHash('sha256').update(secret).digest();
+  const jwtSecret = process.env.JWT_SECRET;
+  if (!jwtSecret) {
+    throw new Error('ENCRYPTION_KEY 또는 JWT_SECRET이 설정되지 않았습니다.');
+  }
+  if (!_warnedJwtFallback) {
+    console.warn(
+      '[security] ENCRYPTION_KEY 미설정 — JWT_SECRET을 암호화 키로 사용 중. ' +
+        'JWT 회전 시 저장된 API 키가 깨질 수 있으니 ENCRYPTION_KEY를 별도 설정하세요.',
+    );
+    _warnedJwtFallback = true;
+  }
+  return crypto.createHash('sha256').update(jwtSecret).digest();
 }
 
 /**
@@ -42,14 +55,15 @@ export function encrypt(plaintext) {
 export function decrypt(encryptedStr) {
   // 암호화되지 않은 평문 키인지 확인 (마이그레이션 호환)
   if (!encryptedStr.includes(':')) {
-    console.warn('[security] 암호화되지 않은 평문 키가 감지되었습니다. DB에서 재암호화가 필요합니다.');
+    console.warn(
+      '[security] 암호화되지 않은 평문 키가 감지되었습니다. DB에서 재암호화가 필요합니다.',
+    );
     return encryptedStr;
   }
 
   const parts = encryptedStr.split(':');
   if (parts.length !== 3) {
-    console.warn('[security] 잘못된 암호화 형식이 감지되었습니다.');
-    return encryptedStr; // 암호화 형식이 아니면 평문으로 반환
+    throw new Error('[security] 잘못된 암호화 형식: 복호화 불가');
   }
 
   const key = getEncryptionKey();

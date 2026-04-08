@@ -6,28 +6,50 @@ import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
 
 // 코드 블록 컴포넌트
 function CodeBlock({ language, children }) {
+  const [copied, setCopied] = useState(false);
+
   const handleCopy = () => {
     navigator.clipboard.writeText(String(children).replace(/\n$/, ''));
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   return (
     <div className="relative group my-3 rounded-lg overflow-hidden">
-      {/* 언어 라벨 + 복사 버튼 */}
-      <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-400 text-xs">
+      {/* 언어 라벨 + 복사 버튼 (sticky: 긴 코드 스크롤 시에도 항상 보임) */}
+      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-400 text-xs">
         <span>{language || 'code'}</span>
         <button
           onClick={handleCopy}
-          className="flex items-center gap-1 px-2 py-0.5 rounded hover:text-white hover:bg-gray-700 transition-colors"
+          className={`flex items-center gap-1 px-2 py-0.5 rounded transition-colors ${
+            copied ? 'text-green-400 bg-green-900/30' : 'hover:text-white hover:bg-gray-700'
+          }`}
         >
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              strokeWidth={2}
-              d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
-            />
-          </svg>
-          복사
+          {copied ? (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M5 13l4 4L19 7"
+                />
+              </svg>
+              복사됨
+            </>
+          ) : (
+            <>
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth={2}
+                  d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"
+                />
+              </svg>
+              복사
+            </>
+          )}
         </button>
       </div>
       <SyntaxHighlighter

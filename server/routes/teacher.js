@@ -13,6 +13,10 @@ import {
   apiKeyUpdateSchema,
   teacherEmailSchema,
   conversationsQuerySchema,
+  bulkActivateSchema,
+  usageQuerySchema,
+  settingsPutSchema,
+  conversationIdParamSchema,
 } from '../middleware/validate.js';
 import { auditLog } from '../utils/logger.js';
 import { clearKeyCache } from '../utils/apiKeys.js';
@@ -154,7 +158,7 @@ router.get('/students', requireAdmin, async (req, res) => {
 // PATCH /api/teacher/students/:id
 // 학생 정보 수정 (활성화 상태, 일일 한도) (관리자 전용)
 // ──────────────────────────────────────────
-router.patch('/students/:id', requireAdmin, async (req, res) => {
+router.patch('/students/:id', requireAdmin, validate(studentUpdateSchema), async (req, res) => {
   try {
     const { id } = req.params;
     const { is_active, daily_limit } = req.body;
@@ -196,67 +200,72 @@ router.patch('/students/:id', requireAdmin, async (req, res) => {
 // POST /api/teacher/students/bulk-activate
 // 여러 학생 일괄 활성화 (관리자 전용)
 // ──────────────────────────────────────────
-router.post('/students/bulk-activate', requireAdmin, async (req, res) => {
-  try {
-    const { studentIds } = req.body;
+router.post(
+  '/students/bulk-activate',
+  requireAdmin,
+  validate(bulkActivateSchema),
+  async (req, res) => {
+    try {
+      const { studentIds } = req.body;
 
-    if (!Array.isArray(studentIds) || studentIds.length === 0) {
-      return res.status(400).json({ error: '학생 ID 목록이 필요합니다.' });
+      const placeholders = studentIds.map(() => '?').join(', ');
+      await run(
+        `UPDATE users SET is_active = 1 WHERE id IN (${placeholders}) AND role = 'student'`,
+        studentIds,
+      );
+      studentIds.forEach((id) => invalidateUserCache(id));
+
+      res.json({
+        message: `${studentIds.length}명의 학생이 활성화되었습니다.`,
+        count: studentIds.length,
+      });
+    } catch (error) {
+      console.error('일괄 활성화 오류:', error);
+      res.status(500).json({ error: '학생을 활성화하는 중 오류가 발생했습니다.' });
     }
-
-    const placeholders = studentIds.map(() => '?').join(', ');
-    await run(
-      `UPDATE users SET is_active = 1 WHERE id IN (${placeholders}) AND role = 'student'`,
-      studentIds,
-    );
-    studentIds.forEach((id) => invalidateUserCache(id));
-
-    res.json({
-      message: `${studentIds.length}명의 학생이 활성화되었습니다.`,
-      count: studentIds.length,
-    });
-  } catch (error) {
-    console.error('일괄 활성화 오류:', error);
-    res.status(500).json({ error: '학생을 활성화하는 중 오류가 발생했습니다.' });
-  }
-});
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/conversations
 // 전체 학생 대화 목록 (필터링 + 페이지네이션) (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/conversations', requireAdmin, async (req, res) => {
-  try {
-    const { userId, search, page = 1, limit = 20 } = req.query;
-    const offset = (parseInt(page) - 1) * parseInt(limit);
+router.get(
+  '/conversations',
+  requireAdmin,
+  validate(conversationsQuerySchema, 'query'),
+  async (req, res) => {
+    try {
+      const { userId, search, page = 1, limit = 20 } = req.query;
+      const offset = (parseInt(page) - 1) * parseInt(limit);
 
-    let where = ["u.role = 'student'"]; // 교사/관리자 채팅은 수집하지 않음
-    let params = [];
+      let where = ["u.role = 'student'"]; // 교사/관리자 채팅은 수집하지 않음
+      let params = [];
 
-    if (userId) {
-      where.push('c.user_id = ?');
-      params.push(userId);
-    }
+      if (userId) {
+        where.push('c.user_id = ?');
+        params.push(userId);
+      }
 
-    if (search) {
-      where.push('(c.title LIKE ? OR u.name LIKE ?)');
-      params.push(`%${search}%`, `%${search}%`);
-    }
+      if (search) {
+        where.push('(c.title LIKE ? OR u.name LIKE ?)');
+        params.push(`%${search}%`, `%${search}%`);
+      }
 
-    const whereClause = `WHERE ${where.join(' AND ')}`;
+      const whereClause = `WHERE ${where.join(' AND ')}`;
 
-    // 전체 개수
-    const countRow = await queryOne(
-      `SELECT COUNT(*) AS total FROM conversations c
+      // 전체 개수
+      const countRow = await queryOne(
+        `SELECT COUNT(*) AS total FROM conversations c
        JOIN users u ON u.id = c.user_id
        ${whereClause}`,
-      params,
-    );
-    const total = countRow?.total || 0;
+        params,
+      );
+      const total = countRow?.total || 0;
 
-    // 대화 목록
-    const conversations = await queryAll(
-      `SELECT
+      // 대화 목록
+      const conversations = await queryAll(
+        `SELECT
         c.id, c.user_id, c.title, c.provider, c.model, c.created_at, c.updated_at,
         u.name AS student_name, u.email AS student_email,
         (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS message_count,
@@ -266,91 +275,97 @@ router.get('/conversations', requireAdmin, async (req, res) => {
       ${whereClause}
       ORDER BY c.updated_at DESC
       LIMIT ? OFFSET ?`,
-      [...params, parseInt(limit), offset],
-    );
+        [...params, parseInt(limit), offset],
+      );
 
-    const result = conversations.map((conv) => ({
-      ...conv,
-      last_message: conv.last_message ? conv.last_message.slice(0, 150) : null,
-    }));
+      const result = conversations.map((conv) => ({
+        ...conv,
+        last_message: conv.last_message ? conv.last_message.slice(0, 150) : null,
+      }));
 
-    res.json({
-      conversations: result,
-      pagination: {
-        page: parseInt(page),
-        limit: parseInt(limit),
-        total,
-        totalPages: Math.ceil(total / parseInt(limit)),
-      },
-    });
-  } catch (error) {
-    console.error('대화 목록 조회 오류:', error);
-    res.status(500).json({ error: '대화 목록을 불러오는 중 오류가 발생했습니다.' });
-  }
-});
+      res.json({
+        conversations: result,
+        pagination: {
+          page: parseInt(page),
+          limit: parseInt(limit),
+          total,
+          totalPages: Math.ceil(total / parseInt(limit)),
+        },
+      });
+    } catch (error) {
+      console.error('대화 목록 조회 오류:', error);
+      res.status(500).json({ error: '대화 목록을 불러오는 중 오류가 발생했습니다.' });
+    }
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/conversations/:conversationId/messages
 // 특정 대화의 전체 메시지 조회 (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/conversations/:conversationId/messages', requireAdmin, async (req, res) => {
-  try {
-    const { conversationId } = req.params;
+router.get(
+  '/conversations/:conversationId/messages',
+  requireAdmin,
+  validate(conversationIdParamSchema, 'params'),
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
 
-    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [
-      conversationId,
-    ]);
-    if (!conversation) {
-      return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
-    }
+      const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [
+        conversationId,
+      ]);
+      if (!conversation) {
+        return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
+      }
 
-    // 교사/관리자의 대화는 본인만 열람 가능
-    const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
-    if (!owner) {
-      return res.status(404).json({ error: '대화 소유자를 찾을 수 없습니다.' });
-    }
-    if (
-      (owner.role === 'teacher' || owner.role === 'admin') &&
-      conversation.user_id !== req.user.id
-    ) {
-      return res.status(403).json({ error: '교사의 채팅 기록은 본인만 열람할 수 있습니다.' });
-    }
+      // 교사/관리자의 대화는 본인만 열람 가능
+      const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
+      if (!owner) {
+        return res.status(404).json({ error: '대화 소유자를 찾을 수 없습니다.' });
+      }
+      if (
+        (owner.role === 'teacher' || owner.role === 'admin') &&
+        conversation.user_id !== req.user.id
+      ) {
+        return res.status(403).json({ error: '교사의 채팅 기록은 본인만 열람할 수 있습니다.' });
+      }
 
-    const messages = await queryAll(
-      `SELECT id, role, content, files, image_url, code_result, input_tokens, output_tokens, created_at
+      const messages = await queryAll(
+        `SELECT id, role, content, files, image_url, code_result, input_tokens, output_tokens, created_at
        FROM messages
        WHERE conversation_id = ?
        ORDER BY created_at ASC
        LIMIT 1000`,
-      [conversationId],
-    );
+        [conversationId],
+      );
 
-    // files JSON 파싱
-    const parsedMessages = messages.map((msg) => {
-      let files = [];
-      try {
-        files = msg.files ? JSON.parse(msg.files) : [];
-      } catch {
-        /* 무시 */
-      }
-      return { ...msg, files };
-    });
+      // files JSON 파싱
+      const parsedMessages = messages.map((msg) => {
+        let files = [];
+        try {
+          files = msg.files ? JSON.parse(msg.files) : [];
+        } catch {
+          /* 무시 */
+        }
+        return { ...msg, files };
+      });
 
-    res.json({
-      conversation,
-      messages: parsedMessages,
-    });
-  } catch (error) {
-    console.error('메시지 조회 오류:', error);
-    res.status(500).json({ error: '메시지를 불러오는 중 오류가 발생했습니다.' });
-  }
-});
+      res.json({
+        conversation,
+        messages: parsedMessages,
+      });
+    } catch (error) {
+      console.error('메시지 조회 오류:', error);
+      res.status(500).json({ error: '메시지를 불러오는 중 오류가 발생했습니다.' });
+    }
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/usage
 // 사용량 통계 (기간별) (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/usage', requireAdmin, async (req, res) => {
+router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (req, res) => {
   try {
     const { period = 'today' } = req.query;
 
@@ -491,7 +506,7 @@ router.get('/settings', requireAdmin, async (req, res) => {
 // PUT /api/teacher/settings
 // 설정 변경 (단일 또는 복수) (관리자 전용)
 // ──────────────────────────────────────────
-router.put('/settings', requireAdmin, async (req, res) => {
+router.put('/settings', requireAdmin, validate(settingsPutSchema), async (req, res) => {
   try {
     const { key, value, settings } = req.body;
 
@@ -548,38 +563,46 @@ router.put('/settings', requireAdmin, async (req, res) => {
 // DELETE /api/teacher/conversations/:conversationId
 // 대화 삭제 (관리자 전용)
 // ──────────────────────────────────────────
-router.delete('/conversations/:conversationId', requireAdmin, async (req, res) => {
-  try {
-    const { conversationId } = req.params;
+router.delete(
+  '/conversations/:conversationId',
+  requireAdmin,
+  validate(conversationIdParamSchema, 'params'),
+  async (req, res) => {
+    try {
+      const { conversationId } = req.params;
 
-    const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [
-      conversationId,
-    ]);
-    if (!conversation) {
-      return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
+      const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [
+        conversationId,
+      ]);
+      if (!conversation) {
+        return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
+      }
+
+      // 교사/관리자의 대화는 본인만 삭제 가능
+      const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
+      if (
+        owner &&
+        (owner.role === 'teacher' || owner.role === 'admin') &&
+        conversation.user_id !== req.user.id
+      ) {
+        return res.status(403).json({ error: '교사의 채팅 기록은 본인만 관리할 수 있습니다.' });
+      }
+
+      // 메시지 먼저 삭제 (외래 키 제약)
+      await run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
+      await run('DELETE FROM conversations WHERE id = ?', [conversationId]);
+
+      auditLog('CONVERSATION_DELETE', req.user.id, {
+        conversationId,
+        ownerId: conversation.user_id,
+      });
+      res.json({ message: '대화가 삭제되었습니다.' });
+    } catch (error) {
+      console.error('대화 삭제 오류:', error);
+      res.status(500).json({ error: '대화를 삭제하는 중 오류가 발생했습니다.' });
     }
-
-    // 교사/관리자의 대화는 본인만 삭제 가능
-    const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
-    if (
-      owner &&
-      (owner.role === 'teacher' || owner.role === 'admin') &&
-      conversation.user_id !== req.user.id
-    ) {
-      return res.status(403).json({ error: '교사의 채팅 기록은 본인만 관리할 수 있습니다.' });
-    }
-
-    // 메시지 먼저 삭제 (외래 키 제약)
-    await run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
-    await run('DELETE FROM conversations WHERE id = ?', [conversationId]);
-
-    auditLog('CONVERSATION_DELETE', req.user.id, { conversationId, ownerId: conversation.user_id });
-    res.json({ message: '대화가 삭제되었습니다.' });
-  } catch (error) {
-    console.error('대화 삭제 오류:', error);
-    res.status(500).json({ error: '대화를 삭제하는 중 오류가 발생했습니다.' });
-  }
-});
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/teachers

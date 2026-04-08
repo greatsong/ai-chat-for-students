@@ -1,3 +1,4 @@
+import crypto from 'crypto';
 import { createClient } from '@libsql/client';
 
 let client;
@@ -23,9 +24,17 @@ export async function initDatabase() {
       classroom_id TEXT,
       daily_limit INTEGER DEFAULT 100000,
       is_active INTEGER DEFAULT 0,
+      privacy_agreed_at TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     )
   `);
+
+  // 기존 테이블에 privacy_agreed_at 컬럼 추가 (이미 존재하면 무시)
+  try {
+    await client.execute(`ALTER TABLE users ADD COLUMN privacy_agreed_at TEXT`);
+  } catch {
+    // 이미 컬럼이 존재하면 무시
+  }
 
   await client.execute(`
     CREATE TABLE IF NOT EXISTS classrooms (
@@ -131,9 +140,9 @@ export async function initDatabase() {
   const defaultSettings = {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      claude: ['claude-sonnet-4-6'],
-      gemini: ['gemini-3-flash-preview'],
-      openai: ['gpt-5.4'],
+      claude: ['claude-sonnet-4-6', 'claude-opus-4-6'],
+      gemini: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'],
+      openai: ['gpt-5.4', 'gpt-5.4-pro'],
       solar: ['solar-pro3'],
     },
     image_generation_enabled: false,
@@ -152,6 +161,39 @@ export async function initDatabase() {
       sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
       args: [key, JSON.stringify(value)],
     });
+  }
+
+  // 마이그레이션: 기존 enabled_models에 프로 모델 추가
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      const additions = {
+        claude: 'claude-opus-4-6',
+        gemini: 'gemini-3.1-pro-preview',
+        openai: 'gpt-5.4-pro',
+      };
+      let changed = false;
+      for (const [provider, modelId] of Object.entries(additions)) {
+        if (!models[provider]) models[provider] = [];
+        if (!models[provider].includes(modelId)) {
+          models[provider].push(modelId);
+          changed = true;
+        }
+      }
+      if (changed) {
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: 프로 모델 활성화 완료 (opus, gemini pro, gpt pro)');
+      }
+    }
+  } catch (e) {
+    console.warn('enabled_models 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

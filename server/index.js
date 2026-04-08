@@ -4,6 +4,7 @@ import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { initDatabase } from './db/database.js';
+import { authenticate, requireActive } from './middleware/auth.js';
 import authRoutes from './routes/auth.js';
 import chatRoutes from './routes/chat.js';
 import conversationRoutes from './routes/conversations.js';
@@ -20,10 +21,23 @@ const PORT = process.env.PORT || 4022;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:4021';
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 30000;
 
-// 보안 HTTP 헤더 (helmet)
+// 보안 HTTP 헤더 (helmet + CSP)
 app.use(
   helmet({
-    contentSecurityPolicy: false, // CSP는 프론트엔드에서 관리
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'https://*.googleusercontent.com'],
+        connectSrc: ["'self'", CLIENT_URL],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+        baseUri: ["'self'"],
+        formAction: ["'self'"],
+      },
+    },
     crossOriginEmbedderPolicy: false,
   }),
 );
@@ -76,17 +90,6 @@ const authLimiter = rateLimit({
   message: { error: '로그인 시도가 너무 많습니다. 1분 후 다시 시도해주세요.' },
 });
 
-// 채팅 엔드포인트 Rate Limiting (사용자별 분당 30회)
-const chatLimiter = rateLimit({
-  windowMs: 60 * 1000,
-  max: 30,
-  standardHeaders: true,
-  legacyHeaders: false,
-  validate: false,
-  keyGenerator: (req) => req.user?.id || req.ip,
-  message: { error: '채팅 요청이 너무 많습니다. 잠시 후 다시 시도해주세요.' },
-});
-
 // 업로드 엔드포인트 Rate Limiting (사용자별 분당 15회)
 const uploadLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -105,14 +108,14 @@ const largeBodyParser = express.json({ limit: '10mb' });
 async function start() {
   await initDatabase();
 
-  // 라우트 마운트 (Rate Limiter 적용)
+  // 라우트 마운트 (Rate Limiter + requireActive 적용)
   app.use('/api/auth', authLimiter, authRoutes);
-  app.use('/api/chat', chatLimiter, chatRoutes);
-  app.use('/api/conversations', conversationRoutes);
-  app.use('/api/upload', largeBodyParser, uploadLimiter, uploadRoutes);
-  app.use('/api/image', largeBodyParser, uploadLimiter, imageRoutes);
-  app.use('/api/tts', largeBodyParser, uploadLimiter, ttsRoutes);
-  app.use('/api/stt', largeBodyParser, uploadLimiter, sttRoutes);
+  app.use('/api/chat', chatRoutes); // rate limit은 chat.js 내부에서 인증 후 적용
+  app.use('/api/conversations', authenticate, requireActive, conversationRoutes);
+  app.use('/api/upload', authenticate, requireActive, largeBodyParser, uploadLimiter, uploadRoutes);
+  app.use('/api/image', authenticate, requireActive, largeBodyParser, uploadLimiter, imageRoutes);
+  app.use('/api/tts', authenticate, requireActive, largeBodyParser, uploadLimiter, ttsRoutes);
+  app.use('/api/stt', authenticate, requireActive, largeBodyParser, uploadLimiter, sttRoutes);
   app.use('/api/teacher', teacherRoutes);
 
   app.listen(PORT, () => {

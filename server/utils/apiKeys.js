@@ -33,8 +33,10 @@ export async function getApiKey(provider) {
       try {
         const decrypted = decryptApiKeys({ [provider]: dbKeys[provider] });
         key = decrypted[provider];
-      } catch {
-        // 복호화 실패 시 평문으로 반환 (마이그레이션 호환)
+      } catch (err) {
+        console.warn(
+          `[security] ${provider} API 키 복호화 실패 — 평문 fallback 사용: ${err.message}`,
+        );
         key = dbKeys[provider];
       }
     }

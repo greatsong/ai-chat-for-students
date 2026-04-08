@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
+import { validate, imageGenerateSchema } from '../middleware/validate.js';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { generateImage as geminiGenerateImage } from '../providers/gemini.js';
 import crypto from 'crypto';
@@ -7,7 +8,7 @@ import crypto from 'crypto';
 const router = Router();
 
 // POST /api/image/generate
-router.post('/generate', authenticate, async (req, res) => {
+router.post('/generate', authenticate, validate(imageGenerateSchema), async (req, res) => {
   const { prompt, conversationId } = req.body;
   const provider = 'gemini';
   const userId = req.user.id;
@@ -18,12 +19,7 @@ router.post('/generate', authenticate, async (req, res) => {
       return res.status(403).json({ error: '이미지 생성은 교사/관리자만 사용할 수 있습니다.' });
     }
 
-    // 2. 프롬프트 확인
-    if (!prompt || prompt.trim().length === 0) {
-      return res.status(400).json({ error: '이미지 생성 프롬프트가 필요합니다.' });
-    }
-
-    // 3. 이미지 생성 (Gemini만 지원)
+    // 2. 이미지 생성 (Gemini만 지원)
     const result = await geminiGenerateImage({ prompt });
 
     const imageUrl = `data:${result.mimeType};base64,${result.imageData}`;
