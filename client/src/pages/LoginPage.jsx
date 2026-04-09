@@ -292,10 +292,7 @@ export default function LoginPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 p-6 sm:p-8 animate-fade-in-up">
             <h2 className="text-lg font-bold text-gray-900 mb-2">개인정보 제공 동의</h2>
-            <p className="text-sm text-gray-500 mb-5">
-              서비스 이용을 위해 아래 동의가 필요합니다. 최초 가입 시 1회만 동의하면 이후 로그인
-              시에는 다시 묻지 않습니다.
-            </p>
+            <p className="text-sm text-gray-500 mb-5">서비스 이용을 위해 아래 동의가 필요합니다.</p>
 
             <label className="flex items-start gap-2.5 cursor-pointer mb-6">
               <input
