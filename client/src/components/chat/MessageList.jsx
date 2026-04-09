@@ -15,9 +15,9 @@ function CodeBlock({ language, children }) {
   };
 
   return (
-    <div className="relative group my-3 rounded-lg overflow-hidden">
-      {/* 언어 라벨 + 복사 버튼 (sticky: 긴 코드 스크롤 시에도 항상 보임) */}
-      <div className="sticky top-0 z-10 flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-400 text-xs">
+    <div className="relative group my-3 rounded-lg">
+      {/* 언어 라벨 + 복사 버튼 — 항상 코드 블록 상단에 고정 */}
+      <div className="flex items-center justify-between px-4 py-1.5 bg-gray-800 text-gray-400 text-xs rounded-t-lg">
         <span>{language || 'code'}</span>
         <button
           onClick={handleCopy}
@@ -52,17 +52,20 @@ function CodeBlock({ language, children }) {
           )}
         </button>
       </div>
-      <SyntaxHighlighter
-        language={language}
-        style={oneDark}
-        customStyle={{
-          margin: 0,
-          borderRadius: 0,
-          fontSize: '0.8125rem',
-        }}
-      >
-        {String(children).replace(/\n$/, '')}
-      </SyntaxHighlighter>
+      {/* 코드 영역 — 긴 코드는 스크롤, 헤더(복사 버튼)는 항상 위에 보임 */}
+      <div className="max-h-[60vh] overflow-auto rounded-b-lg">
+        <SyntaxHighlighter
+          language={language}
+          style={oneDark}
+          customStyle={{
+            margin: 0,
+            borderRadius: 0,
+            fontSize: '0.8125rem',
+          }}
+        >
+          {String(children).replace(/\n$/, '')}
+        </SyntaxHighlighter>
+      </div>
     </div>
   );
 }
