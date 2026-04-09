@@ -137,10 +137,20 @@ router.get('/students', requireAdmin, async (req, res) => {
         COALESCE(SUM(ud.input_tokens), 0)  AS today_input_tokens,
         COALESCE(SUM(ud.output_tokens), 0) AS today_output_tokens,
         COALESCE(SUM(ud.request_count), 0) AS today_requests,
-        (SELECT COUNT(*) FROM conversations WHERE user_id = u.id) AS total_conversations,
-        COALESCE((SELECT SUM(input_tokens) + SUM(output_tokens) FROM usage_daily WHERE user_id = u.id), 0) AS total_tokens
+        COALESCE(conv_stats.conv_count, 0) AS total_conversations,
+        COALESCE(usage_stats.total_tokens, 0) AS total_tokens
       FROM users u
       LEFT JOIN usage_daily ud ON ud.user_id = u.id AND ud.date = ?
+      LEFT JOIN (
+        SELECT user_id, COUNT(*) AS conv_count
+        FROM conversations
+        GROUP BY user_id
+      ) conv_stats ON conv_stats.user_id = u.id
+      LEFT JOIN (
+        SELECT user_id, SUM(input_tokens) + SUM(output_tokens) AS total_tokens
+        FROM usage_daily
+        GROUP BY user_id
+      ) usage_stats ON usage_stats.user_id = u.id
       GROUP BY u.id
       ORDER BY u.role ASC, u.created_at DESC
       LIMIT 1000
@@ -269,10 +279,18 @@ router.get(
         `SELECT
         c.id, c.user_id, c.title, c.provider, c.model, c.created_at, c.updated_at,
         u.name AS student_name, u.email AS student_email,
-        (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS message_count,
-        (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) AS last_message
+        COALESCE(msg_stats.msg_count, 0) AS message_count,
+        msg_stats.last_content AS last_message
       FROM conversations c
       JOIN users u ON u.id = c.user_id
+      LEFT JOIN (
+        SELECT
+          conversation_id,
+          COUNT(*) AS msg_count,
+          (SELECT content FROM messages m2 WHERE m2.conversation_id = messages.conversation_id ORDER BY m2.created_at DESC LIMIT 1) AS last_content
+        FROM messages
+        GROUP BY conversation_id
+      ) msg_stats ON msg_stats.conversation_id = c.id
       ${whereClause}
       ORDER BY c.updated_at DESC
       LIMIT ? OFFSET ?`,
