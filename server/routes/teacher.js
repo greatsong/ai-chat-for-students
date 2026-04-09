@@ -237,7 +237,7 @@ router.get(
   validate(conversationsQuerySchema, 'query'),
   async (req, res) => {
     try {
-      const { userId, search, page = 1, limit = 20 } = req.query;
+      const { userId, search, page = 1, limit = 20 } = req.validatedQuery || req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
 
       let where = ["u.role = 'student'"]; // 교사/관리자 채팅은 수집하지 않음
@@ -436,7 +436,7 @@ router.get(
 // ──────────────────────────────────────────
 router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (req, res) => {
   try {
-    const { period = 'today' } = req.query;
+    const { period = 'today' } = req.validatedQuery || req.query;
 
     // 기간 계산
     let dateFilter;

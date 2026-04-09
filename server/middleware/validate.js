@@ -14,7 +14,13 @@ export function validate(schema, source = 'body') {
       ];
       return res.status(400).json({ error: '입력값이 유효하지 않습니다.', details: errors });
     }
-    req[source] = result.data; // 정제된 데이터로 교체
+    // Express 5에서 req.query는 getter only이므로 직접 할당 불가
+    // req.validatedData에 정제된 데이터를 저장하고, body/params는 기존 방식 유지
+    if (source === 'query') {
+      req.validatedQuery = result.data;
+    } else {
+      req[source] = result.data;
+    }
     next();
   };
 }
