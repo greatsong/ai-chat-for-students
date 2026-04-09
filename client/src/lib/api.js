@@ -175,7 +175,7 @@ function parseSSELines(raw, onChunk) {
  * @returns {Promise<string>} 전체 누적 텍스트
  */
 export async function apiStreamPost(path, body, onChunk, options = {}) {
-  const { timeoutMs = 30000, onError } = options;
+  const { timeoutMs = 120000, onError } = options;
 
   const controller = new AbortController();
   const timeoutId = setTimeout(() => controller.abort(), timeoutMs);

@@ -96,6 +96,7 @@ export async function streamChat({
     const createParams = {
       model: model || 'gpt-5.4',
       messages: allMessages,
+      max_completion_tokens: 16384,
       stream: true,
       stream_options: { include_usage: true },
     };

@@ -132,7 +132,7 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
 
     const streamParams = {
       model: model || 'claude-sonnet-4-6',
-      max_tokens: 8192,
+      max_tokens: 16384,
       messages,
     };
 
