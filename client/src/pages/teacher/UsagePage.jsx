@@ -1,35 +1,36 @@
-import { useEffect, useState, useMemo } from "react";
-import useTeacherStore from "../../stores/teacherStore";
+import { useEffect, useState, useMemo } from 'react';
+import useTeacherStore from '../../stores/teacherStore';
 
 const PERIODS = [
-  { value: "today", label: "오늘" },
-  { value: "week", label: "이번 주" },
-  { value: "month", label: "이번 달" },
+  { value: 'today', label: '오늘' },
+  { value: 'week', label: '이번 주' },
+  { value: 'month', label: '이번 달' },
+  { value: 'all', label: '전체' },
 ];
 
 export default function UsagePage() {
   const { usage, isLoading, loadUsage } = useTeacherStore();
-  const [period, setPeriod] = useState("today");
-  const [sortBy, setSortBy] = useState("total"); // total, input, output, requests
+  const [period, setPeriod] = useState('today');
+  const [sortBy, setSortBy] = useState('total'); // total, input, output, requests
 
   useEffect(() => {
     loadUsage(period);
   }, [period, loadUsage]);
 
   const formatTokens = (n) => {
-    if (!n || n === 0) return "0";
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
-    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+    if (!n || n === 0) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return String(n);
   };
 
   const sortedStudents = useMemo(() => {
     if (!usage?.byStudent) return [];
     return [...usage.byStudent].sort((a, b) => {
-      if (sortBy === "input") return b.inputTokens - a.inputTokens;
-      if (sortBy === "output") return b.outputTokens - a.outputTokens;
-      if (sortBy === "requests") return b.requests - a.requests;
-      return (b.inputTokens + b.outputTokens) - (a.inputTokens + a.outputTokens);
+      if (sortBy === 'input') return b.inputTokens - a.inputTokens;
+      if (sortBy === 'output') return b.outputTokens - a.outputTokens;
+      if (sortBy === 'requests') return b.requests - a.requests;
+      return b.inputTokens + b.outputTokens - (a.inputTokens + a.outputTokens);
     });
   }, [usage?.byStudent, sortBy]);
 
@@ -40,10 +41,10 @@ export default function UsagePage() {
   }, [usage?.daily]);
 
   const providerColors = {
-    claude: { bg: "bg-orange-100", text: "text-orange-700", bar: "bg-orange-400" },
-    gemini: { bg: "bg-blue-100", text: "text-blue-700", bar: "bg-blue-400" },
-    openai: { bg: "bg-green-100", text: "text-green-700", bar: "bg-green-400" },
-    solar: { bg: "bg-purple-100", text: "text-purple-700", bar: "bg-purple-400" },
+    claude: { bg: 'bg-orange-100', text: 'text-orange-700', bar: 'bg-orange-400' },
+    gemini: { bg: 'bg-blue-100', text: 'text-blue-700', bar: 'bg-blue-400' },
+    openai: { bg: 'bg-green-100', text: 'text-green-700', bar: 'bg-green-400' },
+    solar: { bg: 'bg-purple-100', text: 'text-purple-700', bar: 'bg-purple-400' },
   };
 
   if (isLoading && !usage) {
@@ -74,8 +75,8 @@ export default function UsagePage() {
               onClick={() => setPeriod(p.value)}
               className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors ${
                 period === p.value
-                  ? "bg-white text-gray-800 shadow-sm"
-                  : "text-gray-500 hover:text-gray-700"
+                  ? 'bg-white text-gray-800 shadow-sm'
+                  : 'text-gray-500 hover:text-gray-700'
               }`}
             >
               {p.label}
@@ -92,7 +93,8 @@ export default function UsagePage() {
             {formatTokens(summary.totalInputTokens + summary.totalOutputTokens)}
           </div>
           <div className="text-xs text-gray-400 mt-1">
-            입력 {formatTokens(summary.totalInputTokens)} / 출력 {formatTokens(summary.totalOutputTokens)}
+            입력 {formatTokens(summary.totalInputTokens)} / 출력{' '}
+            {formatTokens(summary.totalOutputTokens)}
           </div>
         </div>
         <div className="bg-white rounded-xl border border-gray-200 p-4">
@@ -119,12 +121,16 @@ export default function UsagePage() {
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
           <div className="bg-white rounded-xl border border-teal-200 p-4">
             <div className="text-xs text-teal-500 uppercase tracking-wide mb-1">TTS (읽기)</div>
-            <div className="text-2xl font-bold text-gray-800">{(summary.totalTts || 0).toLocaleString()}</div>
+            <div className="text-2xl font-bold text-gray-800">
+              {(summary.totalTts || 0).toLocaleString()}
+            </div>
             <div className="text-xs text-gray-400 mt-1">회</div>
           </div>
           <div className="bg-white rounded-xl border border-teal-200 p-4">
             <div className="text-xs text-teal-500 uppercase tracking-wide mb-1">STT (음성입력)</div>
-            <div className="text-2xl font-bold text-gray-800">{(summary.totalStt || 0).toLocaleString()}</div>
+            <div className="text-2xl font-bold text-gray-800">
+              {(summary.totalStt || 0).toLocaleString()}
+            </div>
             <div className="text-xs text-gray-400 mt-1">회</div>
           </div>
         </div>
@@ -145,7 +151,7 @@ export default function UsagePage() {
                 <div
                   key={day.date}
                   className="flex flex-col items-center flex-shrink-0 group"
-                  style={{ width: "calc(100% / 30)", minWidth: "18px" }}
+                  style={{ width: 'calc(100% / 30)', minWidth: '18px' }}
                 >
                   {/* 툴팁 */}
                   <div className="relative mb-1">
@@ -154,14 +160,14 @@ export default function UsagePage() {
                     </div>
                   </div>
                   {/* 바 */}
-                  <div className="w-full flex flex-col justify-end" style={{ height: "128px" }}>
+                  <div className="w-full flex flex-col justify-end" style={{ height: '128px' }}>
                     <div
                       className="w-full bg-blue-400 rounded-t-sm"
-                      style={{ height: `${outputPercent}%`, minHeight: total > 0 ? "2px" : "0" }}
+                      style={{ height: `${outputPercent}%`, minHeight: total > 0 ? '2px' : '0' }}
                     />
                     <div
                       className="w-full bg-blue-200"
-                      style={{ height: `${inputPercent}%`, minHeight: total > 0 ? "1px" : "0" }}
+                      style={{ height: `${inputPercent}%`, minHeight: total > 0 ? '1px' : '0' }}
                     />
                   </div>
                   {/* 날짜 */}
@@ -217,7 +223,7 @@ export default function UsagePage() {
                   {sortedStudents.map((s) => (
                     <tr key={s.userId} className="hover:bg-gray-50">
                       <td className="px-4 py-2 text-sm text-gray-800">
-                        <div className="font-medium">{s.name || "(이름 없음)"}</div>
+                        <div className="font-medium">{s.name || '(이름 없음)'}</div>
                         <div className="text-xs text-gray-400">{s.email}</div>
                       </td>
                       <td className="px-4 py-2 text-sm text-right text-gray-600">
@@ -229,9 +235,7 @@ export default function UsagePage() {
                       <td className="px-4 py-2 text-sm text-right font-medium text-gray-800">
                         {formatTokens(s.inputTokens + s.outputTokens)}
                       </td>
-                      <td className="px-4 py-2 text-sm text-right text-gray-600">
-                        {s.requests}
-                      </td>
+                      <td className="px-4 py-2 text-sm text-right text-gray-600">{s.requests}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -252,20 +256,22 @@ export default function UsagePage() {
               usage.byProvider.map((p) => {
                 const totalAll = usage.byProvider.reduce(
                   (sum, pp) => sum + pp.inputTokens + pp.outputTokens,
-                  0
+                  0,
                 );
                 const thisTotal = p.inputTokens + p.outputTokens;
                 const percent = totalAll > 0 ? ((thisTotal / totalAll) * 100).toFixed(1) : 0;
                 const colors = providerColors[p.provider] || {
-                  bg: "bg-gray-100",
-                  text: "text-gray-700",
-                  bar: "bg-gray-400",
+                  bg: 'bg-gray-100',
+                  text: 'text-gray-700',
+                  bar: 'bg-gray-400',
                 };
 
                 return (
                   <div key={p.provider}>
                     <div className="flex items-center justify-between mb-1">
-                      <span className={`px-2 py-0.5 text-xs font-medium rounded ${colors.bg} ${colors.text}`}>
+                      <span
+                        className={`px-2 py-0.5 text-xs font-medium rounded ${colors.bg} ${colors.text}`}
+                      >
                         {p.provider}
                       </span>
                       <span className="text-xs text-gray-500">{percent}%</span>

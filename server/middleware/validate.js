@@ -146,7 +146,7 @@ export const bulkActivateSchema = z.object({
 
 // 사용량 조회 쿼리
 export const usageQuerySchema = z.object({
-  period: z.enum(['today', 'week', 'month']).optional().default('today'),
+  period: z.enum(['today', 'week', 'month', 'all']).optional().default('today'),
 });
 
 // 설정 업데이트 (단일 key/value 또는 복수 settings)

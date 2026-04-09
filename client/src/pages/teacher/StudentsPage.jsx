@@ -1,25 +1,65 @@
-import { useEffect, useState } from "react";
-import useTeacherStore from "../../stores/teacherStore";
+import { useEffect, useState, useMemo } from 'react';
+import useTeacherStore from '../../stores/teacherStore';
 
 export default function StudentsPage() {
   const { students, isLoading, loadStudents, updateStudent, bulkActivateStudents } =
     useTeacherStore();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useState('');
   const [editingLimit, setEditingLimit] = useState(null); // { id, value }
+  const [sortKey, setSortKey] = useState(null); // name, today_usage, total_tokens, total_conversations, created_at
+  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
 
   useEffect(() => {
     loadStudents();
   }, [loadStudents]);
 
-  // 필터링
-  const filtered = students.filter((s) => {
-    if (!search) return true;
-    const q = search.toLowerCase();
-    return (
-      (s.name && s.name.toLowerCase().includes(q)) ||
-      (s.email && s.email.toLowerCase().includes(q))
-    );
-  });
+  const handleSort = (key) => {
+    if (sortKey === key) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortKey(key);
+      setSortOrder(key === 'name' ? 'asc' : 'desc');
+    }
+  };
+
+  const sortIcon = (key) => {
+    if (sortKey !== key) return ' ↕';
+    return sortOrder === 'asc' ? ' ▲' : ' ▼';
+  };
+
+  // 필터링 + 정렬
+  const filtered = useMemo(() => {
+    let list = students;
+    if (search) {
+      const q = search.toLowerCase();
+      list = list.filter(
+        (s) =>
+          (s.name && s.name.toLowerCase().includes(q)) ||
+          (s.email && s.email.toLowerCase().includes(q)),
+      );
+    }
+    if (sortKey) {
+      list = [...list].sort((a, b) => {
+        let cmp = 0;
+        if (sortKey === 'name') {
+          cmp = (a.name || '').localeCompare(b.name || '', 'ko');
+        } else if (sortKey === 'today_usage') {
+          cmp =
+            a.today_input_tokens +
+            a.today_output_tokens -
+            (b.today_input_tokens + b.today_output_tokens);
+        } else if (sortKey === 'total_tokens') {
+          cmp = (a.total_tokens || 0) - (b.total_tokens || 0);
+        } else if (sortKey === 'total_conversations') {
+          cmp = (a.total_conversations || 0) - (b.total_conversations || 0);
+        } else if (sortKey === 'created_at') {
+          cmp = (a.created_at || '').localeCompare(b.created_at || '');
+        }
+        return sortOrder === 'asc' ? cmp : -cmp;
+      });
+    }
+    return list;
+  }, [students, search, sortKey, sortOrder]);
 
   const adminCount = students.filter((s) => s.role === 'admin').length;
   const teacherCount = students.filter((s) => s.role === 'teacher').length;
@@ -34,7 +74,7 @@ export default function StudentsPage() {
     try {
       await updateStudent(student.id, { is_active: !student.is_active });
     } catch (err) {
-      alert("상태 변경에 실패했습니다: " + err.message);
+      alert('상태 변경에 실패했습니다: ' + err.message);
     }
   };
 
@@ -44,7 +84,7 @@ export default function StudentsPage() {
     try {
       await bulkActivateStudents(pendingIds);
     } catch (err) {
-      alert("일괄 승인에 실패했습니다: " + err.message);
+      alert('일괄 승인에 실패했습니다: ' + err.message);
     }
   };
 
@@ -52,21 +92,21 @@ export default function StudentsPage() {
     if (!editingLimit) return;
     const val = parseInt(editingLimit.value);
     if (isNaN(val) || val < 0) {
-      alert("유효한 숫자를 입력하세요.");
+      alert('유효한 숫자를 입력하세요.');
       return;
     }
     try {
       await updateStudent(id, { daily_limit: val });
       setEditingLimit(null);
     } catch (err) {
-      alert("한도 변경에 실패했습니다: " + err.message);
+      alert('한도 변경에 실패했습니다: ' + err.message);
     }
   };
 
   const formatTokens = (n) => {
-    if (!n || n === 0) return "0";
-    if (n >= 1000000) return (n / 1000000).toFixed(1) + "M";
-    if (n >= 1000) return (n / 1000).toFixed(1) + "K";
+    if (!n || n === 0) return '0';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
     return String(n);
   };
 
@@ -121,45 +161,70 @@ export default function StudentsPage() {
         <table className="w-full">
           <thead>
             <tr className="bg-gray-50 border-b border-gray-200">
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">이름</th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">이메일</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">상태</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">일일 한도</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">오늘 사용량</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">대화 수</th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">관리</th>
+              <th
+                className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('name')}
+              >
+                이름{sortIcon('name')}
+              </th>
+              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                이메일
+              </th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                상태
+              </th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                일일 한도
+              </th>
+              <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('today_usage')}
+              >
+                오늘 사용량{sortIcon('today_usage')}
+              </th>
+              <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('total_tokens')}
+              >
+                누적 사용량{sortIcon('total_tokens')}
+              </th>
+              <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('total_conversations')}
+              >
+                대화 수{sortIcon('total_conversations')}
+              </th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                관리
+              </th>
             </tr>
           </thead>
           <tbody className="divide-y divide-gray-100">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={7} className="text-center py-8 text-gray-400">
-                  {search ? "검색 결과가 없습니다." : "등록된 학생이 없습니다."}
+                <td colSpan={8} className="text-center py-8 text-gray-400">
+                  {search ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}
                 </td>
               </tr>
             ) : (
               filtered.map((student) => (
                 <tr
                   key={student.id}
-                  className={`${!student.is_active ? "bg-yellow-50/50" : "hover:bg-gray-50"} transition-colors`}
+                  className={`${!student.is_active ? 'bg-yellow-50/50' : 'hover:bg-gray-50'} transition-colors`}
                 >
                   {/* 이름 */}
                   <td className="px-4 py-3">
                     <div className="flex items-center gap-3">
                       {student.avatar ? (
-                        <img
-                          src={student.avatar}
-                          alt=""
-                          className="w-8 h-8 rounded-full"
-                        />
+                        <img src={student.avatar} alt="" className="w-8 h-8 rounded-full" />
                       ) : (
                         <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500">
-                          {student.name?.[0] || "?"}
+                          {student.name?.[0] || '?'}
                         </div>
                       )}
                       <div className="flex items-center gap-2">
                         <span className="font-medium text-gray-800 text-sm">
-                          {student.name || "(이름 없음)"}
+                          {student.name || '(이름 없음)'}
                         </span>
                         {student.role === 'admin' && (
                           <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-700 rounded">
@@ -202,8 +267,8 @@ export default function StudentsPage() {
                             setEditingLimit({ id: student.id, value: e.target.value })
                           }
                           onKeyDown={(e) => {
-                            if (e.key === "Enter") handleLimitSave(student.id);
-                            if (e.key === "Escape") setEditingLimit(null);
+                            if (e.key === 'Enter') handleLimitSave(student.id);
+                            if (e.key === 'Escape') setEditingLimit(null);
                           }}
                           className="w-24 px-2 py-1 text-sm border border-blue-300 rounded focus:outline-none focus:ring-1 focus:ring-blue-500"
                           autoFocus
@@ -236,8 +301,15 @@ export default function StudentsPage() {
 
                   {/* 오늘 사용량 */}
                   <td className="px-4 py-3 text-center text-sm text-gray-600">
-                    <div>{formatTokens(student.today_input_tokens + student.today_output_tokens)} 토큰</div>
+                    <div>
+                      {formatTokens(student.today_input_tokens + student.today_output_tokens)} 토큰
+                    </div>
                     <div className="text-xs text-gray-400">{student.today_requests}회 요청</div>
+                  </td>
+
+                  {/* 누적 사용량 */}
+                  <td className="px-4 py-3 text-center text-sm text-gray-600">
+                    {formatTokens(student.total_tokens || 0)} 토큰
                   </td>
 
                   {/* 대화 수 */}
@@ -252,11 +324,11 @@ export default function StudentsPage() {
                         onClick={() => handleToggleActive(student)}
                         className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
                           student.is_active
-                            ? "bg-red-50 text-red-600 hover:bg-red-100"
-                            : "bg-green-50 text-green-600 hover:bg-green-100"
+                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                            : 'bg-green-50 text-green-600 hover:bg-green-100'
                         }`}
                       >
-                        {student.is_active ? "비활성화" : "활성화"}
+                        {student.is_active ? '비활성화' : '활성화'}
                       </button>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
@@ -273,14 +345,14 @@ export default function StudentsPage() {
       <div className="md:hidden flex flex-col gap-3">
         {filtered.length === 0 ? (
           <div className="text-center py-8 text-gray-400">
-            {search ? "검색 결과가 없습니다." : "등록된 학생이 없습니다."}
+            {search ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}
           </div>
         ) : (
           filtered.map((student) => (
             <div
               key={student.id}
               className={`bg-white rounded-xl border p-4 ${
-                !student.is_active ? "border-yellow-200 bg-yellow-50/30" : "border-gray-200"
+                !student.is_active ? 'border-yellow-200 bg-yellow-50/30' : 'border-gray-200'
               }`}
             >
               {/* 상단: 이름 + 상태 */}
@@ -290,30 +362,40 @@ export default function StudentsPage() {
                     <img src={student.avatar} alt="" className="w-9 h-9 rounded-full" />
                   ) : (
                     <div className="w-9 h-9 rounded-full bg-gray-200 flex items-center justify-center text-sm text-gray-500">
-                      {student.name?.[0] || "?"}
+                      {student.name?.[0] || '?'}
                     </div>
                   )}
                   <div>
                     <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-800 text-sm">{student.name || "(이름 없음)"}</span>
+                      <span className="font-medium text-gray-800 text-sm">
+                        {student.name || '(이름 없음)'}
+                      </span>
                       {student.role === 'teacher' && (
-                        <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded">교사</span>
+                        <span className="inline-block px-1.5 py-0.5 text-[10px] font-bold bg-indigo-100 text-indigo-700 rounded">
+                          교사
+                        </span>
                       )}
                     </div>
                     <div className="text-xs text-gray-400">{student.email}</div>
                   </div>
                 </div>
                 {student.is_active ? (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">활성</span>
+                  <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                    활성
+                  </span>
                 ) : (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">대기</span>
+                  <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
+                    대기
+                  </span>
                 )}
               </div>
 
               {/* 정보 행 */}
-              <div className="grid grid-cols-3 gap-2 text-center text-xs text-gray-500 mb-3">
+              <div className="grid grid-cols-4 gap-2 text-center text-xs text-gray-500 mb-3">
                 <div>
-                  <div className="text-gray-800 font-medium">{formatTokens(student.daily_limit)}</div>
+                  <div className="text-gray-800 font-medium">
+                    {formatTokens(student.daily_limit)}
+                  </div>
                   <div>일일 한도</div>
                 </div>
                 <div>
@@ -321,6 +403,12 @@ export default function StudentsPage() {
                     {formatTokens(student.today_input_tokens + student.today_output_tokens)}
                   </div>
                   <div>오늘 사용</div>
+                </div>
+                <div>
+                  <div className="text-gray-800 font-medium">
+                    {formatTokens(student.total_tokens || 0)}
+                  </div>
+                  <div>누적 사용</div>
                 </div>
                 <div>
                   <div className="text-gray-800 font-medium">{student.total_conversations}</div>
@@ -335,11 +423,11 @@ export default function StudentsPage() {
                     onClick={() => handleToggleActive(student)}
                     className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
                       student.is_active
-                        ? "bg-red-50 text-red-600 hover:bg-red-100"
-                        : "bg-green-50 text-green-600 hover:bg-green-100"
+                        ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                        : 'bg-green-50 text-green-600 hover:bg-green-100'
                     }`}
                   >
-                    {student.is_active ? "비활성화" : "활성화"}
+                    {student.is_active ? '비활성화' : '활성화'}
                   </button>
                   <button
                     onClick={() =>

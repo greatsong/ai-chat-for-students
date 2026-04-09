@@ -137,7 +137,8 @@ router.get('/students', requireAdmin, async (req, res) => {
         COALESCE(SUM(ud.input_tokens), 0)  AS today_input_tokens,
         COALESCE(SUM(ud.output_tokens), 0) AS today_output_tokens,
         COALESCE(SUM(ud.request_count), 0) AS today_requests,
-        (SELECT COUNT(*) FROM conversations WHERE user_id = u.id) AS total_conversations
+        (SELECT COUNT(*) FROM conversations WHERE user_id = u.id) AS total_conversations,
+        COALESCE((SELECT SUM(input_tokens) + SUM(output_tokens) FROM usage_daily WHERE user_id = u.id), 0) AS total_tokens
       FROM users u
       LEFT JOIN usage_daily ud ON ud.user_id = u.id AND ud.date = ?
       GROUP BY u.id
@@ -300,6 +301,74 @@ router.get(
 );
 
 // ──────────────────────────────────────────
+// GET /api/teacher/conversations/export
+// 대화 목록 CSV 내보내기 (관리자 전용)
+// ──────────────────────────────────────────
+router.get('/conversations/export', requireAdmin, async (req, res) => {
+  try {
+    const { userId, search } = req.query;
+
+    let where = ["u.role = 'student'"];
+    let params = [];
+
+    if (userId) {
+      where.push('c.user_id = ?');
+      params.push(userId);
+    }
+    if (search) {
+      where.push('(c.title LIKE ? OR u.name LIKE ?)');
+      params.push(`%${search}%`, `%${search}%`);
+    }
+
+    const whereClause = `WHERE ${where.join(' AND ')}`;
+
+    const conversations = await queryAll(
+      `SELECT
+        u.name AS student_name, u.email AS student_email,
+        c.title, c.provider, c.model, c.created_at, c.updated_at,
+        (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS message_count
+      FROM conversations c
+      JOIN users u ON u.id = c.user_id
+      ${whereClause}
+      ORDER BY c.updated_at DESC
+      LIMIT 5000`,
+      params,
+    );
+
+    // CSV 생성 (한글 BOM 포함)
+    const BOM = '\uFEFF';
+    const header = '학생이름,학생이메일,대화제목,AI모델,프로바이더,메시지수,생성일,마지막활동';
+    const escCsv = (v) => {
+      const s = String(v ?? '');
+      return s.includes(',') || s.includes('"') || s.includes('\n')
+        ? `"${s.replace(/"/g, '""')}"`
+        : s;
+    };
+    const rows = conversations.map((c) =>
+      [
+        escCsv(c.student_name),
+        escCsv(c.student_email),
+        escCsv(c.title),
+        escCsv(c.model),
+        escCsv(c.provider),
+        c.message_count,
+        escCsv(c.created_at),
+        escCsv(c.updated_at),
+      ].join(','),
+    );
+
+    const csv = BOM + header + '\n' + rows.join('\n');
+
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', 'attachment; filename="conversations.csv"');
+    res.send(csv);
+  } catch (error) {
+    console.error('대화 CSV 내보내기 오류:', error);
+    res.status(500).json({ error: 'CSV 내보내기 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
 // GET /api/teacher/conversations/:conversationId/messages
 // 특정 대화의 전체 메시지 조회 (관리자 전용)
 // ──────────────────────────────────────────
@@ -371,9 +440,12 @@ router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (r
 
     // 기간 계산
     let dateFilter;
+    const isAll = period === 'all';
     const today = new Date().toISOString().slice(0, 10);
 
-    if (period === 'today') {
+    if (isAll) {
+      dateFilter = '2000-01-01'; // 사실상 전체 기간
+    } else if (period === 'today') {
       dateFilter = today;
     } else if (period === 'week') {
       const d = new Date();

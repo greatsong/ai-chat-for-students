@@ -1,7 +1,7 @@
-import { useEffect, useState, useMemo } from "react";
-import ReactMarkdown from "react-markdown";
-import remarkGfm from "remark-gfm";
-import useTeacherStore from "../../stores/teacherStore";
+import { useEffect, useState, useMemo } from 'react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import useTeacherStore from '../../stores/teacherStore';
 
 export default function ConversationsPage() {
   const {
@@ -18,8 +18,8 @@ export default function ConversationsPage() {
 
   const [selectedUserId, setSelectedUserId] = useState(null);
   const [selectedConvId, setSelectedConvId] = useState(null);
-  const [search, setSearch] = useState("");
-  const [studentSearch, setStudentSearch] = useState("");
+  const [search, setSearch] = useState('');
+  const [studentSearch, setStudentSearch] = useState('');
   const [showMessageModal, setShowMessageModal] = useState(false);
   const [page, setPage] = useState(1);
 
@@ -45,7 +45,7 @@ export default function ConversationsPage() {
   };
 
   const handleDeleteConv = async (convId) => {
-    if (!confirm("이 대화를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.")) return;
+    if (!confirm('이 대화를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) return;
     try {
       await deleteConversation(convId);
       if (selectedConvId === convId) {
@@ -53,7 +53,7 @@ export default function ConversationsPage() {
         setSelectedConvId(null);
       }
     } catch (err) {
-      alert("삭제에 실패했습니다: " + err.message);
+      alert('삭제에 실패했습니다: ' + err.message);
     }
   };
 
@@ -63,33 +63,79 @@ export default function ConversationsPage() {
     return students.filter(
       (s) =>
         (s.name && s.name.toLowerCase().includes(q)) ||
-        (s.email && s.email.toLowerCase().includes(q))
+        (s.email && s.email.toLowerCase().includes(q)),
     );
   }, [students, studentSearch]);
 
   const providerColors = {
-    claude: "bg-orange-100 text-orange-700",
-    gemini: "bg-blue-100 text-blue-700",
-    openai: "bg-green-100 text-green-700",
-    solar: "bg-purple-100 text-purple-700",
+    claude: 'bg-orange-100 text-orange-700',
+    gemini: 'bg-blue-100 text-blue-700',
+    openai: 'bg-green-100 text-green-700',
+    solar: 'bg-purple-100 text-purple-700',
   };
 
   const formatDate = (dateStr) => {
-    if (!dateStr) return "";
+    if (!dateStr) return '';
     const d = new Date(dateStr);
     const now = new Date();
     const isToday = d.toDateString() === now.toDateString();
     if (isToday) {
-      return d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+      return d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' });
     }
-    return d.toLocaleDateString("ko-KR", { month: "short", day: "numeric" }) +
-      " " +
-      d.toLocaleTimeString("ko-KR", { hour: "2-digit", minute: "2-digit" });
+    return (
+      d.toLocaleDateString('ko-KR', { month: 'short', day: 'numeric' }) +
+      ' ' +
+      d.toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })
+    );
+  };
+
+  const handleExportCsv = () => {
+    const params = new URLSearchParams();
+    if (selectedUserId) params.set('userId', selectedUserId);
+    if (search) params.set('search', search);
+    const token = localStorage.getItem('token');
+    const baseUrl = import.meta.env.VITE_API_URL || '';
+    const url = `${baseUrl}/api/teacher/conversations/export?${params.toString()}`;
+
+    fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+      .then((res) => {
+        if (!res.ok) throw new Error('CSV 내보내기 실패');
+        return res.blob();
+      })
+      .then((blob) => {
+        const a = document.createElement('a');
+        a.href = URL.createObjectURL(blob);
+        a.download = 'conversations.csv';
+        a.click();
+        URL.revokeObjectURL(a.href);
+      })
+      .catch((err) => alert(err.message));
   };
 
   return (
     <div>
-      <h1 className="text-2xl font-bold text-gray-800 mb-6">채팅 열람</h1>
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-bold text-gray-800">채팅 열람</h1>
+        <button
+          onClick={handleExportCsv}
+          className="px-4 py-2 bg-green-600 text-white text-sm font-medium rounded-lg hover:bg-green-700 transition-colors flex items-center gap-1.5"
+        >
+          <svg
+            className="w-4 h-4"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+            strokeWidth={2}
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+            />
+          </svg>
+          CSV 내보내기
+        </button>
+      </div>
 
       <div className="flex flex-col lg:flex-row gap-4 h-[calc(100vh-12rem)]">
         {/* 왼쪽: 사용자 목록 */}
@@ -109,29 +155,33 @@ export default function ConversationsPage() {
               onClick={() => setSelectedUserId(null)}
               className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-b border-gray-50 ${
                 selectedUserId === null
-                  ? "bg-blue-50 text-blue-700 font-medium"
-                  : "text-gray-600 hover:bg-gray-50"
+                  ? 'bg-blue-50 text-blue-700 font-medium'
+                  : 'text-gray-600 hover:bg-gray-50'
               }`}
             >
               전체 사용자
             </button>
             {filteredStudents
-              .filter((s) => s.role !== "teacher")
+              .filter((s) => s.role !== 'teacher')
               .map((student) => (
                 <button
                   key={student.id}
                   onClick={() => setSelectedUserId(student.id)}
                   className={`w-full text-left px-4 py-2.5 text-sm transition-colors border-b border-gray-50 flex items-center gap-2 ${
                     selectedUserId === student.id
-                      ? "bg-blue-50 text-blue-700 font-medium"
-                      : "text-gray-600 hover:bg-gray-50"
+                      ? 'bg-blue-50 text-blue-700 font-medium'
+                      : 'text-gray-600 hover:bg-gray-50'
                   }`}
                 >
                   {student.avatar ? (
-                    <img src={student.avatar} alt="" className="w-6 h-6 rounded-full flex-shrink-0" />
+                    <img
+                      src={student.avatar}
+                      alt=""
+                      className="w-6 h-6 rounded-full flex-shrink-0"
+                    />
                   ) : (
                     <div className="w-6 h-6 rounded-full bg-gray-200 flex items-center justify-center text-xs text-gray-500 flex-shrink-0">
-                      {student.name?.[0] || "?"}
+                      {student.name?.[0] || '?'}
                     </div>
                   )}
                   <span className="truncate">{student.name || student.email}</span>
@@ -174,12 +224,12 @@ export default function ConversationsPage() {
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
                         <span className="font-medium text-sm text-gray-800 truncate">
-                          {conv.title || "제목 없음"}
+                          {conv.title || '제목 없음'}
                         </span>
                         {conv.provider && (
                           <span
                             className={`px-1.5 py-0.5 text-[10px] font-medium rounded ${
-                              providerColors[conv.provider] || "bg-gray-100 text-gray-600"
+                              providerColors[conv.provider] || 'bg-gray-100 text-gray-600'
                             }`}
                           >
                             {conv.provider}
@@ -187,8 +237,8 @@ export default function ConversationsPage() {
                         )}
                       </div>
                       <div className="text-xs text-gray-400 mb-1">
-                        {conv.student_name || conv.student_email} &middot;{" "}
-                        {conv.message_count}개 메시지 &middot; {formatDate(conv.updated_at)}
+                        {conv.student_name || conv.student_email} &middot; {conv.message_count}개
+                        메시지 &middot; {formatDate(conv.updated_at)}
                       </div>
                       {conv.last_message && (
                         <p className="text-xs text-gray-500 truncate">{conv.last_message}</p>
@@ -202,8 +252,18 @@ export default function ConversationsPage() {
                       className="p-1 text-gray-300 hover:text-red-500 flex-shrink-0"
                       title="삭제"
                     >
-                      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                      <svg
+                        className="w-4 h-4"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                        strokeWidth={2}
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                        />
                       </svg>
                     </button>
                   </div>
@@ -216,11 +276,11 @@ export default function ConversationsPage() {
           {conversationPagination && conversationPagination.totalPages > 1 && (
             <div className="p-3 border-t border-gray-100 flex items-center justify-between text-sm">
               <span className="text-gray-400">
-                {conversationPagination.total}개 중{" "}
+                {conversationPagination.total}개 중{' '}
                 {(conversationPagination.page - 1) * conversationPagination.limit + 1}-
                 {Math.min(
                   conversationPagination.page * conversationPagination.limit,
-                  conversationPagination.total
+                  conversationPagination.total,
                 )}
               </span>
               <div className="flex gap-1">
@@ -258,7 +318,13 @@ export default function ConversationsPage() {
                 }}
                 className="p-1 text-gray-400 hover:text-gray-600"
               >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg
+                  className="w-5 h-5"
+                  fill="none"
+                  viewBox="0 0 24 24"
+                  stroke="currentColor"
+                  strokeWidth={2}
+                >
                   <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                 </svg>
               </button>
@@ -272,33 +338,28 @@ export default function ConversationsPage() {
                 <div className="text-center text-gray-400 py-8">메시지가 없습니다.</div>
               ) : (
                 conversationMessages.map((msg) => (
-                  <div
-                    key={msg.id}
-                    className={`${
-                      msg.role === "user" ? "ml-8" : "mr-8"
-                    }`}
-                  >
+                  <div key={msg.id} className={`${msg.role === 'user' ? 'ml-8' : 'mr-8'}`}>
                     <div
                       className={`rounded-xl px-4 py-3 ${
-                        msg.role === "user"
-                          ? "bg-blue-50 border border-blue-100"
-                          : "bg-gray-50 border border-gray-100"
+                        msg.role === 'user'
+                          ? 'bg-blue-50 border border-blue-100'
+                          : 'bg-gray-50 border border-gray-100'
                       }`}
                     >
                       {/* 역할 + 메타 */}
                       <div className="flex items-center justify-between mb-2">
                         <span
                           className={`text-xs font-semibold ${
-                            msg.role === "user" ? "text-blue-600" : "text-gray-600"
+                            msg.role === 'user' ? 'text-blue-600' : 'text-gray-600'
                           }`}
                         >
-                          {msg.role === "user" ? "학생" : "AI"}
+                          {msg.role === 'user' ? '학생' : 'AI'}
                         </span>
                         <div className="flex items-center gap-2 text-[10px] text-gray-400">
                           {(msg.input_tokens > 0 || msg.output_tokens > 0) && (
                             <span>
                               {msg.input_tokens > 0 && `입력 ${msg.input_tokens}`}
-                              {msg.input_tokens > 0 && msg.output_tokens > 0 && " / "}
+                              {msg.input_tokens > 0 && msg.output_tokens > 0 && ' / '}
                               {msg.output_tokens > 0 && `출력 ${msg.output_tokens}`}
                             </span>
                           )}
@@ -308,7 +369,7 @@ export default function ConversationsPage() {
                       {/* 내용 */}
                       <div className="prose prose-sm max-w-none text-sm text-gray-800 break-words [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-all">
                         <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                          {msg.content || ""}
+                          {msg.content || ''}
                         </ReactMarkdown>
                       </div>
                     </div>
