@@ -7,14 +7,20 @@ const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID;
 export default function LoginPage() {
   const navigate = useNavigate();
   const buttonRef = useRef(null);
-  const { loginWithGoogle, isAuthenticated, isLoading } = useAuthStore();
+  const { loginWithGoogle, isAuthenticated, isLoading, checkAuth } = useAuthStore();
 
   // 신규 사용자 동의 모달 상태
   const [showPrivacyModal, setShowPrivacyModal] = useState(false);
   const [pendingCredential, setPendingCredential] = useState(null);
   const [privacyAgreed, setPrivacyAgreed] = useState(false);
+  // 로그인 버튼 클릭 후의 로딩 상태 (store의 isLoading과 분리)
+  const [loginInProgress, setLoginInProgress] = useState(false);
 
-  // 이미 인증된 상태면 /chat으로 이동
+  // 기존 토큰이 있으면 세션 복원 시도 → 인증 성공 시 /chat으로 이동
+  useEffect(() => {
+    checkAuth();
+  }, [checkAuth]);
+
   useEffect(() => {
     if (isAuthenticated) {
       navigate('/chat', { replace: true });
@@ -23,6 +29,7 @@ export default function LoginPage() {
 
   const handleCredentialResponse = useCallback(
     async (response) => {
+      setLoginInProgress(true);
       try {
         const result = await loginWithGoogle(response.credential);
 
@@ -30,11 +37,13 @@ export default function LoginPage() {
         if (result?.privacy_required) {
           setPendingCredential(response.credential);
           setShowPrivacyModal(true);
+          setLoginInProgress(false);
           return;
         }
 
         navigate('/chat', { replace: true });
       } catch (err) {
+        setLoginInProgress(false);
         console.error('로그인 실패:', err);
         alert(err.message || '로그인에 실패했습니다.');
       }
@@ -45,12 +54,14 @@ export default function LoginPage() {
   // 동의 후 가입 완료
   const handlePrivacyAgree = async () => {
     if (!pendingCredential) return;
+    setLoginInProgress(true);
     try {
       await loginWithGoogle(pendingCredential, true);
       setShowPrivacyModal(false);
       setPendingCredential(null);
       navigate('/chat', { replace: true });
     } catch (err) {
+      setLoginInProgress(false);
       console.error('가입 실패:', err);
       alert(err.message || '가입에 실패했습니다.');
     }
@@ -226,7 +237,7 @@ export default function LoginPage() {
 
           {/* Google 로그인 버튼 — 항상 활성화 */}
           <div className="flex justify-center relative">
-            {isLoading ? (
+            {loginInProgress ? (
               <div className="flex items-center gap-2 text-gray-500">
                 <svg className="h-5 w-5 animate-spin" viewBox="0 0 24 24" fill="none">
                   <circle
@@ -315,10 +326,10 @@ export default function LoginPage() {
               </button>
               <button
                 onClick={handlePrivacyAgree}
-                disabled={!privacyAgreed || isLoading}
+                disabled={!privacyAgreed || loginInProgress}
                 className="flex-1 px-4 py-2.5 text-sm text-white bg-indigo-600 rounded-xl hover:bg-indigo-700 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {isLoading ? '처리 중...' : '동의하고 시작하기'}
+                {loginInProgress ? '처리 중...' : '동의하고 시작하기'}
               </button>
             </div>
           </div>
