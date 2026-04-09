@@ -72,20 +72,34 @@ function CodeBlock({ language, children }) {
 
 // Markdown 렌더러 컴포넌트 설정
 const markdownComponents = {
-  code({ className, children, ...props }) {
-    const match = /language-(\w+)/.exec(className || '');
-    const isInline = !match && !String(children).includes('\n');
-    if (isInline) {
-      return (
-        <code
-          className="px-1.5 py-0.5 bg-gray-100 text-pink-600 text-sm rounded font-mono"
-          {...props}
-        >
-          {children}
-        </code>
-      );
+  // react-markdown v10: 코드 블록(```code```)은 pre > code 구조로 렌더링됨
+  // pre 컴포넌트에서 CodeBlock을 렌더링하여 모든 언어에서 복사 버튼 표시
+  pre({ children }) {
+    // children이 code 엘리먼트인지 확인
+    if (children?.type === 'code' || children?.props?.className) {
+      const className = children?.props?.className || '';
+      const match = /language-(\w+)/.exec(className);
+      const code = children?.props?.children || '';
+      return <CodeBlock language={match?.[1]}>{code}</CodeBlock>;
     }
-    return <CodeBlock language={match?.[1]}>{children}</CodeBlock>;
+    return <pre>{children}</pre>;
+  },
+  code({ className, children, ...props }) {
+    // pre 안의 code는 위의 pre 핸들러가 처리 → 여기는 인라인 코드만
+    const match = /language-(\w+)/.exec(className || '');
+    const isBlock = match || String(children).includes('\n');
+    if (isBlock) {
+      // pre 핸들러를 거치지 않고 직접 온 코드 블록 (fallback)
+      return <CodeBlock language={match?.[1]}>{children}</CodeBlock>;
+    }
+    return (
+      <code
+        className="px-1.5 py-0.5 bg-gray-100 text-pink-600 text-sm rounded font-mono"
+        {...props}
+      >
+        {children}
+      </code>
+    );
   },
   table({ children }) {
     return (
