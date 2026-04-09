@@ -218,16 +218,6 @@ const sections = [
         value:
           '개인정보 관련 문의, 불만 처리, 피해 구제 등에 관한 사항은 위 담당자에게 문의하실 수 있습니다.',
       },
-      { type: 'subtitle', value: '관련 기관 안내' },
-      {
-        type: 'list',
-        items: [
-          '개인정보침해 신고센터 (privacy.kisa.or.kr / 118)',
-          '개인정보 분쟁조정위원회 (kopico.go.kr / 1833-6972)',
-          '대검찰청 사이버수사과 (spo.go.kr / 1301)',
-          '경찰청 사이버안전국 (cyberbureau.police.go.kr / 182)',
-        ],
-      },
     ],
   },
   {
