@@ -133,7 +133,7 @@ router.get('/students', requireAdmin, async (req, res) => {
       `
       SELECT
         u.id, u.name, u.email, u.avatar, u.role, u.is_active, u.daily_limit,
-        u.classroom_id, u.created_at,
+        u.chat_mode, u.classroom_id, u.created_at,
         COALESCE(SUM(ud.input_tokens), 0)  AS today_input_tokens,
         COALESCE(SUM(ud.output_tokens), 0) AS today_output_tokens,
         COALESCE(SUM(ud.request_count), 0) AS today_requests,
@@ -172,7 +172,7 @@ router.get('/students', requireAdmin, async (req, res) => {
 router.patch('/students/:id', requireAdmin, validate(studentUpdateSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { is_active, daily_limit } = req.body;
+    const { is_active, daily_limit, chat_mode } = req.body;
 
     const user = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
     if (!user) {
@@ -189,6 +189,10 @@ router.patch('/students/:id', requireAdmin, validate(studentUpdateSchema), async
     if (daily_limit !== undefined) {
       updates.push('daily_limit = ?');
       params.push(daily_limit);
+    }
+    if (chat_mode !== undefined) {
+      updates.push('chat_mode = ?');
+      params.push(chat_mode);
     }
 
     if (updates.length === 0) {
@@ -278,7 +282,7 @@ router.get(
       const conversations = await queryAll(
         `SELECT
         c.id, c.user_id, c.title, c.provider, c.model, c.created_at, c.updated_at,
-        u.name AS student_name, u.email AS student_email,
+        u.name AS student_name, u.email AS student_email, u.chat_mode AS student_mode,
         COALESCE(msg_stats.msg_count, 0) AS message_count,
         msg_stats.last_content AS last_message
       FROM conversations c
@@ -342,7 +346,7 @@ router.get('/conversations/export', requireAdmin, async (req, res) => {
 
     const conversations = await queryAll(
       `SELECT
-        u.name AS student_name, u.email AS student_email,
+        u.name AS student_name, u.email AS student_email, u.chat_mode AS student_mode,
         c.title, c.provider, c.model, c.created_at, c.updated_at,
         (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS message_count
       FROM conversations c

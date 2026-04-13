@@ -184,7 +184,7 @@ router.post(
       // 9. 프로바이더별 메시지 빌드 및 스트리밍 처리
       // 교사/관리자는 시스템 프롬프트 없이 자유롭게 사용
       const systemPrompt =
-        req.user.role === 'teacher' || req.user.role === 'admin'
+        req.user.role === 'teacher' || req.user.role === 'admin' || req.user.chat_mode === 'project'
           ? ''
           : (await getSetting('system_prompt')) || '';
       const providerMessages = providerModule.buildMessages(history);

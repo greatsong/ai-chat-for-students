@@ -66,9 +66,21 @@ export default function StudentsPage() {
   const studentCount = students.filter((s) => s.role === 'student').length;
   const activeCount = students.filter((s) => s.is_active).length;
   const pendingCount = students.filter((s) => !s.is_active && s.role === 'student').length;
+  const projectModeCount = students.filter(
+    (s) => s.role === 'student' && s.chat_mode === 'project',
+  ).length;
 
   // 비활성(대기) 학생 ID 목록 (교사/관리자 제외)
   const pendingIds = students.filter((s) => !s.is_active && s.role === 'student').map((s) => s.id);
+
+  const handleToggleMode = async (student) => {
+    const newMode = student.chat_mode === 'project' ? 'learning' : 'project';
+    try {
+      await updateStudent(student.id, { chat_mode: newMode });
+    } catch (err) {
+      alert('모드 변경에 실패했습니다: ' + err.message);
+    }
+  };
 
   const handleToggleActive = async (student) => {
     try {
@@ -130,6 +142,9 @@ export default function StudentsPage() {
             <span>학생 {studentCount}명</span>
             <span className="text-green-600">활성 {activeCount}명</span>
             {pendingCount > 0 && <span className="text-yellow-600">대기 {pendingCount}명</span>}
+            {projectModeCount > 0 && (
+              <span className="text-emerald-600">프로젝트 모드 {projectModeCount}명</span>
+            )}
           </div>
         </div>
 
@@ -174,6 +189,9 @@ export default function StudentsPage() {
                 상태
               </th>
               <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
+                모드
+              </th>
+              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                 일일 한도
               </th>
               <th
@@ -202,7 +220,7 @@ export default function StudentsPage() {
           <tbody className="divide-y divide-gray-100">
             {filtered.length === 0 ? (
               <tr>
-                <td colSpan={8} className="text-center py-8 text-gray-400">
+                <td colSpan={9} className="text-center py-8 text-gray-400">
                   {search ? '검색 결과가 없습니다.' : '등록된 학생이 없습니다.'}
                 </td>
               </tr>
@@ -253,6 +271,25 @@ export default function StudentsPage() {
                       <span className="inline-block px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
                         대기
                       </span>
+                    )}
+                  </td>
+
+                  {/* 모드 */}
+                  <td className="px-4 py-3 text-center">
+                    {student.role === 'student' ? (
+                      <button
+                        onClick={() => handleToggleMode(student)}
+                        className={`px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                          student.chat_mode === 'project'
+                            ? 'bg-emerald-100 text-emerald-700 hover:bg-emerald-200'
+                            : 'bg-blue-100 text-blue-700 hover:bg-blue-200'
+                        }`}
+                        title="클릭하여 모드 전환"
+                      >
+                        {student.chat_mode === 'project' ? '프로젝트' : '학습'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">교사</span>
                     )}
                   </td>
 
@@ -379,15 +416,28 @@ export default function StudentsPage() {
                     <div className="text-xs text-gray-400">{student.email}</div>
                   </div>
                 </div>
-                {student.is_active ? (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                    활성
-                  </span>
-                ) : (
-                  <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
-                    대기
-                  </span>
-                )}
+                <div className="flex items-center gap-1.5">
+                  {student.role === 'student' && (
+                    <span
+                      className={`px-1.5 py-0.5 text-[10px] font-medium rounded-full ${
+                        student.chat_mode === 'project'
+                          ? 'bg-emerald-100 text-emerald-700'
+                          : 'bg-blue-100 text-blue-700'
+                      }`}
+                    >
+                      {student.chat_mode === 'project' ? '프로젝트' : '학습'}
+                    </span>
+                  )}
+                  {student.is_active ? (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
+                      활성
+                    </span>
+                  ) : (
+                    <span className="px-2 py-0.5 text-xs font-medium bg-yellow-100 text-yellow-700 rounded-full">
+                      대기
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* 정보 행 */}
@@ -428,6 +478,16 @@ export default function StudentsPage() {
                     }`}
                   >
                     {student.is_active ? '비활성화' : '활성화'}
+                  </button>
+                  <button
+                    onClick={() => handleToggleMode(student)}
+                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                      student.chat_mode === 'project'
+                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
+                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
+                    }`}
+                  >
+                    {student.chat_mode === 'project' ? '학습 모드로' : '프로젝트 모드로'}
                   </button>
                   <button
                     onClick={() =>

@@ -207,6 +207,21 @@ export default function ChatPage() {
           </h1>
         </div>
 
+        {/* 모드 표시 (학생만) */}
+        {user?.role === 'student' && (
+          <div className="flex items-center px-4 py-1.5 bg-white border-b border-gray-100">
+            <span
+              className={`text-xs px-2.5 py-0.5 rounded-full font-medium ${
+                user.chat_mode === 'project'
+                  ? 'bg-emerald-100 text-emerald-700'
+                  : 'bg-blue-100 text-blue-700'
+              }`}
+            >
+              {user.chat_mode === 'project' ? '프로젝트 모드' : '학습 모드'}
+            </span>
+          </div>
+        )}
+
         {/* 프로바이더 선택기 */}
         <ProviderSelector
           selectedProvider={selectedProvider}

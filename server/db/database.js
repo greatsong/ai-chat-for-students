@@ -36,6 +36,13 @@ export async function initDatabase() {
     // 이미 컬럼이 존재하면 무시
   }
 
+  // 기존 테이블에 chat_mode 컬럼 추가 (학습 모드/프로젝트 모드 구분)
+  try {
+    await client.execute(`ALTER TABLE users ADD COLUMN chat_mode TEXT DEFAULT 'learning'`);
+  } catch {
+    // 이미 컬럼이 존재하면 무시
+  }
+
   await client.execute(`
     CREATE TABLE IF NOT EXISTS classrooms (
       id TEXT PRIMARY KEY,

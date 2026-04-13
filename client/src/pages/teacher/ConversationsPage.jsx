@@ -235,6 +235,11 @@ export default function ConversationsPage() {
                             {conv.provider}
                           </span>
                         )}
+                        {conv.student_mode === 'project' && (
+                          <span className="px-1.5 py-0.5 text-[10px] font-medium rounded bg-emerald-100 text-emerald-700">
+                            프로젝트
+                          </span>
+                        )}
                       </div>
                       <div className="text-xs text-gray-400 mb-1">
                         {conv.student_name || conv.student_email} &middot; {conv.message_count}개

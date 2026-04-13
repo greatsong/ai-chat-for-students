@@ -186,6 +186,7 @@ router.get('/me', authenticate, (req, res) => {
       avatar: user.avatar,
       role: user.role,
       is_active: user.is_active,
+      chat_mode: user.chat_mode || 'learning',
       privacy_agreed_at: user.privacy_agreed_at || null,
     },
   });
