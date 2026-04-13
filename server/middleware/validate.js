@@ -28,29 +28,37 @@ export function validate(schema, source = 'body') {
 // ── 공통 스키마 ──
 
 // 채팅 요청
-export const chatSchema = z.object({
-  conversationId: z.string().uuid().optional().nullable(),
-  message: z.string().min(1).max(50000),
-  provider: z.enum(['claude', 'gemini', 'openai', 'solar']).default('claude'),
-  model: z.string().max(100).optional().nullable(),
-  files: z
-    .array(
-      z.object({
-        id: z.string().optional(),
-        name: z.string().max(500),
-        type: z.enum(['image', 'pdf', 'text', 'unsupported']),
-        mimeType: z.string().max(200),
-        content: z.string().optional().nullable(),
-        data: z.string().optional().nullable(),
-        size: z.number().optional(),
-      }),
-    )
-    .max(10)
-    .optional()
-    .nullable(),
-  web_search: z.boolean().default(false),
-  code_execution: z.boolean().default(false),
-});
+export const chatSchema = z
+  .object({
+    conversationId: z.string().uuid().optional().nullable(),
+    message: z.string().max(50000).default(''),
+    provider: z.enum(['claude', 'gemini', 'openai', 'solar']).default('claude'),
+    model: z.string().max(100).optional().nullable(),
+    files: z
+      .array(
+        z.object({
+          id: z.string().optional(),
+          name: z.string().max(500),
+          type: z.enum(['image', 'pdf', 'text', 'unsupported']),
+          mimeType: z.string().max(200),
+          content: z.string().optional().nullable(),
+          data: z.string().optional().nullable(),
+          size: z.number().optional(),
+        }),
+      )
+      .max(10)
+      .optional()
+      .nullable(),
+    web_search: z.boolean().default(false),
+    code_execution: z.boolean().default(false),
+  })
+  .refine(
+    (data) =>
+      (data.message && data.message.trim().length > 0) || (data.files && data.files.length > 0),
+    {
+      message: '메시지 또는 파일을 첨부해주세요.',
+    },
+  );
 
 // 학생 업데이트
 export const studentUpdateSchema = z.object({
