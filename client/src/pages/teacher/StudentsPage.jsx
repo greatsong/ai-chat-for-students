@@ -6,8 +6,10 @@ export default function StudentsPage() {
     useTeacherStore();
   const [search, setSearch] = useState('');
   const [editingLimit, setEditingLimit] = useState(null); // { id, value }
-  const [sortKey, setSortKey] = useState(null); // name, today_usage, total_tokens, total_conversations, created_at
-  const [sortOrder, setSortOrder] = useState('desc'); // asc, desc
+  const [roleFilter, setRoleFilter] = useState('all'); // all, admin, teacher, student
+  const [statusFilter, setStatusFilter] = useState('all'); // all, active, pending
+  const [sortKey, setSortKey] = useState(null);
+  const [sortOrder, setSortOrder] = useState('desc');
 
   useEffect(() => {
     loadStudents();
@@ -30,6 +32,20 @@ export default function StudentsPage() {
   // 필터링 + 정렬
   const filtered = useMemo(() => {
     let list = students;
+
+    // 역할 필터
+    if (roleFilter !== 'all') {
+      list = list.filter((s) => s.role === roleFilter);
+    }
+
+    // 상태 필터
+    if (statusFilter === 'active') {
+      list = list.filter((s) => s.is_active);
+    } else if (statusFilter === 'pending') {
+      list = list.filter((s) => !s.is_active);
+    }
+
+    // 검색
     if (search) {
       const q = search.toLowerCase();
       list = list.filter(
@@ -38,11 +54,23 @@ export default function StudentsPage() {
           (s.email && s.email.toLowerCase().includes(q)),
       );
     }
+
+    // 정렬
     if (sortKey) {
       list = [...list].sort((a, b) => {
         let cmp = 0;
         if (sortKey === 'name') {
           cmp = (a.name || '').localeCompare(b.name || '', 'ko');
+        } else if (sortKey === 'email') {
+          cmp = (a.email || '').localeCompare(b.email || '');
+        } else if (sortKey === 'status') {
+          cmp = (a.is_active ? 1 : 0) - (b.is_active ? 1 : 0);
+        } else if (sortKey === 'mode') {
+          const modeA = a.role === 'student' ? a.chat_mode || 'learning' : 'teacher';
+          const modeB = b.role === 'student' ? b.chat_mode || 'learning' : 'teacher';
+          cmp = modeA.localeCompare(modeB);
+        } else if (sortKey === 'daily_limit') {
+          cmp = (a.daily_limit || 0) - (b.daily_limit || 0);
         } else if (sortKey === 'today_usage') {
           cmp =
             a.today_input_tokens +
@@ -59,7 +87,7 @@ export default function StudentsPage() {
       });
     }
     return list;
-  }, [students, search, sortKey, sortOrder]);
+  }, [students, search, roleFilter, statusFilter, sortKey, sortOrder]);
 
   const adminCount = students.filter((s) => s.role === 'admin').length;
   const teacherCount = students.filter((s) => s.role === 'teacher').length;
@@ -133,19 +161,13 @@ export default function StudentsPage() {
   return (
     <div>
       {/* 헤더 */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-4">
         <div>
           <h1 className="text-2xl font-bold text-gray-800">사용자 관리</h1>
-          <div className="flex gap-4 mt-2 text-sm text-gray-500">
-            {adminCount > 0 && <span className="text-purple-600">관리자 {adminCount}명</span>}
-            <span className="text-indigo-600">교사 {teacherCount}명</span>
-            <span>학생 {studentCount}명</span>
-            <span className="text-green-600">활성 {activeCount}명</span>
-            {pendingCount > 0 && <span className="text-yellow-600">대기 {pendingCount}명</span>}
-            {projectModeCount > 0 && (
-              <span className="text-emerald-600">프로젝트 모드 {projectModeCount}명</span>
-            )}
-          </div>
+          <p className="text-sm text-gray-500 mt-1">
+            전체 {students.length}명
+            {projectModeCount > 0 && ` · 프로젝트 모드 ${projectModeCount}명`}
+          </p>
         </div>
 
         <div className="flex gap-2">
@@ -160,16 +182,102 @@ export default function StudentsPage() {
         </div>
       </div>
 
-      {/* 검색 */}
-      <div className="mb-4">
-        <input
-          type="text"
-          placeholder="이름 또는 이메일로 검색..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="w-full sm:w-80 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-        />
+      {/* 필터 + 검색 */}
+      <div className="flex flex-col sm:flex-row gap-3 mb-4">
+        {/* 역할 필터 */}
+        <div className="flex gap-1.5 flex-wrap">
+          {[
+            {
+              key: 'all',
+              label: '전체',
+              count: students.length,
+              style: 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+            },
+            ...(adminCount > 0
+              ? [
+                  {
+                    key: 'admin',
+                    label: '관리자',
+                    count: adminCount,
+                    style: 'bg-purple-50 text-purple-700 hover:bg-purple-100',
+                  },
+                ]
+              : []),
+            {
+              key: 'teacher',
+              label: '교사',
+              count: teacherCount,
+              style: 'bg-indigo-50 text-indigo-700 hover:bg-indigo-100',
+            },
+            {
+              key: 'student',
+              label: '학생',
+              count: studentCount,
+              style: 'bg-gray-100 text-gray-700 hover:bg-gray-200',
+            },
+          ].map(({ key, label, count, style }) => (
+            <button
+              key={key}
+              onClick={() => setRoleFilter(key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                roleFilter === key ? 'bg-gray-800 text-white' : style
+              }`}
+            >
+              {label} {count}
+            </button>
+          ))}
+        </div>
+
+        {/* 상태 필터 */}
+        <div className="flex gap-1.5">
+          {[
+            { key: 'all', label: '전체 상태' },
+            { key: 'active', label: '활성', count: activeCount },
+            { key: 'pending', label: '대기', count: pendingCount },
+          ].map(({ key, label, count }) => (
+            <button
+              key={key}
+              onClick={() => setStatusFilter(key)}
+              className={`px-3 py-1.5 text-xs font-medium rounded-lg transition-colors ${
+                statusFilter === key
+                  ? 'bg-gray-800 text-white'
+                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
+              }`}
+            >
+              {label}
+              {count !== undefined ? ` ${count}` : ''}
+            </button>
+          ))}
+        </div>
+
+        {/* 검색 */}
+        <div className="flex-1">
+          <input
+            type="text"
+            placeholder="이름 또는 이메일로 검색..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="w-full sm:w-80 px-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+          />
+        </div>
       </div>
+
+      {/* 필터 결과 수 */}
+      {(roleFilter !== 'all' || statusFilter !== 'all' || search) && (
+        <div className="flex items-center gap-2 mb-3 text-sm text-gray-500">
+          <span>검색 결과: {filtered.length}명</span>
+          <button
+            onClick={() => {
+              setRoleFilter('all');
+              setStatusFilter('all');
+              setSearch('');
+            }}
+            className="text-blue-600 hover:text-blue-800 text-xs"
+          >
+            필터 초기화
+          </button>
+        </div>
+      )}
 
       {/* 데스크톱 테이블 */}
       <div className="hidden md:block bg-white rounded-xl border border-gray-200 overflow-hidden">
@@ -182,17 +290,29 @@ export default function StudentsPage() {
               >
                 이름{sortIcon('name')}
               </th>
-              <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                이메일
+              <th
+                className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('email')}
+              >
+                이메일{sortIcon('email')}
               </th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                상태
+              <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('status')}
+              >
+                상태{sortIcon('status')}
               </th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                모드
+              <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('mode')}
+              >
+                모드{sortIcon('mode')}
               </th>
-              <th className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                일일 한도
+              <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
+                onClick={() => handleSort('daily_limit')}
+              >
+                일일 한도{sortIcon('daily_limit')}
               </th>
               <th
                 className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
