@@ -164,7 +164,14 @@ export function trimHistoryByTokens(history, provider, model) {
     includeFrom = i;
   }
 
-  const trimmedHistory = history.slice(includeFrom);
+  let trimmedHistory = history.slice(includeFrom);
+
+  // 트리밍 후 첫 메시지가 assistant이면 제거 (Gemini 등에서 에러 방지)
+  // AI API는 대화가 user 메시지로 시작해야 함
+  while (trimmedHistory.length > 1 && trimmedHistory[0].role === 'assistant') {
+    trimmedHistory = trimmedHistory.slice(1);
+  }
+
   const trimmedCount = history.length - trimmedHistory.length;
 
   return {
