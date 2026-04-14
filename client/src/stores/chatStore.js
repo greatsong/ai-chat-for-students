@@ -12,6 +12,7 @@ const useChatStore = create((set, get) => ({
   isStreaming: false,
   selectedProvider: 'claude',
   selectedModel: 'claude-sonnet-4-6',
+  contextTrimmed: null, // { trimmedCount, totalMessages, usedMessages }
 
   // Actions
 
@@ -110,6 +111,7 @@ const useChatStore = create((set, get) => ({
     set({
       messages: [...messages, userMessage, assistantMessage],
       isStreaming: true,
+      contextTrimmed: null,
     });
 
     try {
@@ -131,7 +133,10 @@ const useChatStore = create((set, get) => ({
           const currentMessages = get().messages;
           const lastIdx = currentMessages.length - 1;
 
-          if (chunk.type === 'conversationId') {
+          if (chunk.type === 'context_trimmed') {
+            // 컨텍스트 트리밍 경고
+            set({ contextTrimmed: chunk });
+          } else if (chunk.type === 'conversationId') {
             // 새 대화 생성 시 ID 수신
             conversationId = chunk.conversationId;
             set({

@@ -38,6 +38,7 @@ export default function ChatPage() {
   const setProvider = useChatStore((s) => s.setProvider);
   const setModel = useChatStore((s) => s.setModel);
   const loadConversations = useChatStore((s) => s.loadConversations);
+  const contextTrimmed = useChatStore((s) => s.contextTrimmed);
 
   const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
   const enabledModels = settings?.enabled_models || {};
@@ -236,12 +237,36 @@ export default function ChatPage() {
         {/* 메시지 영역 또는 웰컴 스크린 */}
         <div className="flex-1 flex flex-col min-h-0">
           {hasActiveConversation || isStreaming ? (
-            <MessageList
-              messages={messages}
-              isStreaming={isStreaming}
-              ttsEnabled={isTeacher || !!publicSettings.tts_enabled}
-              onSpeak={handleSpeak}
-            />
+            <>
+              {contextTrimmed && (
+                <div className="mx-4 mt-2 px-3 py-2 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-700 flex items-center gap-2">
+                  <svg
+                    className="w-4 h-4 flex-shrink-0"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"
+                    />
+                  </svg>
+                  <span>
+                    대화가 길어져 AI가 최근 {contextTrimmed.usedMessages}개 메시지만 참조합니다
+                    (전체 {contextTrimmed.totalMessages}개 중 {contextTrimmed.trimmedCount}개 생략).
+                    새 대화를 시작하면 전체 컨텍스트를 활용할 수 있습니다.
+                  </span>
+                </div>
+              )}
+              <MessageList
+                messages={messages}
+                isStreaming={isStreaming}
+                ttsEnabled={isTeacher || !!publicSettings.tts_enabled}
+                onSpeak={handleSpeak}
+              />
+            </>
           ) : (
             <WelcomeScreen
               onSendMessage={handleWelcomeMessage}

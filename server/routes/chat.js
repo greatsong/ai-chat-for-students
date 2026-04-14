@@ -6,6 +6,7 @@ import { queryOne, queryAll, run, getSetting } from '../db/database.js';
 import crypto from 'crypto';
 import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
+import { trimHistoryByTokens } from '../utils/tokenEstimator.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
@@ -157,8 +158,16 @@ router.post(
       // DESC로 가져온 후 시간순으로 다시 정렬
       history.reverse();
 
+      // 토큰 기반 히스토리 트리밍 — 컨텍스트 윈도우 초과 방지
+      const selectedModel = model || providerModule.buildMessages.defaultModel;
+      const { trimmedHistory, trimmedCount, totalEstimatedTokens } = trimHistoryByTokens(
+        history,
+        provider,
+        selectedModel,
+      );
+
       if (process.env.NODE_ENV !== 'production') {
-        const filesInHistory = history.filter((m) => {
+        const filesInHistory = trimmedHistory.filter((m) => {
           try {
             const f = JSON.parse(m.files);
             return f.length > 0;
@@ -167,7 +176,7 @@ router.post(
           }
         });
         console.log(
-          `[chat] 히스토리 ${history.length}개 메시지, 파일 포함 ${filesInHistory.length}개`,
+          `[chat] 히스토리 ${history.length}개 중 ${trimmedHistory.length}개 사용 (${trimmedCount}개 트리밍), 추정 ${totalEstimatedTokens} 토큰, 파일 포함 ${filesInHistory.length}개`,
         );
       }
 
@@ -181,13 +190,26 @@ router.post(
       // conversationId를 클라이언트에 전달 (새 대화 생성 시 필요)
       res.write(`data: ${JSON.stringify({ type: 'conversationId', conversationId: convId })}\n\n`);
 
+      // 트리밍된 경우 클라이언트에 경고 전송
+      if (trimmedCount > 0) {
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'context_trimmed',
+            trimmedCount,
+            totalMessages: history.length,
+            usedMessages: trimmedHistory.length,
+            estimatedTokens: totalEstimatedTokens,
+          })}\n\n`,
+        );
+      }
+
       // 9. 프로바이더별 메시지 빌드 및 스트리밍 처리
       // 교사/관리자는 시스템 프롬프트 없이 자유롭게 사용
       const systemPrompt =
         req.user.role === 'teacher' || req.user.role === 'admin' || req.user.chat_mode === 'project'
           ? ''
           : (await getSetting('system_prompt')) || '';
-      const providerMessages = providerModule.buildMessages(history);
+      const providerMessages = providerModule.buildMessages(trimmedHistory);
 
       // 프로바이더별 기능 플래그 확인
       const providerFeatures = PROVIDERS[provider]?.features || {};
