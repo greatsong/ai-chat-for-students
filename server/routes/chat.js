@@ -7,6 +7,7 @@ import crypto from 'crypto';
 import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
 import { trimHistoryByTokens } from '../utils/tokenEstimator.js';
+import { summarizeMessages } from '../utils/summarizer.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
@@ -160,11 +161,18 @@ router.post(
 
       // 토큰 기반 히스토리 트리밍 — 컨텍스트 윈도우 초과 방지
       const selectedModel = model || providerModule.buildMessages.defaultModel;
-      const { trimmedHistory, trimmedCount, totalEstimatedTokens } = trimHistoryByTokens(
-        history,
-        provider,
-        selectedModel,
-      );
+      const { trimmedHistory, trimmedCount, totalEstimatedTokens, droppedMessages } =
+        trimHistoryByTokens(history, provider, selectedModel);
+
+      // 트리밍된 메시지를 AI로 요약 (맥락 유지)
+      let conversationSummary = null;
+      if (droppedMessages.length > 0) {
+        try {
+          conversationSummary = await summarizeMessages(droppedMessages, provider);
+        } catch (err) {
+          console.warn(`[chat] 요약 생성 실패, 기존 방식으로 진행: ${err.message}`);
+        }
+      }
 
       if (process.env.NODE_ENV !== 'production') {
         const filesInHistory = trimmedHistory.filter((m) => {
@@ -176,7 +184,7 @@ router.post(
           }
         });
         console.log(
-          `[chat] 히스토리 ${history.length}개 중 ${trimmedHistory.length}개 사용 (${trimmedCount}개 트리밍), 추정 ${totalEstimatedTokens} 토큰, 파일 포함 ${filesInHistory.length}개`,
+          `[chat] 히스토리 ${history.length}개 중 ${trimmedHistory.length}개 사용 (${trimmedCount}개 트리밍), 추정 ${totalEstimatedTokens} 토큰, 파일 포함 ${filesInHistory.length}개${conversationSummary ? ', 요약 생성됨' : ''}`,
         );
       }
 
@@ -199,16 +207,24 @@ router.post(
             totalMessages: history.length,
             usedMessages: trimmedHistory.length,
             estimatedTokens: totalEstimatedTokens,
+            hasSummary: !!conversationSummary,
           })}\n\n`,
         );
       }
 
       // 9. 프로바이더별 메시지 빌드 및 스트리밍 처리
       // 교사/관리자는 시스템 프롬프트 없이 자유롭게 사용
-      const systemPrompt =
+      let systemPrompt =
         req.user.role === 'teacher' || req.user.role === 'admin' || req.user.chat_mode === 'project'
           ? ''
           : (await getSetting('system_prompt')) || '';
+
+      // 대화 요약이 있으면 시스템 프롬프트에 삽입
+      if (conversationSummary) {
+        const summaryBlock = `[이전 대화 요약]\n${conversationSummary}\n\n위 내용은 이전 대화를 요약한 것입니다. 이 맥락을 참고하여 현재 대화를 이어가세요.`;
+        systemPrompt = systemPrompt ? `${systemPrompt}\n\n${summaryBlock}` : summaryBlock;
+      }
+
       const providerMessages = providerModule.buildMessages(trimmedHistory);
 
       // 프로바이더별 기능 플래그 확인

@@ -46,8 +46,8 @@ const CONTEXT_LIMITS = {
 // 출력용 예약 토큰 (max_tokens와 별개로, 입력 한도 계산 시 차감)
 const OUTPUT_RESERVE = 16_384;
 
-// 시스템 프롬프트 여유분
-const SYSTEM_PROMPT_RESERVE = 2_000;
+// 시스템 프롬프트 + 대화 요약 여유분
+const SYSTEM_PROMPT_RESERVE = 3_000;
 
 /**
  * 텍스트의 토큰 수를 추정
@@ -165,10 +165,12 @@ export function trimHistoryByTokens(history, provider, model) {
   }
 
   let trimmedHistory = history.slice(includeFrom);
+  const droppedMessages = history.slice(0, includeFrom);
 
   // 트리밍 후 첫 메시지가 assistant이면 제거 (Gemini 등에서 에러 방지)
   // AI API는 대화가 user 메시지로 시작해야 함
   while (trimmedHistory.length > 1 && trimmedHistory[0].role === 'assistant') {
+    droppedMessages.push(trimmedHistory[0]);
     trimmedHistory = trimmedHistory.slice(1);
   }
 
@@ -178,5 +180,6 @@ export function trimHistoryByTokens(history, provider, model) {
     trimmedHistory,
     trimmedCount,
     totalEstimatedTokens: totalTokens,
+    droppedMessages,
   };
 }
