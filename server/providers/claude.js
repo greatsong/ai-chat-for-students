@@ -81,12 +81,16 @@ export function buildMessages(history) {
         );
         const contentBlocks = filesToContentBlocks(files);
         console.log(`[claude.buildMessages] 콘텐츠 블록 ${contentBlocks.length}개 생성`);
-        contentBlocks.push({ type: 'text', text: msg.content || '' });
+        // 빈 텍스트 블록은 Claude API가 거부하므로, 내용이 있을 때만 추가
+        if (msg.content && msg.content.trim()) {
+          contentBlocks.push({ type: 'text', text: msg.content });
+        }
         return { role: 'user', content: contentBlocks };
       }
     }
 
-    return { role: msg.role, content: msg.content || '' };
+    // 빈 content는 Claude API가 거부하므로 기본값 제공
+    return { role: msg.role, content: msg.content || ' ' };
   });
 }
 

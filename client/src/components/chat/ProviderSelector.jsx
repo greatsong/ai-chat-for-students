@@ -28,7 +28,7 @@ const PROVIDERS = {
       { id: 'gpt-5.4', name: 'GPT-5.4', tier: 'standard' },
       { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', tier: 'advanced' },
     ],
-    features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: true },
+    features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: false },
   },
   solar: {
     name: 'Solar',
