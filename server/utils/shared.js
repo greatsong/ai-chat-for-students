@@ -5,7 +5,7 @@ export const PROVIDERS = {
     company: 'Anthropic',
     models: [
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'standard' },
-      { id: 'claude-opus-4-6', name: 'Claude Opus 4.6', tier: 'advanced' },
+      { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: false },
   },
