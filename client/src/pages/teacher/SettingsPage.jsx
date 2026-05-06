@@ -31,7 +31,7 @@ const PROVIDERS = [
     name: 'ChatGPT',
     company: 'OpenAI',
     placeholder: 'sk-proj-...',
-    defaultModels: ['gpt-5.4', 'gpt-5.4-pro'],
+    defaultModels: ['gpt-5.5', 'gpt-5.5-pro'],
     color: 'green',
     modelsUrl: 'https://platform.openai.com/docs/models',
   },

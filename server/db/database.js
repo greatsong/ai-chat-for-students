@@ -149,7 +149,7 @@ export async function initDatabase() {
     enabled_models: {
       claude: ['claude-sonnet-4-6', 'claude-opus-4-7'],
       gemini: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'],
-      openai: ['gpt-5.4', 'gpt-5.4-pro'],
+      openai: ['gpt-5.5', 'gpt-5.5-pro'],
       solar: ['solar-pro3'],
     },
     image_generation_enabled: false,
@@ -201,6 +201,37 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('enabled_models 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-05): GPT-5.5 / GPT-5.5 Pro 활성화
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      const newModels = { openai: ['gpt-5.5', 'gpt-5.5-pro'] };
+      let changed = false;
+      for (const [provider, modelIds] of Object.entries(newModels)) {
+        if (!models[provider]) models[provider] = [];
+        for (const modelId of modelIds) {
+          if (!models[provider].includes(modelId)) {
+            models[provider].push(modelId);
+            changed = true;
+          }
+        }
+      }
+      if (changed) {
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: GPT-5.5 / GPT-5.5 Pro 활성화 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('GPT-5.5 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

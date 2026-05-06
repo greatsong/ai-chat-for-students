@@ -11,7 +11,7 @@
 // 프로바이더·모델별 컨텍스트 윈도우 (토큰)
 // 출처:
 //   Claude — https://platform.claude.com/docs/en/about-claude/models/overview
-//   OpenAI — https://developers.openai.com/api/docs/models/gpt-5.4, https://openai.com/index/gpt-4-1/
+//   OpenAI — https://developers.openai.com/api/docs/models/gpt-5.5, https://openai.com/index/gpt-4-1/
 //   Gemini — https://ai.google.dev/gemini-api/docs/long-context, https://thinkpeak.ai/gemini-3-context-window-size-1-2m-tokens/
 //   Solar  — https://developer.puter.com/ai/upstage/solar-pro-3/
 const CONTEXT_LIMITS = {
@@ -23,7 +23,9 @@ const CONTEXT_LIMITS = {
   },
   openai: {
     default: 128_000,
-    'gpt-5.4': 272_000, // 기본 272K (1M은 명시적 설정 필요)
+    'gpt-5.5': 1_000_000, // 2026-04 출시: 1M context window
+    'gpt-5.5-pro': 1_000_000,
+    'gpt-5.4': 272_000, // legacy: 기본 272K (1M은 명시적 설정 필요)
     'gpt-4.1': 1_000_000,
     'gpt-4.1-mini': 1_000_000,
     'gpt-4o': 128_000,

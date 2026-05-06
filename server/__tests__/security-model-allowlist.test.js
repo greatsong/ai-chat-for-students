@@ -29,7 +29,7 @@ describe('모델 허용목록 검증', () => {
   const enabledModels = {
     claude: ['claude-sonnet-4-6'],
     gemini: ['gemini-3-flash-preview'],
-    openai: ['gpt-5.4'],
+    openai: ['gpt-5.5'],
     solar: ['solar-pro'],
   };
 

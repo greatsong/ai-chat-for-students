@@ -25,8 +25,8 @@ const PROVIDERS = {
     name: 'ChatGPT',
     company: 'OpenAI',
     models: [
-      { id: 'gpt-5.4', name: 'GPT-5.4', tier: 'standard' },
-      { id: 'gpt-5.4-pro', name: 'GPT-5.4 Pro', tier: 'advanced' },
+      { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'standard' },
+      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: false },
   },

@@ -94,7 +94,7 @@ export async function streamChat({
     allMessages.push(...messages);
 
     const createParams = {
-      model: model || 'gpt-5.4',
+      model: model || 'gpt-5.5',
       messages: allMessages,
       max_completion_tokens: 16384,
       stream: true,
@@ -142,7 +142,7 @@ export async function streamChat({
  * OpenAI 이미지 생성
  * @param {Object} params
  * @param {string} params.prompt - 이미지 생성 프롬프트
- * @param {string} params.model - 모델 ID (기본: gpt-image-1.5)
+ * @param {string} params.model - 모델 ID (기본: gpt-image-2)
  * @param {string} params.size - 이미지 크기 (기본: 1024x1024)
  * @returns {{ imageData: string, mimeType: string }}
  */
@@ -151,7 +151,7 @@ export async function generateImage({ prompt, model, size }) {
 
   const result = await withRetry(() =>
     openai.images.generate({
-      model: model || 'gpt-image-1.5',
+      model: model || 'gpt-image-2',
       prompt,
       n: 1,
       size: size || '1024x1024',
