@@ -80,10 +80,10 @@ const globalLimiter = rateLimit({
 });
 app.use('/api/', globalLimiter);
 
-// 인증 엔드포인트 Rate Limiting (분당 10회 — 브루트포스 방지)
+// 인증 엔드포인트 Rate Limiting — 학교 NAT 환경(동일 IP에서 다수 학생 로그인)을 고려해 분당 100회 허용
 const authLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 10,
+  max: 100,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
