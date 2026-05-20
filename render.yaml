@@ -1,12 +1,49 @@
+# Render Blueprint — Railway 대체 백엔드 호스팅
+#
+# 사용법:
+#   1) Render 대시보드 → New → Blueprint
+#   2) 이 리포지토리 연결 → render.yaml 자동 감지
+#   3) sync: false 환경변수는 Dashboard에서 직접 입력 (기존 Railway 값 그대로 복사)
+#   4) Deploy
+#
+# 배포 후 할 일:
+#   - 서비스 URL 확인: https://ai-chat-for-students-api.onrender.com
+#   - client/vercel.json의 destination을 위 URL로 변경
+#   - Vercel에서 프론트엔드 재배포
+
 services:
   - type: web
     name: ai-chat-for-students-api
     runtime: node
-    plan: free
-    buildCommand: cd server && npm install
-    startCommand: cd server && node index.js
+    region: singapore # EU West 대비 한국에서 약 1/4 지연
+    plan: starter # $7/월. free는 15분 idle 후 sleep — 수업용 부적합.
+    branch: master
+    buildCommand: npm install --include-workspace-root --workspace=server
+    startCommand: node server/index.js
+    healthCheckPath: /api/health
+    autoDeploy: true # master push 시 자동 배포
     envVars:
+      - key: NODE_ENV
+        value: production
+      - key: REQUEST_TIMEOUT_MS
+        value: "120000" # AI 응답 대비 2분
+      # --- 시크릿 (Dashboard에서 직접 입력) ---
+      # 기존 Railway 값과 동일하게 입력해야 사용자 세션 + DB 복호화가 유지됨.
+      - key: CLIENT_URL
+        sync: false # 예: https://danggok-ai.vercel.app
+      - key: JWT_SECRET
+        sync: false # ⚠ Railway에서 그대로 복사. 변경 시 전체 로그아웃됨.
+      - key: ENCRYPTION_KEY
+        sync: false # ⚠ Railway에서 그대로 복사. 변경 시 저장된 API키 복호화 실패.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: ADMIN_EMAILS
+        sync: false
       - key: TEACHER_EMAILS
+        sync: false
+      - key: TURSO_DATABASE_URL
+        sync: false
+      - key: TURSO_AUTH_TOKEN
         sync: false
       - key: ANTHROPIC_API_KEY
         sync: false
@@ -16,11 +53,3 @@ services:
         sync: false
       - key: UPSTAGE_API_KEY
         sync: false
-      - key: GOOGLE_CLIENT_ID
-        sync: false
-      - key: JWT_SECRET
-        generateValue: true
-      - key: CLIENT_URL
-        sync: false
-      - key: NODE_ENV
-        value: production
