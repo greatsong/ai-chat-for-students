@@ -28,7 +28,7 @@ function validateModel(model, provider, enabledModels) {
 describe('모델 허용목록 검증', () => {
   const enabledModels = {
     claude: ['claude-sonnet-4-6'],
-    gemini: ['gemini-3-flash-preview'],
+    gemini: ['gemini-3.5-flash'],
     openai: ['gpt-5.5'],
     solar: ['solar-pro'],
   };
@@ -39,8 +39,8 @@ describe('모델 허용목록 검증', () => {
       expect(result.allowed).toBe(true);
     });
 
-    it('gemini: gemini-3-flash-preview', () => {
-      const result = validateModel('gemini-3-flash-preview', 'gemini', enabledModels);
+    it('gemini: gemini-3.5-flash', () => {
+      const result = validateModel('gemini-3.5-flash', 'gemini', enabledModels);
       expect(result.allowed).toBe(true);
     });
   });

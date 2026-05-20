@@ -148,7 +148,7 @@ export async function initDatabase() {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
       claude: ['claude-sonnet-4-6', 'claude-opus-4-7'],
-      gemini: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'],
+      gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5', 'gpt-5.5-pro'],
       solar: ['solar-pro3'],
     },

@@ -20,7 +20,7 @@ const PROVIDERS = [
     name: 'Gemini',
     company: 'Google',
     placeholder: 'AIzaSy...',
-    defaultModels: ['gemini-3-flash-preview', 'gemini-3.1-pro-preview'],
+    defaultModels: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
     defaultImageModels: ['gemini-3.1-flash-image-preview'],
     color: 'blue',
     modelsUrl: 'https://ai.google.dev/gemini-api/docs/models',
