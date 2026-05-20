@@ -69,10 +69,10 @@ app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// 전역 Rate Limiting (분당 500회 — 100명 동시 접속 지원)
+// 전역 Rate Limiting — 학교 NAT 환경(동일 IP에서 100명 동시 접속)을 고려해 분당 3000회 허용
 const globalLimiter = rateLimit({
   windowMs: 60 * 1000,
-  max: 500,
+  max: 3000,
   standardHeaders: true,
   legacyHeaders: false,
   validate: false,
