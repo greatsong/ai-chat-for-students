@@ -94,7 +94,7 @@ export async function streamChat({
     }
 
     const modelConfig = {
-      model: model || 'gemini-3-flash-preview',
+      model: model || 'gemini-3.5-flash',
     };
 
     if (systemPrompt) {
