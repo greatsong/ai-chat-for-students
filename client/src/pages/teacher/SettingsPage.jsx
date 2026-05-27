@@ -87,6 +87,10 @@ export default function SettingsPage() {
   const [sttEnabled, setSttEnabled] = useState(false);
   const [ttsDefaultVoice, setTtsDefaultVoice] = useState('nova');
   const [ttsDefaultModel, setTtsDefaultModel] = useState('tts-1');
+  // 코드 실행 도구 (kill switch + DB 토글 + role 게이트 중 DB 토글/role 부분)
+  const [codeExecClaude, setCodeExecClaude] = useState(false);
+  const [codeExecOpenai, setCodeExecOpenai] = useState(false);
+  const [codeExecMaxRole, setCodeExecMaxRole] = useState('teacher');
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
@@ -119,6 +123,9 @@ export default function SettingsPage() {
     setSttEnabled(settings.stt_enabled || false);
     setTtsDefaultVoice(settings.tts_default_voice || 'nova');
     setTtsDefaultModel(settings.tts_default_model || 'tts-1');
+    setCodeExecClaude(settings.code_execution_claude === true);
+    setCodeExecOpenai(settings.code_execution_openai === true);
+    setCodeExecMaxRole(settings.code_execution_max_role || 'teacher');
 
     // available_models: DB 저장값 + 기본값 병합
     const saved = settings.available_models || {};
@@ -277,6 +284,9 @@ export default function SettingsPage() {
         stt_enabled: sttEnabled,
         tts_default_voice: ttsDefaultVoice,
         tts_default_model: ttsDefaultModel,
+        code_execution_claude: codeExecClaude,
+        code_execution_openai: codeExecOpenai,
+        code_execution_max_role: codeExecMaxRole,
       });
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -610,6 +620,107 @@ export default function SettingsPage() {
 
             <div className="text-xs text-gray-400 bg-teal-50 px-3 py-2 rounded-lg">
               비용: 약 3~10원/회 (OpenAI API 키 필요)
+            </div>
+          </div>
+        </section>
+
+        {/* ── 코드 실행 도구 ── */}
+        <section className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">코드 실행 도구</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            Claude/ChatGPT가 샌드박스에서 Python을 직접 실행해 데이터를 분석합니다. 큰 CSV나 복잡한
+            계산도 가능해집니다. <strong>비용이 추가</strong>되니 처음에는 본인(교사) 계정으로
+            테스트 후 학생에게 확대하세요.
+          </p>
+
+          <div className="space-y-3">
+            {/* Claude 토글 */}
+            <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100">
+              <div>
+                <div className="text-sm font-medium text-gray-700">Claude</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  Opus 4.7 / Sonnet 4.6 — code_execution_20260120
+                </div>
+              </div>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={codeExecClaude}
+                  onChange={() => setCodeExecClaude(!codeExecClaude)}
+                  className="sr-only"
+                />
+                <div
+                  className={`w-10 h-5 rounded-full transition-colors ${codeExecClaude ? 'bg-orange-500' : 'bg-gray-300'}`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${codeExecClaude ? 'translate-x-5.5 ml-0.5' : 'translate-x-0.5'}`}
+                  />
+                </div>
+              </label>
+            </div>
+
+            {/* OpenAI 토글 */}
+            <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100">
+              <div>
+                <div className="text-sm font-medium text-gray-700">ChatGPT</div>
+                <div className="text-xs text-gray-400 mt-0.5">
+                  Responses API + code_interpreter (container auto, 4GB)
+                </div>
+              </div>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={codeExecOpenai}
+                  onChange={() => setCodeExecOpenai(!codeExecOpenai)}
+                  className="sr-only"
+                />
+                <div
+                  className={`w-10 h-5 rounded-full transition-colors ${codeExecOpenai ? 'bg-green-600' : 'bg-gray-300'}`}
+                >
+                  <div
+                    className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${codeExecOpenai ? 'translate-x-5.5 ml-0.5' : 'translate-x-0.5'}`}
+                  />
+                </div>
+              </label>
+            </div>
+
+            {/* 허용 범위 */}
+            <div className="pt-2">
+              <div className="text-sm font-medium text-gray-700 mb-2">허용 범위</div>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCodeExecMaxRole('teacher')}
+                  className={`flex-1 px-3 py-2 text-xs rounded-lg border transition ${
+                    codeExecMaxRole === 'teacher'
+                      ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  교사·관리자만 (기본)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCodeExecMaxRole('student')}
+                  className={`flex-1 px-3 py-2 text-xs rounded-lg border transition ${
+                    codeExecMaxRole === 'student'
+                      ? 'bg-blue-50 border-blue-300 text-blue-700 font-medium'
+                      : 'bg-white border-gray-200 text-gray-500 hover:border-gray-300'
+                  }`}
+                >
+                  학생까지 전체
+                </button>
+              </div>
+            </div>
+
+            <div className="text-xs text-amber-700 bg-amber-50 border border-amber-100 px-3 py-2 rounded-lg">
+              ⚠️ 비상 차단: Railway 환경변수에{' '}
+              <code className="bg-white px-1 rounded">CODE_EXECUTION_KILL_SWITCH=1</code> 추가 → 1분
+              내 모든 도구 즉시 비활성 (이 설정 무시). 학생 영향 최소화.
+            </div>
+            <div className="text-xs text-gray-400 bg-gray-50 px-3 py-2 rounded-lg">
+              ZDR 비호환: Claude 코드 실행 시 첨부 데이터가 Anthropic 샌드박스 컨테이너에 잠시
+              보관됩니다 (세션 종료 시 폐기, 학습에는 사용 안 됨).
             </div>
           </div>
         </section>
