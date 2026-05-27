@@ -95,6 +95,44 @@ export function buildMessages(history) {
 }
 
 /**
+ * 최종 메시지 content 블록에서 코드 실행 도구 사용/결과를 사람이 읽을 텍스트로 변환
+ *
+ * Claude의 code_execution 도구는 finalMessage.content에 다음 블록을 남긴다:
+ *   - server_tool_use (name: 'code_execution')   — 실행한 코드
+ *   - code_execution_tool_result                 — 결과(stdout/stderr/return_code)
+ *
+ * @param {Array} contentBlocks - finalMessage.content
+ * @returns {string} 마크다운 형식 텍스트 (실행 코드 + 결과)
+ */
+export function extractCodeExecutionOutput(contentBlocks) {
+  const parts = [];
+
+  for (const block of contentBlocks) {
+    if (block?.type === 'server_tool_use' && block.name === 'code_execution') {
+      const code = block.input?.code || '';
+      if (code) {
+        parts.push(`\n\n**실행한 코드:**\n\`\`\`python\n${code}\n\`\`\``);
+      }
+    } else if (block?.type === 'code_execution_tool_result') {
+      const content = block.content;
+      if (content?.type === 'code_execution_result') {
+        const stdout = content.stdout || '';
+        const stderr = content.stderr || '';
+        const rc = content.return_code;
+        let body = stdout;
+        if (stderr) body += (body ? '\n' : '') + `[stderr] ${stderr}`;
+        if (!body) body = '(출력 없음)';
+        parts.push(`\n\n**실행 결과** (return code: ${rc}):\n\`\`\`\n${body}\n\`\`\``);
+      } else if (content?.type === 'code_execution_tool_result_error') {
+        parts.push(`\n\n**실행 오류:** ${content.error_code || 'unknown'}`);
+      }
+    }
+  }
+
+  return parts.join('');
+}
+
+/**
  * Claude 스트리밍 채팅
  * @param {Object} params
  * @param {Array} params.messages - Anthropic 포맷 메시지 배열
@@ -103,8 +141,17 @@ export function buildMessages(history) {
  * @param {Function} params.onText - 텍스트 청크 콜백
  * @param {Function} params.onDone - 완료 콜백 ({ fullContent, inputTokens, outputTokens })
  * @param {Function} params.onError - 에러 콜백
+ * @param {Object} [params.options] - { codeExecution: boolean }
  */
-export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError }) {
+export async function streamChat({
+  messages,
+  systemPrompt,
+  model,
+  onText,
+  onDone,
+  onError,
+  options = {},
+}) {
   try {
     // 디버그: 메시지 구조 확인 (base64 데이터는 길이만 표시)
     const debugMessages = messages.map((m) => {
@@ -144,6 +191,12 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
       streamParams.system = systemPrompt;
     }
 
+    // 코드 실행 도구 (선택) — Claude가 Python을 샌드박스에서 실행해 데이터 분석
+    if (options.codeExecution) {
+      streamParams.tools = [{ type: 'code_execution_20260120', name: 'code_execution' }];
+      console.log('[claude.streamChat] 코드 실행 도구 활성화');
+    }
+
     const client = await getClient();
     const stream = client.messages.stream(streamParams);
 
@@ -155,6 +208,14 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
     });
 
     stream.on('finalMessage', (message) => {
+      // 코드 실행 결과 블록은 text 이벤트로 안 옴 — 최종 메시지에서 직접 추출해 추가
+      if (options.codeExecution) {
+        const toolOutput = extractCodeExecutionOutput(message.content || []);
+        if (toolOutput) {
+          fullContent += toolOutput;
+          onText(toolOutput);
+        }
+      }
       const inputTokens = message.usage?.input_tokens || 0;
       const outputTokens = message.usage?.output_tokens || 0;
       onDone({ fullContent, inputTokens, outputTokens });
