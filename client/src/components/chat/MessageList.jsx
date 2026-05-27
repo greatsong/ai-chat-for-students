@@ -389,6 +389,14 @@ const MessageBubble = memo(
             <FileAttachments files={message.files} />
           </div>
 
+          {/* 부분 응답 후 끊겼을 때 보조 안내 (답변 내용은 보존됨) */}
+          {!isUser && message.errorNote && (
+            <div className="mt-1 px-2 py-1 text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md inline-flex items-center gap-1">
+              <span>⚠️</span>
+              <span>{message.errorNote}</span>
+            </div>
+          )}
+
           {/* 시간 + TTS 버튼 */}
           <div className={`flex items-center gap-2 mt-1 ${isUser ? 'flex-row-reverse' : ''}`}>
             {timeStr && <span className="text-xs text-gray-400">{timeStr}</span>}
@@ -405,6 +413,7 @@ const MessageBubble = memo(
       prevProps.message.id === nextProps.message.id &&
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.role === nextProps.message.role &&
+      prevProps.message.errorNote === nextProps.message.errorNote &&
       prevProps.ttsEnabled === nextProps.ttsEnabled &&
       prevProps.onSpeak === nextProps.onSpeak
     );

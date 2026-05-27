@@ -39,6 +39,7 @@ export default function ChatPage() {
   const setModel = useChatStore((s) => s.setModel);
   const loadConversations = useChatStore((s) => s.loadConversations);
   const contextTrimmed = useChatStore((s) => s.contextTrimmed);
+  const fileNotice = useChatStore((s) => s.fileNotice);
 
   const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
   const enabledModels = settings?.enabled_models || {};
@@ -272,6 +273,19 @@ export default function ChatPage() {
                     {contextTrimmed.hasSummary
                       ? `대화가 길어져 이전 ${contextTrimmed.trimmedCount}개 메시지를 요약하여 AI에게 전달합니다. 맥락이 유지됩니다.`
                       : `대화가 길어져 AI가 최근 ${contextTrimmed.usedMessages}개 메시지만 참조합니다 (전체 ${contextTrimmed.totalMessages}개 중 ${contextTrimmed.trimmedCount}개 생략). 새 대화를 시작하면 전체 컨텍스트를 활용할 수 있습니다.`}
+                  </span>
+                </div>
+              )}
+              {fileNotice?.kind === 'sampled' && fileNotice.files?.length > 0 && (
+                <div className="mx-4 mt-2 px-3 py-2 rounded-lg text-xs flex items-start gap-2 bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  <span className="text-base leading-none mt-0.5">📊</span>
+                  <span>
+                    데이터 파일 크기가 커서 일부만 발췌해 AI에게 전달했어요
+                    {fileNotice.files.length === 1
+                      ? ` (${fileNotice.files[0].name})`
+                      : ` (파일 ${fileNotice.files.length}개)`}
+                    . AI가 전체 데이터를 분석하려면, 받은 안내대로 코드를 복사해 본인 컴퓨터에서
+                    실행해 보세요.
                   </span>
                 </div>
               )}
