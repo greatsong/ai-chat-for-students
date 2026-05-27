@@ -64,6 +64,133 @@ export function buildMessages(history) {
 }
 
 /**
+ * Chat Completions 포맷 메시지를 Responses API input 포맷으로 변환
+ *   text       → input_text
+ *   image_url  → input_image (url 그대로)
+ *   string     → 그대로 (Responses API도 string 허용)
+ *
+ * @param {Array} messages - Chat Completions 메시지
+ * @returns {Array} Responses API input
+ */
+export function convertToResponsesInput(messages) {
+  return messages.map((m) => {
+    if (typeof m.content === 'string') {
+      return { role: m.role, content: m.content };
+    }
+    if (!Array.isArray(m.content)) {
+      return { role: m.role, content: '' };
+    }
+    const newContent = m.content.map((part) => {
+      if (part.type === 'text') {
+        return { type: 'input_text', text: part.text || '' };
+      }
+      if (part.type === 'image_url') {
+        return { type: 'input_image', image_url: part.image_url?.url, detail: 'auto' };
+      }
+      return part;
+    });
+    return { role: m.role, content: newContent };
+  });
+}
+
+/**
+ * Responses API 최종 응답의 output 배열에서 code_interpreter 호출/결과를 마크다운으로 추출
+ *
+ * Responses API output 아이템 예시:
+ *   { type: 'code_interpreter_call', code: 'print("hi")', outputs: [{ type: 'logs', logs: 'hi\n' }] }
+ *   { type: 'message', content: [{ type: 'output_text', text: '...' }] }
+ *
+ * @param {Array} outputItems - response.output
+ * @returns {string} 마크다운 (코드 펜스 + 실행 로그)
+ */
+export function extractCodeInterpreterOutput(outputItems) {
+  const parts = [];
+  for (const item of outputItems || []) {
+    if (item?.type !== 'code_interpreter_call') continue;
+
+    const code = item.code || '';
+    if (code) {
+      parts.push(`\n\n**실행한 코드:**\n\`\`\`python\n${code}\n\`\`\``);
+    }
+
+    for (const out of item.outputs || []) {
+      if (out?.type === 'logs') {
+        const logs = out.logs || '(출력 없음)';
+        parts.push(`\n\n**실행 결과:**\n\`\`\`\n${logs}\n\`\`\``);
+      } else if (out?.type === 'image') {
+        // 이미지 결과는 파일 ID로 옴 — 우선 안내만 표시
+        parts.push(`\n\n*(코드가 생성한 이미지: file_id=${out.file_id || 'unknown'})*`);
+      }
+    }
+  }
+  return parts.join('');
+}
+
+/**
+ * Responses API + code_interpreter 도구로 스트리밍
+ * (내부 함수 — streamChat에서 options.codeExecution=true일 때만 호출)
+ */
+async function streamWithCodeInterpreter({
+  openai,
+  messages,
+  systemPrompt,
+  model,
+  onText,
+  onDone,
+  onError,
+}) {
+  try {
+    console.log('[openai.streamChat] 코드 인터프리터 활성화 (Responses API)');
+    const input = convertToResponsesInput(messages);
+
+    const createParams = {
+      model: model || 'gpt-5.5',
+      input,
+      max_output_tokens: 16384,
+      stream: true,
+      tools: [{ type: 'code_interpreter', container: { type: 'auto' } }],
+    };
+    if (systemPrompt) createParams.instructions = systemPrompt;
+
+    const stream = await openai.responses.create(createParams);
+
+    let fullContent = '';
+    let inputTokens = 0;
+    let outputTokens = 0;
+
+    try {
+      for await (const event of stream) {
+        if (event.type === 'response.output_text.delta') {
+          const delta = event.delta || '';
+          if (delta) {
+            fullContent += delta;
+            onText(delta);
+          }
+        } else if (event.type === 'response.completed') {
+          const resp = event.response || {};
+          inputTokens = resp.usage?.input_tokens || 0;
+          outputTokens = resp.usage?.output_tokens || 0;
+          const toolOutput = extractCodeInterpreterOutput(resp.output || []);
+          if (toolOutput) {
+            fullContent += toolOutput;
+            onText(toolOutput);
+          }
+        } else if (event.type === 'response.failed' || event.type === 'response.error') {
+          throw new Error(event.response?.error?.message || 'OpenAI 응답 실패');
+        }
+      }
+    } catch (streamError) {
+      stream.controller?.abort?.();
+      throw streamError;
+    }
+
+    onDone({ fullContent, inputTokens, outputTokens });
+  } catch (error) {
+    onError(error);
+  }
+}
+
+/**
  * OpenAI 스트리밍 채팅
  * @param {Object} params
  * @param {Array} params.messages - OpenAI 포맷 메시지 배열
@@ -72,7 +199,7 @@ export function buildMessages(history) {
  * @param {Function} params.onText - 텍스트 청크 콜백
  * @param {Function} params.onDone - 완료 콜백
  * @param {Function} params.onError - 에러 콜백
- * @param {Object} params.options - { webSearch }
+ * @param {Object} params.options - { webSearch, codeExecution }
  */
 export async function streamChat({
   messages,
@@ -85,6 +212,19 @@ export async function streamChat({
 }) {
   try {
     const openai = await getClient();
+
+    // 코드 실행이 활성화된 경우 Responses API로 분기 (Chat Completions에 없음)
+    if (options.codeExecution) {
+      return await streamWithCodeInterpreter({
+        openai,
+        messages,
+        systemPrompt,
+        model,
+        onText,
+        onDone,
+        onError,
+      });
+    }
 
     // 시스템 프롬프트를 메시지 배열 앞에 추가
     const allMessages = [];
@@ -100,11 +240,6 @@ export async function streamChat({
       stream: true,
       stream_options: { include_usage: true },
     };
-
-    // 웹 검색: OpenAI Chat Completions API에서는 미지원 (Responses API 전용)
-    // if (options.webSearch) {
-    //   createParams.tools = [{ type: 'web_search_preview' }];
-    // }
 
     const stream = await openai.chat.completions.create(createParams);
 
