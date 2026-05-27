@@ -411,6 +411,12 @@ const MessageBubble = memo(
   },
 );
 
+const BOTTOM_THRESHOLD = 80;
+
+function isNearBottom(el) {
+  return el.scrollHeight - el.scrollTop - el.clientHeight < BOTTOM_THRESHOLD;
+}
+
 export default function MessageList({
   messages = [],
   isStreaming = false,
@@ -418,22 +424,50 @@ export default function MessageList({
   ttsEnabled = false,
   onSpeak,
 }) {
-  const bottomRef = useRef(null);
   const containerRef = useRef(null);
+  // 사용자가 직접 위로 스크롤했는지 추적 (ref로 두어 effect 재실행을 피함)
+  const autoScrollRef = useRef(true);
+  const [hasNewContent, setHasNewContent] = useState(false);
 
-  // 자동 스크롤
+  function handleScroll() {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const nearBottom = isNearBottom(el);
+    autoScrollRef.current = nearBottom;
+
+    if (nearBottom) {
+      setHasNewContent(false);
+    }
+  }
+
+  // 새 메시지/토큰 도착 시 — 사용자가 맨 아래 근처에 있을 때만 따라 내려감
   useEffect(() => {
-    if (bottomRef.current) {
-      bottomRef.current.scrollIntoView({ behavior: 'smooth' });
+    const el = containerRef.current;
+    if (!el) return;
+
+    if (autoScrollRef.current) {
+      el.scrollTop = el.scrollHeight;
+    } else {
+      setHasNewContent(true);
     }
   }, [messages, isStreaming, streamingContent]);
+
+  function jumpToBottom() {
+    const el = containerRef.current;
+    if (!el) return;
+
+    el.scrollTop = el.scrollHeight;
+    autoScrollRef.current = true;
+    setHasNewContent(false);
+  }
 
   if (messages.length === 0 && !isStreaming) {
     return null;
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto">
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
       <div className="max-w-3xl mx-auto py-4">
         {messages.map((msg, index) => (
           <MessageBubble
@@ -457,9 +491,28 @@ export default function MessageList({
 
         {/* 타이핑 인디케이터 */}
         {isStreaming && !streamingContent && <TypingIndicator />}
-
-        <div ref={bottomRef} />
       </div>
+
+      {hasNewContent && (
+        <div className="sticky bottom-4 flex justify-center pointer-events-none">
+          <button
+            type="button"
+            onClick={jumpToBottom}
+            className="pointer-events-auto flex items-center gap-1.5 px-4 py-2 bg-blue-600 hover:bg-blue-700 text-white text-sm font-medium rounded-full shadow-lg transition-colors animate-slide-in-right"
+          >
+            <svg
+              className="w-4 h-4"
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+              strokeWidth={2.5}
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" d="M19 14l-7 7m0 0l-7-7m7 7V3" />
+            </svg>
+            새 내용 보기
+          </button>
+        </div>
+      )}
     </div>
   );
 }
