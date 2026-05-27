@@ -144,7 +144,10 @@ router.post(
         return res.status(400).json({ error: '파일이 업로드되지 않았습니다.' });
       }
 
-      const { originalname, mimetype, size, path: filePath } = req.file;
+      // multer/busboy는 multipart 파일명을 latin1로 디코딩하므로 한글이 깨진다.
+      // UTF-8 바이트열로 다시 해석해 복원.
+      const originalname = Buffer.from(req.file.originalname, 'latin1').toString('utf8');
+      const { mimetype, size, path: filePath } = req.file;
       const fileType = getFileType(mimetype, originalname);
 
       let content = null;

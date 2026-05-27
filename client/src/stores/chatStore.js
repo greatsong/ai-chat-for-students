@@ -13,6 +13,7 @@ const useChatStore = create((set, get) => ({
   selectedProvider: 'claude',
   selectedModel: 'claude-sonnet-4-6',
   contextTrimmed: null, // { trimmedCount, totalMessages, usedMessages }
+  fileNotice: null, // { kind: 'sampled', files: [{name, originalChars}] }
 
   // Actions
 
@@ -112,6 +113,7 @@ const useChatStore = create((set, get) => ({
       messages: [...messages, userMessage, assistantMessage],
       isStreaming: true,
       contextTrimmed: null,
+      fileNotice: null,
     });
 
     try {
@@ -163,13 +165,32 @@ const useChatStore = create((set, get) => ({
               output_tokens: chunk.usage?.output || 0,
             };
             set({ messages: updated, isStreaming: false });
+          } else if (chunk.type === 'files_sampled') {
+            // 큰 텍스트 파일이 자동 샘플링됨 — 학생에게 친근한 안내 배너
+            set({
+              fileNotice: {
+                kind: 'sampled',
+                files: chunk.files || [],
+              },
+            });
           } else if (chunk.type === 'error') {
-            // 에러
+            // 에러 — AI가 이미 답변을 일부라도 흘려보냈으면 그 내용을 보존하고
+            // 보조 안내만 덧붙인다. 그래야 "읽긴 읽었는데 오류로 덮여 사라지는"
+            // 현상이 없어진다.
             const updated = [...currentMessages];
-            updated[lastIdx] = {
-              ...updated[lastIdx],
-              content: `오류: ${chunk.message}`,
-            };
+            const existing = updated[lastIdx]?.content || '';
+            if (existing.trim().length > 0) {
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                errorNote: '응답 도중 연결이 끊겨 일부가 누락됐을 수 있어요.',
+              };
+            } else {
+              updated[lastIdx] = {
+                ...updated[lastIdx],
+                content: '답변을 만드는 중에 잠깐 막혔어요. 같은 메시지를 한 번 더 보내볼까요? 🙏',
+                isFriendlyError: true,
+              };
+            }
             set({ messages: updated, isStreaming: false });
           }
         },
@@ -205,14 +226,34 @@ const useChatStore = create((set, get) => ({
     } catch (error) {
       console.error('메시지 전송 실패:', error);
 
-      // 에러 시 어시스턴트 메시지에 에러 표시
+      // 부분 응답이 와 있으면 보존하고, 비어있는 경우만 안내로 대체.
       const currentMessages = get().messages;
       const lastIdx = currentMessages.length - 1;
       const updated = [...currentMessages];
-      updated[lastIdx] = {
-        ...updated[lastIdx],
-        content: `오류: ${error.message}`,
-      };
+      const existing = updated[lastIdx]?.content || '';
+      const raw = error?.message || '';
+      // 한도 초과/인증 만료/페이로드 초과 등은 행동 유도가 필요하므로 원문 노출
+      const isActionable =
+        raw.includes('사용량') ||
+        raw.includes('인증') ||
+        raw.includes('한도') ||
+        raw.includes('413');
+
+      if (existing.trim().length > 0) {
+        // AI가 답변을 일부라도 흘려보냈으면 그 내용을 살리고 보조 안내만 덧붙임
+        updated[lastIdx] = {
+          ...updated[lastIdx],
+          errorNote: isActionable ? raw : '응답 도중 연결이 끊겨 일부가 누락됐을 수 있어요.',
+        };
+      } else {
+        updated[lastIdx] = {
+          ...updated[lastIdx],
+          content: isActionable
+            ? raw
+            : '답변을 만드는 중에 잠깐 막혔어요. 같은 메시지를 한 번 더 보내볼까요? 🙏',
+          isFriendlyError: !isActionable,
+        };
+      }
       set({ messages: updated, isStreaming: false });
     }
   },
