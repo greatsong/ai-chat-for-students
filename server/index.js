@@ -61,8 +61,10 @@ app.use((req, res, next) => {
   next();
 });
 
-// JSON 파싱 — 기본 5MB (채팅/일반 라우트용)
-app.use(express.json({ limit: '5mb' }));
+// JSON 파싱 — 채팅 파일 첨부(base64)가 원본 대비 33% 부풀어 5MB 기본값으론 부족했음.
+// 단일 파일 10MB 한도 × 다중 첨부 + 오버헤드를 고려해 20MB.
+// 인증되지 않은 라우트(/api/auth, /api/health)는 본문이 작으므로 limit만 클 뿐 실제 부하 없음.
+app.use(express.json({ limit: '20mb' }));
 
 // 헬스 체크 엔드포인트 (rate limiting 전에 선언 — 모니터링 제외)
 app.get('/api/health', (req, res) => {
@@ -101,8 +103,8 @@ const uploadLimiter = rateLimit({
   message: { error: '파일 업로드가 너무 많습니다. 잠시 후 다시 시도해주세요.' },
 });
 
-// 업로드/TTS/STT 라우트용 10MB body parser
-const largeBodyParser = express.json({ limit: '10mb' });
+// 업로드/TTS/STT 라우트용 추가 파서 — 전역(20MB)으로 충분하지만 명시성을 위해 유지
+const largeBodyParser = express.json({ limit: '20mb' });
 
 // 서버 시작 (async — DB 초기화 후)
 async function start() {
