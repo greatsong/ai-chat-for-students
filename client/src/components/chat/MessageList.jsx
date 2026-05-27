@@ -420,20 +420,42 @@ export default function MessageList({
 }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
+  // 사용자가 위로 스크롤하면 자동 스크롤을 일시 중단. 다시 바닥 근처로 오면 재개.
+  const [autoScroll, setAutoScroll] = useState(true);
+  const messageCount = messages.length;
+  const prevMessageCountRef = useRef(messageCount);
 
-  // 자동 스크롤
+  // 스크롤 위치 감지 — 바닥에서 80px 이상 떨어지면 autoScroll 끔
+  const handleScroll = () => {
+    const el = containerRef.current;
+    if (!el) return;
+    const distanceFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+    const atBottom = distanceFromBottom < 80;
+    setAutoScroll(atBottom);
+  };
+
+  // 새 메시지가 추가되면 (사용자가 메시지를 보내면) 자동 스크롤 복귀
   useEffect(() => {
+    if (messageCount > prevMessageCountRef.current) {
+      setAutoScroll(true);
+    }
+    prevMessageCountRef.current = messageCount;
+  }, [messageCount]);
+
+  // 자동 스크롤 — autoScroll이 켜져 있을 때만
+  useEffect(() => {
+    if (!autoScroll) return;
     if (bottomRef.current) {
       bottomRef.current.scrollIntoView({ behavior: 'smooth' });
     }
-  }, [messages, isStreaming, streamingContent]);
+  }, [messages, isStreaming, streamingContent, autoScroll]);
 
   if (messages.length === 0 && !isStreaming) {
     return null;
   }
 
   return (
-    <div ref={containerRef} className="flex-1 overflow-y-auto">
+    <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
       <div className="max-w-3xl mx-auto py-4">
         {messages.map((msg, index) => (
           <MessageBubble
@@ -460,6 +482,28 @@ export default function MessageList({
 
         <div ref={bottomRef} />
       </div>
+
+      {/* 자동 스크롤 일시 중단 시 — 바닥으로 돌아가는 버튼 */}
+      {!autoScroll && (
+        <button
+          onClick={() => {
+            setAutoScroll(true);
+            bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
+          }}
+          className="sticky bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-1.5 px-3 py-1.5 bg-white border border-gray-300 rounded-full shadow-md text-xs text-gray-700 hover:bg-gray-50 transition-colors"
+          title="최신 응답으로 이동"
+        >
+          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M19 14l-7 7m0 0l-7-7m7 7V3"
+            />
+          </svg>
+          최신 응답 보기
+        </button>
+      )}
     </div>
   );
 }

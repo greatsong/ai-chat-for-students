@@ -164,11 +164,12 @@ const useChatStore = create((set, get) => ({
             };
             set({ messages: updated, isStreaming: false });
           } else if (chunk.type === 'error') {
-            // 에러
+            // 에러 — 학생이 당황하지 않게 친근한 안내로 표시
             const updated = [...currentMessages];
             updated[lastIdx] = {
               ...updated[lastIdx],
-              content: `오류: ${chunk.message}`,
+              content: '답변을 만드는 중에 잠깐 막혔어요. 같은 메시지를 한 번 더 보내볼까요? 🙏',
+              isFriendlyError: true,
             };
             set({ messages: updated, isStreaming: false });
           }
@@ -205,13 +206,19 @@ const useChatStore = create((set, get) => ({
     } catch (error) {
       console.error('메시지 전송 실패:', error);
 
-      // 에러 시 어시스턴트 메시지에 에러 표시
+      // 에러 시 학생이 당황하지 않게 친근한 안내로 표시
       const currentMessages = get().messages;
       const lastIdx = currentMessages.length - 1;
       const updated = [...currentMessages];
+      // 한도 초과/인증 만료 등 특정 메시지는 그대로 노출 (행동을 유도하는 안내)
+      const raw = error?.message || '';
+      const isQuotaOrAuth = raw.includes('사용량') || raw.includes('인증') || raw.includes('한도');
       updated[lastIdx] = {
         ...updated[lastIdx],
-        content: `오류: ${error.message}`,
+        content: isQuotaOrAuth
+          ? raw
+          : '답변을 만드는 중에 잠깐 막혔어요. 같은 메시지를 한 번 더 보내볼까요? 🙏',
+        isFriendlyError: !isQuotaOrAuth,
       };
       set({ messages: updated, isStreaming: false });
     }
