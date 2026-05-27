@@ -8,6 +8,7 @@ import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
 import { trimHistoryByTokens } from '../utils/tokenEstimator.js';
 import { summarizeMessages } from '../utils/summarizer.js';
+import { sampleLargeTextFiles, buildSamplingNotice } from '../utils/largeFileSampler.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
@@ -137,13 +138,23 @@ router.post(
       }
 
       // 6. 사용자 메시지 저장 (enrichedMessage에 URL 내용 포함)
+      // 큰 텍스트 파일은 컨텍스트 초과를 막기 위해 미리 샘플링 후 DB에 저장
+      const { files: storedFiles, sampledFiles: currentSampledFiles } = sampleLargeTextFiles(
+        files || [],
+      );
       const userMsgId = crypto.randomUUID();
-      const filesJson = JSON.stringify(files || []);
+      const filesJson = JSON.stringify(storedFiles);
       if (process.env.NODE_ENV !== 'production') {
         console.log(
           `[chat] 파일 ${files?.length || 0}개 수신:`,
           files?.map((f) => ({ name: f.name, type: f.type })),
         );
+        if (currentSampledFiles.length > 0) {
+          console.log(
+            `[chat] 큰 텍스트 파일 ${currentSampledFiles.length}개 자동 샘플링:`,
+            currentSampledFiles.map((f) => `${f.name} (원본 ${f.originalChars}자)`),
+          );
+        }
       }
       await run(
         'INSERT INTO messages (id, conversation_id, role, content, files, created_at) VALUES (?, ?, ?, ?, ?, ?)',
@@ -223,6 +234,18 @@ router.post(
       if (conversationSummary) {
         const summaryBlock = `[이전 대화 요약]\n${conversationSummary}\n\n위 내용은 이전 대화를 요약한 것입니다. 이 맥락을 참고하여 현재 대화를 이어가세요.`;
         systemPrompt = systemPrompt ? `${systemPrompt}\n\n${summaryBlock}` : summaryBlock;
+      }
+
+      // 큰 텍스트 파일이 샘플링된 경우 안내 추가 (코드로만 분석 가능함을 AI에게 알림)
+      const samplingNotice = buildSamplingNotice(currentSampledFiles);
+      if (samplingNotice) {
+        systemPrompt = systemPrompt ? `${systemPrompt}\n\n${samplingNotice}` : samplingNotice;
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'files_sampled',
+            files: currentSampledFiles,
+          })}\n\n`,
+        );
       }
 
       const providerMessages = providerModule.buildMessages(trimmedHistory);
