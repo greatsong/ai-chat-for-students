@@ -147,7 +147,7 @@ export async function initDatabase() {
   const defaultSettings = {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      claude: ['claude-sonnet-4-6', 'claude-opus-4-7'],
+      claude: ['claude-sonnet-4-6', 'claude-opus-4-8'],
       gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5', 'gpt-5.5-pro'],
       solar: ['solar-pro3'],
@@ -184,7 +184,7 @@ export async function initDatabase() {
     if (row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
       const additions = {
-        claude: 'claude-opus-4-7',
+        claude: 'claude-opus-4-8',
         gemini: 'gemini-3.1-pro-preview',
         openai: 'gpt-5.4-pro',
       };
