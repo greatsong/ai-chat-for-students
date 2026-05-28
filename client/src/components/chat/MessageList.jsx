@@ -466,7 +466,7 @@ export default function MessageList({
 
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
-      <div className="max-w-3xl mx-auto py-4">
+      <div className="max-w-5xl mx-auto py-4">
         {messages.map((msg, index) => (
           <MessageBubble
             key={msg.id || msg.temp_id || `msg-${index}`}
