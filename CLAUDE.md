@@ -40,23 +40,17 @@ npx vercel --prod --force   # 강제 재배포 (캐시 무시)
 - URL: https://danggok-ai.vercel.app
 - GitHub push 시 자동 배포되지만, 캐시로 인해 반영 안 될 수 있음 → `--force` 필수
 
-### Render (백엔드)
+### Railway (백엔드)
 
-GitHub push 시 자동 배포 (`autoDeploy: true`). 수동 명령 불필요.
+```bash
+cd server && railway up
+```
 
-- 서비스명: `ai-chat-for-students-api`
-- URL: https://ai-chat-for-students-api.onrender.com
-- Region: Singapore
-- 설정 파일: [render.yaml](render.yaml) (Blueprint)
-- 환경변수는 Render Dashboard에서 관리 (`sync: false` 항목들)
-- 로그/배포 상태: Render Dashboard → Logs / Events 탭
+- 프로젝트: `danggok-ai` / 서비스: `talented-compassion`
+- Frontend(`vercel.json`)가 `/api/*`를 Railway 도메인으로 rewrite
 
-#### Railway에서 이전한 배경
-
-2026-05 기준: Railway 전사 라우팅 장애 + 한국 일부 학교/회사망에서 Railway 도메인 SNI 차단
-
-- EU West region 배포로 인한 지연 문제로 Render(Singapore)로 이전.
-  JWT_SECRET / ENCRYPTION_KEY는 기존 값을 그대로 옮겨야 세션과 저장된 API 키 복호화가 유지됨.
+> Render는 사용하지 않음. 과거 Render Blueprint(`render.yaml`)는 제거됨.
+> Render 대시보드에 잔존하는 서비스가 있다면 일시정지/삭제해야 알림 메일이 멈춤.
 
 ## 코딩 컨벤션
 
