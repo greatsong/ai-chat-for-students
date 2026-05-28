@@ -9,6 +9,7 @@ import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
 import { trimHistoryByTokens } from '../utils/tokenEstimator.js';
 import { summarizeMessages } from '../utils/summarizer.js';
 import { sampleLargeTextFiles, buildSamplingNotice } from '../utils/largeFileSampler.js';
+import { isCodeExecutionEnabled } from '../utils/codeExecutionGate.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
@@ -256,8 +257,23 @@ router.post(
       if (web_search && providerFeatures.webSearch) {
         options.webSearch = true;
       }
-      if (code_execution && providerFeatures.codeExecution) {
-        options.codeExecution = true;
+
+      // 코드 실행 도구 — 3중 게이트(kill switch + DB 토글 + role) 통과 시 자동 활성화
+      // 클라이언트 code_execution=false 면 명시적 옵트아웃으로 존중
+      if (providerFeatures.codeExecution && code_execution !== false) {
+        try {
+          const ceEnabled = await isCodeExecutionEnabled(provider, req.user);
+          if (ceEnabled) {
+            options.codeExecution = true;
+            console.log(
+              `[chat] 코드 실행 활성화: provider=${provider}, role=${req.user.role}, userId=${userId}`,
+            );
+            res.write(`data: ${JSON.stringify({ type: 'code_execution_enabled', provider })}\n\n`);
+          }
+        } catch (gateErr) {
+          // 게이트 조회 실패 시 안전 기본값(비활성)으로 폴백
+          console.warn('[chat] 코드 실행 게이트 조회 실패, 비활성으로 폴백:', gateErr.message);
+        }
       }
 
       const result = await new Promise((resolve, reject) => {

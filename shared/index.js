@@ -7,7 +7,7 @@ export const PROVIDERS = {
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'standard' },
       { id: 'claude-opus-4-7', name: 'Claude Opus 4.7', tier: 'advanced' },
     ],
-    features: { vision: true, webSearch: false, codeExecution: false, imageGeneration: false },
+    features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: false },
   },
   gemini: {
     name: 'Gemini',
@@ -26,7 +26,7 @@ export const PROVIDERS = {
       { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'standard' },
       { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', tier: 'advanced' },
     ],
-    features: { vision: true, webSearch: true, codeExecution: false, imageGeneration: true },
+    features: { vision: true, webSearch: true, codeExecution: true, imageGeneration: true },
     imageModel: 'gpt-image-2',
   },
   solar: {

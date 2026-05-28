@@ -161,6 +161,11 @@ export async function initDatabase() {
       '당신은 당곡고등학교 학생들의 학습을 돕는 AI 도우미입니다. 오직 수업 및 학습과 관련된 내용에 대해서만 답변해주세요. 상담, 개인적인 고민, 학습과 무관한 잡담 등에는 정중히 거절하고 학습 관련 질문을 하도록 안내해주세요. 학생들이 스스로 생각하고 탐구할 수 있도록 도와주되, 답을 바로 알려주기보다는 사고 과정을 안내해주세요.',
     default_daily_limit: 100000,
     teacher_emails: [],
+    // 코드 실행 도구 — 모두 기본 OFF로 시작 (점진적 활성화)
+    code_execution_claude: false,
+    code_execution_openai: false,
+    // 'teacher' = 교사/관리자만 사용 가능 (기본), 'student' = 모든 사용자
+    code_execution_max_role: 'teacher',
   };
 
   for (const [key, value] of Object.entries(defaultSettings)) {
