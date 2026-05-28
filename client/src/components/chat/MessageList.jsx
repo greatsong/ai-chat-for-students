@@ -341,7 +341,7 @@ const MessageBubble = memo(
 
     return (
       <div
-        className={`flex items-start gap-3 px-4 py-3 ${isUser ? 'flex-row-reverse animate-slide-in-right' : 'animate-slide-in-left'}`}
+        className={`flex items-start gap-3 px-4 py-3 min-w-0 ${isUser ? 'flex-row-reverse animate-slide-in-right' : 'animate-slide-in-left'}`}
       >
         {/* 아바타 */}
         <div
@@ -354,12 +354,13 @@ const MessageBubble = memo(
           {isUser ? '나' : 'AI'}
         </div>
 
-        {/* 메시지 본문 */}
+        {/* 메시지 본문 — min-w-0이 flex 자식 콘텐츠 강제 확장을 막는 핵심.
+            긴 코드 라인이 max-w-[75%]를 무시하고 메시지를 화면 밖으로 밀어내는 문제 방지. */}
         <div
-          className={`max-w-[75%] min-w-0 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}
+          className={`max-w-[75%] min-w-0 flex-1 ${isUser ? 'items-end' : 'items-start'} flex flex-col`}
         >
           <div
-            className={`rounded-2xl px-4 py-2.5 text-sm ${
+            className={`min-w-0 max-w-full rounded-2xl px-4 py-2.5 text-sm ${
               isUser
                 ? 'bg-blue-600 text-white rounded-tr-sm'
                 : 'bg-gray-100 text-gray-800 rounded-tl-sm'
@@ -368,7 +369,7 @@ const MessageBubble = memo(
             {isUser ? (
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
             ) : (
-              <div className="prose prose-sm max-w-none break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0">
+              <div className="prose prose-sm max-w-full min-w-0 break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto">
                 <MemoizedMarkdown content={message.content} />
               </div>
             )}
