@@ -35,33 +35,46 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
 
     const imageUrl = `data:${result.mimeType};base64,${result.imageData}`;
 
-    // 5. 대화에 메시지 저장 (conversationId가 있는 경우)
-    if (conversationId) {
-      // 대화 소유권 확인
-      const conv = await queryOne('SELECT * FROM conversations WHERE id = ? AND user_id = ?', [
-        conversationId,
+    // 5. 대화에 메시지 저장 — 대화가 없으면 새로 생성 (텍스트 채팅과 동일하게 영속화)
+    const now = new Date().toISOString();
+    let convId = conversationId;
+
+    // 기존 대화면 소유권 확인 — 없거나 남의 것이면 새로 만든다
+    if (convId) {
+      const conv = await queryOne('SELECT id FROM conversations WHERE id = ? AND user_id = ?', [
+        convId,
         userId,
       ]);
-      if (conv) {
-        // 사용자 요청 메시지 저장
-        const now = new Date().toISOString();
-        const userMsgId = crypto.randomUUID();
-        await run(
-          'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
-          [userMsgId, conversationId, 'user', `[이미지 생성 요청] ${prompt}`, now],
-        );
-
-        // AI 응답 메시지 저장 (이미지 URL 포함)
-        const assistantMsgId = crypto.randomUUID();
-        await run(
-          'INSERT INTO messages (id, conversation_id, role, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-          [assistantMsgId, conversationId, 'assistant', '이미지가 생성되었습니다.', imageUrl, now],
-        );
-
-        // 대화 updated_at 업데이트
-        await run('UPDATE conversations SET updated_at = ? WHERE id = ?', [now, conversationId]);
-      }
+      if (!conv) convId = null;
     }
+
+    // 대화가 없으면 자동 생성 (빈 채팅에서 바로 이미지 생성한 경우 영속화)
+    if (!convId) {
+      convId = crypto.randomUUID();
+      const title = `🎨 ${prompt}`.slice(0, 50);
+      const defaultModels = { openai: 'gpt-5.5', gemini: 'gemini-3.5-flash' };
+      await run(
+        'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [convId, userId, title, provider, defaultModels[provider] || 'gpt-5.5', now, now],
+      );
+    }
+
+    // 사용자 요청 메시지 저장
+    const userMsgId = crypto.randomUUID();
+    await run(
+      'INSERT INTO messages (id, conversation_id, role, content, created_at) VALUES (?, ?, ?, ?, ?)',
+      [userMsgId, convId, 'user', `[이미지 생성 요청] ${prompt}`, now],
+    );
+
+    // AI 응답 메시지 저장 (이미지 URL 포함)
+    const assistantMsgId = crypto.randomUUID();
+    await run(
+      'INSERT INTO messages (id, conversation_id, role, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)',
+      [assistantMsgId, convId, 'assistant', '이미지가 생성되었습니다.', imageUrl, now],
+    );
+
+    // 대화 updated_at 업데이트
+    await run('UPDATE conversations SET updated_at = ? WHERE id = ?', [now, convId]);
 
     // 6. 일일 사용량 업데이트 (image_count)
     const today = new Date().toISOString().split('T')[0];
@@ -82,7 +95,7 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
       );
     }
 
-    res.json({ imageUrl });
+    res.json({ imageUrl, conversationId: convId });
   } catch (error) {
     console.error('이미지 생성 오류:', error);
 

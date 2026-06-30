@@ -276,7 +276,7 @@ const useChatStore = create((set, get) => ({
    * 이미지 생성 (교사 전용)
    */
   generateImage: async (prompt, provider = 'gemini') => {
-    const { currentConversation, messages } = get();
+    const { currentConversation, messages, selectedProvider, selectedModel } = get();
 
     // 사용자 요청 메시지 추가
     const userMessage = {
@@ -316,6 +316,18 @@ const useChatStore = create((set, get) => ({
         image_url: result.imageUrl,
       };
       set({ messages: updated, isStreaming: false });
+
+      // 빈 채팅에서 바로 생성한 경우, 서버가 새로 만든 대화를 채택 (새로고침해도 유지)
+      if (result.conversationId && !currentConversation) {
+        set({
+          currentConversation: {
+            id: result.conversationId,
+            provider: selectedProvider,
+            model: selectedModel,
+          },
+        });
+        get().loadConversations();
+      }
     } catch (error) {
       console.error('이미지 생성 실패:', error);
       const currentMessages = get().messages;
