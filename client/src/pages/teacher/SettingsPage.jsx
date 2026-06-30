@@ -32,6 +32,7 @@ const PROVIDERS = [
     company: 'OpenAI',
     placeholder: 'sk-proj-...',
     defaultModels: ['gpt-5.5', 'gpt-5.5-pro'],
+    defaultImageModels: ['gpt-image-2'],
     color: 'green',
     modelsUrl: 'https://platform.openai.com/docs/models',
   },
