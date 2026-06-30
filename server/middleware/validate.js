@@ -149,6 +149,7 @@ export const sttSchema = z.object({
 // 이미지 생성 요청
 export const imageGenerateSchema = z.object({
   prompt: z.string().min(1).max(10000),
+  provider: z.enum(['gemini', 'openai']).optional().default('gemini'),
   conversationId: z.string().uuid().optional().nullable(),
 });
 

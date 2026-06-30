@@ -3,14 +3,21 @@ import { authenticate } from '../middleware/auth.js';
 import { validate, imageGenerateSchema } from '../middleware/validate.js';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { generateImage as geminiGenerateImage } from '../providers/gemini.js';
+import { generateImage as openaiGenerateImage } from '../providers/openai.js';
 import crypto from 'crypto';
 
 const router = Router();
 
+// 이미지 생성을 지원하는 프로바이더별 함수 매핑
+const imageGenerators = {
+  gemini: geminiGenerateImage,
+  openai: openaiGenerateImage,
+};
+
 // POST /api/image/generate
 router.post('/generate', authenticate, validate(imageGenerateSchema), async (req, res) => {
   const { prompt, conversationId } = req.body;
-  const provider = 'gemini';
+  const provider = req.body.provider || 'gemini';
   const userId = req.user.id;
 
   try {
@@ -19,8 +26,12 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
       return res.status(403).json({ error: '이미지 생성은 교사/관리자만 사용할 수 있습니다.' });
     }
 
-    // 2. 이미지 생성 (Gemini만 지원)
-    const result = await geminiGenerateImage({ prompt });
+    // 2. 프로바이더별 이미지 생성 (Gemini / OpenAI)
+    const generateImage = imageGenerators[provider];
+    if (!generateImage) {
+      return res.status(400).json({ error: `${provider}는 이미지 생성을 지원하지 않습니다.` });
+    }
+    const result = await generateImage({ prompt });
 
     const imageUrl = `data:${result.mimeType};base64,${result.imageData}`;
 

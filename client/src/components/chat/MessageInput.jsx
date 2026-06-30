@@ -17,7 +17,7 @@ export default function MessageInput({
   const [isDragOver, setIsDragOver] = useState(false);
   const [showImageGen, setShowImageGen] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
-  const imageProvider = 'gemini';
+  const [imageProvider, setImageProvider] = useState('openai');
   const [isRecording, setIsRecording] = useState(false);
   const [isTranscribing, setIsTranscribing] = useState(false);
   const textareaRef = useRef(null);
@@ -299,7 +299,27 @@ export default function MessageInput({
       {showImageGen && isTeacher && (
         <div className="mb-3 p-3 bg-purple-50 border border-purple-200 rounded-xl">
           <div className="flex items-center gap-2 mb-2">
-            <span className="text-sm font-medium text-purple-800">🎨 이미지 생성 (Gemini)</span>
+            <span className="text-sm font-medium text-purple-800">🎨 이미지 생성</span>
+            {/* 모델 선택 (ChatGPT / Gemini) */}
+            <div className="flex items-center gap-1 ml-1">
+              {[
+                { id: 'openai', label: 'ChatGPT' },
+                { id: 'gemini', label: 'Gemini' },
+              ].map((p) => (
+                <button
+                  key={p.id}
+                  onClick={() => setImageProvider(p.id)}
+                  disabled={isStreaming}
+                  className={`px-2 py-0.5 text-xs rounded-md transition-colors disabled:opacity-50 ${
+                    imageProvider === p.id
+                      ? 'bg-purple-600 text-white'
+                      : 'bg-white text-purple-700 border border-purple-300 hover:bg-purple-100'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
+            </div>
             <button
               onClick={() => setShowImageGen(false)}
               className="ml-auto text-purple-400 hover:text-purple-600 text-xs"
