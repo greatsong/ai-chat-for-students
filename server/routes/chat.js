@@ -276,26 +276,56 @@ router.post(
         }
       }
 
+      // 스트리밍 idle 타임아웃 — provider가 onDone/onError를 끝내 호출하지 않거나
+      // 스트림이 멈춘 경우 무한 대기(freeze)를 방지한다. 코드 실행은 서버사이드
+      // 연산으로 텍스트 출력 사이 공백이 길 수 있어 더 넉넉한 한도를 적용한다.
+      const streamIdleMs = options.codeExecution
+        ? parseInt(process.env.STREAM_IDLE_TIMEOUT_CODE_MS, 10) || 300000
+        : parseInt(process.env.STREAM_IDLE_TIMEOUT_MS, 10) || 120000;
+
       const result = await new Promise((resolve, reject) => {
+        // settle-once 가드: onDone/onError/타임아웃 중 정확히 한 번만 종료되도록 보장
+        let settled = false;
+        let idleTimer;
+        const clearIdle = () => {
+          if (idleTimer) clearTimeout(idleTimer);
+        };
+        const resetIdle = () => {
+          clearIdle();
+          idleTimer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            reject(new Error('AI 응답이 지연되어 시간 초과되었습니다. 다시 시도해주세요.'));
+          }, streamIdleMs);
+        };
+        resetIdle();
+
         providerModule.streamChat({
           messages: providerMessages,
           systemPrompt,
           model,
           options,
           onText: (text) => {
+            resetIdle();
             res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
           },
-          onDone: (result) => {
+          onDone: (doneResult) => {
+            if (settled) return;
+            settled = true;
+            clearIdle();
             res.write(
               `data: ${JSON.stringify({
                 type: 'done',
-                usage: { input: result.inputTokens, output: result.outputTokens },
+                usage: { input: doneResult.inputTokens, output: doneResult.outputTokens },
               })}\n\n`,
             );
             res.end();
-            resolve(result);
+            resolve(doneResult);
           },
           onError: (error) => {
+            if (settled) return;
+            settled = true;
+            clearIdle();
             reject(error);
           },
         });
