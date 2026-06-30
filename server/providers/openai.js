@@ -279,7 +279,7 @@ export async function streamChat({
  * @param {string} params.prompt - 이미지 생성 프롬프트
  * @param {string} params.model - 모델 ID (기본: gpt-image-2)
  * @param {string} params.size - 이미지 크기 (기본: 1024x1024)
- * @param {string} params.quality - 렌더링 품질 (low|medium|high|auto, 기본: high)
+ * @param {string} params.quality - 렌더링 품질 (low|medium|high|auto, 기본: medium)
  * @returns {{ imageData: string, mimeType: string }}
  *
  * 주의: gpt-image 계열은 항상 base64(b64_json)로 반환하며 response_format 파라미터를
@@ -294,7 +294,7 @@ export async function generateImage({ prompt, model, size, quality }) {
       prompt,
       n: 1,
       size: size || '1024x1024',
-      quality: quality || 'high',
+      quality: quality || 'medium',
     }),
   );
 
