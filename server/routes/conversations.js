@@ -53,7 +53,7 @@ router.get('/:id', validate(uuidParamSchema, 'params'), async (req, res) => {
 
     // 메시지 조회
     const messages = await queryAll(
-      'SELECT id, role, content, files, input_tokens, output_tokens, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
+      'SELECT id, role, content, files, image_url, input_tokens, output_tokens, created_at FROM messages WHERE conversation_id = ? ORDER BY created_at ASC',
       [convId],
     );
 
