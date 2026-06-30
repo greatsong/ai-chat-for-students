@@ -295,6 +295,8 @@ export async function generateImage({ prompt, model, size, quality }) {
       n: 1,
       size: size || '1024x1024',
       quality: quality || 'medium',
+      // 교사 전용 기능 — 무난한 교육용 프롬프트의 오탐을 줄이되 완전 해제는 아님(여전히 필터링됨)
+      moderation: 'low',
     }),
   );
 
