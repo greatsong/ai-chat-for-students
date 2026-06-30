@@ -640,7 +640,7 @@ export default function SettingsPage() {
               <div>
                 <div className="text-sm font-medium text-gray-700">Claude</div>
                 <div className="text-xs text-gray-400 mt-0.5">
-                  Opus 4.7 / Sonnet 4.6 — code_execution_20260120
+                  Opus 4.8 / Sonnet 4.6 — code_execution_20260521
                 </div>
               </div>
               <label className="flex items-center cursor-pointer">

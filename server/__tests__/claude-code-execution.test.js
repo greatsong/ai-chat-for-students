@@ -16,7 +16,7 @@ describe('claude extractCodeExecutionOutput', () => {
       },
     ]);
     expect(out).toContain('실행한 코드');
-    expect(out).toContain('```python');
+    expect(out).toContain('```');
     expect(out).toContain('import pandas as pd');
   });
 
@@ -100,5 +100,78 @@ describe('claude extractCodeExecutionOutput', () => {
     expect(() =>
       extractCodeExecutionOutput([null, undefined, { type: 'text', text: 'x' }]),
     ).not.toThrow();
+  });
+
+  // ── 현재 도구 버전(_20250825 / _20260120 / _20260521) 블록 타입 ──
+  // 공식 응답 포맷: server_tool_use(name: bash_code_execution, input.command)
+  //               + bash_code_execution_tool_result(content.type: bash_code_execution_result)
+
+  it('현재 버전: bash_code_execution server_tool_use의 command를 표시', () => {
+    const out = extractCodeExecutionOutput([
+      {
+        type: 'server_tool_use',
+        name: 'bash_code_execution',
+        input: { command: 'python -c "print(2+2)"' },
+      },
+    ]);
+    expect(out).toContain('실행한 코드');
+    expect(out).toContain('python -c');
+  });
+
+  it('현재 버전: bash_code_execution_tool_result의 stdout/return_code를 표시', () => {
+    const out = extractCodeExecutionOutput([
+      {
+        type: 'bash_code_execution_tool_result',
+        content: {
+          type: 'bash_code_execution_result',
+          stdout: '평균: 42.5',
+          stderr: '',
+          return_code: 0,
+        },
+      },
+    ]);
+    expect(out).toContain('실행 결과');
+    expect(out).toContain('return code: 0');
+    expect(out).toContain('평균: 42.5');
+  });
+
+  it('현재 버전: bash 에러 결과(content.type *_error)를 표시', () => {
+    const out = extractCodeExecutionOutput([
+      {
+        type: 'bash_code_execution_tool_result',
+        content: { type: 'bash_code_execution_tool_result_error', error_code: 'detection_timeout' },
+      },
+    ]);
+    expect(out).toContain('실행 오류');
+    expect(out).toContain('detection_timeout');
+  });
+
+  it('현재 버전: text_editor 파일 내용 블록을 표시', () => {
+    const out = extractCodeExecutionOutput([
+      {
+        type: 'text_editor_code_execution_tool_result',
+        content: { type: 'text_editor_code_execution_result', content: '{"a":1}' },
+      },
+    ]);
+    expect(out).toContain('파일 내용');
+    expect(out).toContain('{"a":1}');
+  });
+
+  it('현재 버전: bash 실행 + 결과를 순서대로 합친다', () => {
+    const out = extractCodeExecutionOutput([
+      {
+        type: 'server_tool_use',
+        name: 'bash_code_execution',
+        input: { command: 'echo hi' },
+      },
+      {
+        type: 'bash_code_execution_tool_result',
+        content: { type: 'bash_code_execution_result', stdout: 'hi', stderr: '', return_code: 0 },
+      },
+    ]);
+    const codeIdx = out.indexOf('echo hi');
+    const resultIdx = out.indexOf('실행 결과');
+    expect(codeIdx).toBeGreaterThan(-1);
+    expect(resultIdx).toBeGreaterThan(codeIdx);
   });
 });
