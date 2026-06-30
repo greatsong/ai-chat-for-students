@@ -85,7 +85,21 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
     res.json({ imageUrl });
   } catch (error) {
     console.error('이미지 생성 오류:', error);
-    res.status(500).json({ error: error.message || '이미지 생성 중 오류가 발생했습니다.' });
+
+    // OpenAI 안전 시스템/콘텐츠 정책 거부 — 사용자 친화 메시지로 변환
+    const msg = error?.message || '';
+    const isModerationBlocked =
+      error?.status === 400 &&
+      (/safety system|moderation|content policy/i.test(msg) ||
+        error?.code === 'moderation_blocked');
+    if (isModerationBlocked) {
+      return res.status(400).json({
+        error:
+          '이미지 생성 요청이 AI 안전 정책에 의해 거부되었습니다. 프롬프트를 다르게 표현해서 다시 시도해 주세요.',
+      });
+    }
+
+    res.status(500).json({ error: msg || '이미지 생성 중 오류가 발생했습니다.' });
   }
 });
 
