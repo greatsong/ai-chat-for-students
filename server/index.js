@@ -20,6 +20,8 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4022;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:4021';
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 30000;
+// 이미지 생성(gpt-image-2 등)은 모델 추론에 수십 초~분 단위가 걸려 기본 30초로는 부족.
+const IMAGE_TIMEOUT_MS = parseInt(process.env.IMAGE_TIMEOUT_MS, 10) || 180000;
 
 // 보안 HTTP 헤더 (helmet + CSP)
 app.use(
@@ -50,10 +52,11 @@ app.use(
   }),
 );
 
-// 요청 타임아웃 미들웨어 (기본 30초)
+// 요청 타임아웃 미들웨어 (기본 30초, 이미지 생성은 180초)
 app.use((req, res, next) => {
-  req.setTimeout(REQUEST_TIMEOUT_MS);
-  res.setTimeout(REQUEST_TIMEOUT_MS, () => {
+  const timeoutMs = req.path.startsWith('/api/image') ? IMAGE_TIMEOUT_MS : REQUEST_TIMEOUT_MS;
+  req.setTimeout(timeoutMs);
+  res.setTimeout(timeoutMs, () => {
     if (!res.headersSent) {
       res.status(408).json({ error: '요청 시간이 초과되었습니다. 다시 시도해주세요.' });
     }
