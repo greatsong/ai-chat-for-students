@@ -94,12 +94,20 @@ export function buildMessages(history) {
   });
 }
 
+// 코드 실행 server_tool_use 블록 이름 (버전별)
+//   - 현재(_20250825+): bash_code_execution, text_editor_code_execution
+//   - 레거시(_20250522): code_execution
+const CODE_TOOL_NAMES = ['code_execution', 'bash_code_execution', 'text_editor_code_execution'];
+
 /**
  * 최종 메시지 content 블록에서 코드 실행 도구 사용/결과를 사람이 읽을 텍스트로 변환
  *
- * Claude의 code_execution 도구는 finalMessage.content에 다음 블록을 남긴다:
- *   - server_tool_use (name: 'code_execution')   — 실행한 코드
- *   - code_execution_tool_result                 — 결과(stdout/stderr/return_code)
+ * 도구 버전별로 결과 블록 타입이 다르므로 둘 다 처리한다:
+ *   - 현재(_20250825 이상, _20260120/_20260521 포함):
+ *       bash_code_execution_tool_result / text_editor_code_execution_tool_result
+ *       (content.type: bash_code_execution_result 등, stdout/stderr/return_code)
+ *   - 레거시(_20250522, Python 전용):
+ *       code_execution_tool_result (content.type: code_execution_result)
  *
  * @param {Array} contentBlocks - finalMessage.content
  * @returns {string} 마크다운 형식 텍스트 (실행 코드 + 결과)
@@ -108,24 +116,48 @@ export function extractCodeExecutionOutput(contentBlocks) {
   const parts = [];
 
   for (const block of contentBlocks) {
-    if (block?.type === 'server_tool_use' && block.name === 'code_execution') {
-      const code = block.input?.code || '';
+    const type = block?.type;
+
+    // 1) 실행한 코드/명령
+    if (type === 'server_tool_use' && CODE_TOOL_NAMES.includes(block.name)) {
+      const code = block.input?.code ?? block.input?.command ?? '';
       if (code) {
-        parts.push(`\n\n**실행한 코드:**\n\`\`\`python\n${code}\n\`\`\``);
+        parts.push(`\n\n**실행한 코드:**\n\`\`\`\n${code}\n\`\`\``);
       }
-    } else if (block?.type === 'code_execution_tool_result') {
+      continue;
+    }
+
+    // 2) 실행 결과 — bash(현재) + 레거시 둘 다
+    if (type === 'bash_code_execution_tool_result' || type === 'code_execution_tool_result') {
       const content = block.content;
-      if (content?.type === 'code_execution_result') {
-        const stdout = content.stdout || '';
-        const stderr = content.stderr || '';
-        const rc = content.return_code;
-        let body = stdout;
-        if (stderr) body += (body ? '\n' : '') + `[stderr] ${stderr}`;
-        if (!body) body = '(출력 없음)';
-        parts.push(`\n\n**실행 결과** (return code: ${rc}):\n\`\`\`\n${body}\n\`\`\``);
-      } else if (content?.type === 'code_execution_tool_result_error') {
-        parts.push(`\n\n**실행 오류:** ${content.error_code || 'unknown'}`);
+      // 에러 형태 (content.type이 *_error 이거나 error_code 보유)
+      if (content?.type?.endsWith('_error') || content?.error_code) {
+        parts.push(`\n\n**실행 오류:** ${content.error_code || content.type || 'unknown'}`);
+        continue;
       }
+      const stdout = content?.stdout || '';
+      const stderr = content?.stderr || '';
+      const rc = content?.return_code;
+      let body = stdout;
+      if (stderr) body += (body ? '\n' : '') + `[stderr] ${stderr}`;
+      if (!body) body = '(출력 없음)';
+      const rcText = rc !== undefined && rc !== null ? ` (return code: ${rc})` : '';
+      parts.push(`\n\n**실행 결과**${rcText}:\n\`\`\`\n${body}\n\`\`\``);
+      continue;
+    }
+
+    // 3) 파일 작업 결과 (현재 버전 text_editor)
+    if (type === 'text_editor_code_execution_tool_result') {
+      const content = block.content;
+      if (content?.type?.endsWith('_error') || content?.error_code) {
+        parts.push(`\n\n**파일 작업 오류:** ${content.error_code || 'unknown'}`);
+        continue;
+      }
+      const fileContent = content?.content;
+      if (typeof fileContent === 'string' && fileContent) {
+        parts.push(`\n\n**파일 내용:**\n\`\`\`\n${fileContent}\n\`\`\``);
+      }
+      continue;
     }
   }
 
@@ -191,9 +223,11 @@ export async function streamChat({
       streamParams.system = systemPrompt;
     }
 
-    // 코드 실행 도구 (선택) — Claude가 Python을 샌드박스에서 실행해 데이터 분석
+    // 코드 실행 도구 (선택) — Claude가 샌드박스에서 코드를 실행해 데이터 분석.
+    // _20260521: 최신 버전(_20260120과 동일 런타임 + 셀당 90초 제한을 모델에 노출).
+    // 결과는 bash_code_execution_tool_result 블록으로 옴 → extractCodeExecutionOutput 참고.
     if (options.codeExecution) {
-      streamParams.tools = [{ type: 'code_execution_20260120', name: 'code_execution' }];
+      streamParams.tools = [{ type: 'code_execution_20260521', name: 'code_execution' }];
       console.log('[claude.streamChat] 코드 실행 도구 활성화');
     }
 
