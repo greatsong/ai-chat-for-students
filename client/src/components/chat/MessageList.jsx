@@ -330,7 +330,7 @@ function TtsButton({ text, onSpeak }) {
 
 // 개별 메시지 컴포넌트 — React.memo로 불필요한 재렌더링 방지
 const MessageBubble = memo(
-  function MessageBubble({ message, ttsEnabled, onSpeak }) {
+  function MessageBubble({ message, imagePrompt = '', ttsEnabled, onSpeak }) {
     const isUser = message.role === 'user';
     const timeStr = message.created_at
       ? new Date(message.created_at).toLocaleTimeString('ko-KR', {
@@ -338,6 +338,33 @@ const MessageBubble = memo(
           minute: '2-digit',
         })
       : '';
+
+    // 생성된 이미지 클릭 → 다운로드 (파일명: 프롬프트(YYMMDD).png)
+    // data: URL을 새 탭으로 열면 브라우저가 보안상 차단해 빈 탭이 뜨므로 다운로드로 처리
+    const handleImageDownload = () => {
+      if (!message.image_url) return;
+      const raw = (imagePrompt || '')
+        .replace(/^\[이미지 생성 요청\]\s*/, '')
+        .replace(/^🎨\s*이미지 생성:\s*/, '')
+        .trim();
+      const d = message.created_at ? new Date(message.created_at) : new Date();
+      const yymmdd =
+        String(d.getFullYear()).slice(2) +
+        String(d.getMonth() + 1).padStart(2, '0') +
+        String(d.getDate()).padStart(2, '0');
+      // 파일명에 못 쓰는 문자 제거 + 길이 제한
+      const safe =
+        raw
+          .replace(/[\\/:*?"<>|\n\r]+/g, ' ')
+          .trim()
+          .slice(0, 50) || 'image';
+      const a = document.createElement('a');
+      a.href = message.image_url;
+      a.download = `${safe}(${yymmdd}).png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    };
 
     return (
       <div
@@ -374,8 +401,9 @@ const MessageBubble = memo(
                 <img
                   src={message.image_url}
                   alt="생성된 이미지"
+                  title="클릭하면 이미지를 저장합니다"
                   className="max-w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
-                  onClick={() => window.open(message.image_url, '_blank')}
+                  onClick={handleImageDownload}
                 />
                 {message.content && (
                   <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-gray-400">
@@ -418,6 +446,8 @@ const MessageBubble = memo(
       prevProps.message.content === nextProps.message.content &&
       prevProps.message.role === nextProps.message.role &&
       prevProps.message.errorNote === nextProps.message.errorNote &&
+      prevProps.message.image_url === nextProps.message.image_url &&
+      prevProps.imagePrompt === nextProps.imagePrompt &&
       prevProps.ttsEnabled === nextProps.ttsEnabled &&
       prevProps.onSpeak === nextProps.onSpeak
     );
@@ -470,14 +500,20 @@ export default function MessageList({
   return (
     <div ref={containerRef} onScroll={handleScroll} className="flex-1 overflow-y-auto relative">
       <div className="max-w-5xl mx-auto py-4">
-        {messages.map((msg, index) => (
-          <MessageBubble
-            key={msg.id || msg.temp_id || `msg-${index}`}
-            message={msg}
-            ttsEnabled={ttsEnabled}
-            onSpeak={onSpeak}
-          />
-        ))}
+        {messages.map((msg, index) => {
+          // 이미지 메시지는 직전 사용자 메시지에서 프롬프트를 가져와 파일명에 사용
+          const prev = index > 0 ? messages[index - 1] : null;
+          const imagePrompt = msg.image_url && prev?.role === 'user' ? prev.content : '';
+          return (
+            <MessageBubble
+              key={msg.id || msg.temp_id || `msg-${index}`}
+              message={msg}
+              imagePrompt={imagePrompt}
+              ttsEnabled={ttsEnabled}
+              onSpeak={onSpeak}
+            />
+          );
+        })}
 
         {/* 스트리밍 중인 응답 */}
         {isStreaming && streamingContent && (
