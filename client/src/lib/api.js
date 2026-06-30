@@ -175,10 +175,18 @@ function parseSSELines(raw, onChunk) {
  * @returns {Promise<string>} 전체 누적 텍스트
  */
 export async function apiStreamPost(path, body, onChunk, options = {}) {
-  const { timeoutMs = 120000, onError } = options;
+  // timeoutMs: 연결(헤더 수신)까지의 한도
+  // idleTimeoutMs: 스트리밍 중 새 청크 없이 견디는 한도(서버 자체가 멈춘 경우의 백스톱).
+  //   서버 측 idle 타임아웃(코드 실행 시 최대 5분)보다 넉넉히 길게 잡아 서버가 먼저
+  //   깔끔한 에러를 보내도록 한다.
+  const { timeoutMs = 120000, idleTimeoutMs = 360000, onError } = options;
 
   const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  let timeoutId = setTimeout(() => controller.abort(), timeoutMs);
+  const resetIdleTimeout = () => {
+    clearTimeout(timeoutId);
+    timeoutId = setTimeout(() => controller.abort(), idleTimeoutMs);
+  };
 
   let reader;
   try {
@@ -192,7 +200,8 @@ export async function apiStreamPost(path, body, onChunk, options = {}) {
       signal: controller.signal,
     });
 
-    clearTimeout(timeoutId);
+    // 연결 성공 — 이후에는 청크 단위 idle 타임아웃으로 전환(무한 대기 방지)
+    resetIdleTimeout();
 
     if (response.status === 401) {
       handleUnauthorized();
@@ -212,6 +221,7 @@ export async function apiStreamPost(path, body, onChunk, options = {}) {
     while (true) {
       const { done, value } = await reader.read();
       if (done) break;
+      resetIdleTimeout();
 
       buffer += decoder.decode(value, { stream: true });
 
@@ -230,6 +240,7 @@ export async function apiStreamPost(path, body, onChunk, options = {}) {
       fullText += parseSSELines(buffer, onChunk);
     }
 
+    clearTimeout(timeoutId);
     return fullText;
   } catch (error) {
     clearTimeout(timeoutId);
@@ -241,7 +252,12 @@ export async function apiStreamPost(path, body, onChunk, options = {}) {
         // 이미 닫힌 경우 무시
       }
     }
-    if (onError) onError(error);
-    throw error;
+    // idle 타임아웃 등으로 abort된 경우 사용자 친화적 메시지로 변환
+    const finalError =
+      error?.name === 'AbortError'
+        ? new Error('AI 응답이 지연되어 연결이 종료되었습니다. 다시 시도해주세요.')
+        : error;
+    if (onError) onError(finalError);
+    throw finalError;
   }
 }
