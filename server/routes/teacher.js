@@ -20,6 +20,7 @@ import {
 } from '../middleware/validate.js';
 import { auditLog } from '../utils/logger.js';
 import { clearKeyCache } from '../utils/apiKeys.js';
+import { SETTINGS_VALID_KEYS } from '../utils/settingsKeys.js';
 
 const router = Router();
 
@@ -604,19 +605,7 @@ router.put('/settings', requireAdmin, validate(settingsPutSchema), async (req, r
   try {
     const { key, value, settings } = req.body;
 
-    const validKeys = [
-      'enabled_providers',
-      'enabled_models',
-      'available_models',
-      'image_generation_enabled',
-      'image_models',
-      'system_prompt',
-      'default_daily_limit',
-      'tts_enabled',
-      'stt_enabled',
-      'tts_default_voice',
-      'tts_default_model',
-    ];
+    const validKeys = SETTINGS_VALID_KEYS;
 
     if (settings && typeof settings === 'object') {
       // 복수 설정 변경
