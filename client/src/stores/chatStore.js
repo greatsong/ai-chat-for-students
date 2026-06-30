@@ -312,7 +312,7 @@ const useChatStore = create((set, get) => ({
       const updated = [...currentMessages];
       updated[lastIdx] = {
         ...updated[lastIdx],
-        content: '이미지가 생성되었습니다.',
+        content: result.content || '이미지가 생성되었습니다.',
         image_url: result.imageUrl,
       };
       set({ messages: updated, isStreaming: false });

@@ -35,6 +35,13 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
 
     const imageUrl = `data:${result.mimeType};base64,${result.imageData}`;
 
+    // 어떤 모델로 생성했는지 가벼운 표기 (메시지에 저장 — 새로고침 후에도 유지)
+    const modelLabels = {
+      openai: 'ChatGPT · gpt-image-2',
+      gemini: 'Gemini · 이미지',
+    };
+    const assistantContent = `이미지가 생성되었습니다. · ${modelLabels[provider] || provider}`;
+
     // 5. 대화에 메시지 저장 — 대화가 없으면 새로 생성 (텍스트 채팅과 동일하게 영속화)
     const now = new Date().toISOString();
     let convId = conversationId;
@@ -70,7 +77,7 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
     const assistantMsgId = crypto.randomUUID();
     await run(
       'INSERT INTO messages (id, conversation_id, role, content, image_url, created_at) VALUES (?, ?, ?, ?, ?, ?)',
-      [assistantMsgId, convId, 'assistant', '이미지가 생성되었습니다.', imageUrl, now],
+      [assistantMsgId, convId, 'assistant', assistantContent, imageUrl, now],
     );
 
     // 대화 updated_at 업데이트
@@ -95,7 +102,7 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
       );
     }
 
-    res.json({ imageUrl, conversationId: convId });
+    res.json({ imageUrl, conversationId: convId, content: assistantContent });
   } catch (error) {
     console.error('이미지 생성 오류:', error);
 
