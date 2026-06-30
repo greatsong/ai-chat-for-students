@@ -368,21 +368,24 @@ const MessageBubble = memo(
           >
             {isUser ? (
               <p className="whitespace-pre-wrap break-words">{message.content}</p>
-            ) : (
-              <div className="prose prose-sm max-w-full min-w-0 break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto">
-                <MemoizedMarkdown content={message.content} />
-              </div>
-            )}
-
-            {/* 생성된 이미지 표시 */}
-            {message.image_url && (
-              <div className="mt-2">
+            ) : message.image_url ? (
+              /* 생성된 이미지 + 모델 표기 캡션 */
+              <>
                 <img
                   src={message.image_url}
                   alt="생성된 이미지"
                   className="max-w-full rounded-lg border border-gray-200 shadow-sm cursor-pointer hover:shadow-md transition-shadow"
                   onClick={() => window.open(message.image_url, '_blank')}
                 />
+                {message.content && (
+                  <p className="mt-1.5 whitespace-pre-wrap break-words text-xs text-gray-400">
+                    {message.content}
+                  </p>
+                )}
+              </>
+            ) : (
+              <div className="prose prose-sm max-w-full min-w-0 break-words [&>*:first-child]:mt-0 [&>*:last-child]:mb-0 [&_pre]:max-w-full [&_pre]:overflow-x-auto">
+                <MemoizedMarkdown content={message.content} />
               </div>
             )}
 
