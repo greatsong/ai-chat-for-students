@@ -147,7 +147,7 @@ export async function initDatabase() {
   const defaultSettings = {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      claude: ['claude-sonnet-4-6', 'claude-opus-4-8'],
+      claude: ['claude-sonnet-4-6', 'claude-sonnet-5', 'claude-opus-4-8'],
       gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
       solar: ['solar-pro3'],
@@ -264,6 +264,28 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('OpenAI pro 미노출 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-07): Claude Sonnet 5 활성화 (기존 4.6과 함께 선택 가능)
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (!models.claude) models.claude = [];
+      if (!models.claude.includes('claude-sonnet-5')) {
+        models.claude.push('claude-sonnet-5');
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: Claude Sonnet 5 활성화 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Sonnet 5 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

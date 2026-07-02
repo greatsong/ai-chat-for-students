@@ -10,7 +10,7 @@ const PROVIDERS = [
     name: 'Claude',
     company: 'Anthropic',
     placeholder: 'sk-ant-api03-...',
-    defaultModels: ['claude-sonnet-4-6', 'claude-opus-4-8'],
+    defaultModels: ['claude-sonnet-4-6', 'claude-sonnet-5', 'claude-opus-4-8'],
     color: 'orange',
     modelsUrl: 'https://docs.anthropic.com/en/docs/about-claude/models',
   },
