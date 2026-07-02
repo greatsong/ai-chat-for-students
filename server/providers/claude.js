@@ -219,6 +219,14 @@ export async function streamChat({
       messages,
     };
 
+    // Sonnet 5는 thinking 파라미터를 생략하면 adaptive thinking이 켜져
+    // 첫 토큰까지 지연이 커진다 → Vercel 120초 프록시에서 SSE 502 위험
+    // (gpt-5.5-pro 추론 모델과 동일한 실패 패턴). 다른 모델(4.6·Opus 4.8)처럼
+    // 빠른 스트리밍 응답을 보장하기 위해 thinking을 명시적으로 끈다.
+    if ((model || '').startsWith('claude-sonnet-5')) {
+      streamParams.thinking = { type: 'disabled' };
+    }
+
     if (systemPrompt) {
       streamParams.system = systemPrompt;
     }
