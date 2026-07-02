@@ -149,7 +149,7 @@ export async function initDatabase() {
     enabled_models: {
       claude: ['claude-sonnet-4-6', 'claude-opus-4-8'],
       gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
-      openai: ['gpt-5.5', 'gpt-5.5-pro'],
+      openai: ['gpt-5.5'],
       solar: ['solar-pro3'],
     },
     image_generation_enabled: false,
@@ -183,10 +183,10 @@ export async function initDatabase() {
     });
     if (row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
+      // 주의: openai 'pro' 추론 모델(gpt-5.4-pro 등)은 미노출 정책 — 추가하지 않는다.
       const additions = {
         claude: 'claude-opus-4-8',
         gemini: 'gemini-3.1-pro-preview',
-        openai: 'gpt-5.4-pro',
       };
       let changed = false;
       for (const [provider, modelId] of Object.entries(additions)) {
@@ -216,7 +216,7 @@ export async function initDatabase() {
     });
     if (row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
-      const newModels = { openai: ['gpt-5.5', 'gpt-5.5-pro'] };
+      const newModels = { openai: ['gpt-5.5'] };
       let changed = false;
       for (const [provider, modelIds] of Object.entries(newModels)) {
         if (!models[provider]) models[provider] = [];
@@ -237,6 +237,33 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('GPT-5.5 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-06): OpenAI 'pro' 추론 모델 미노출.
+  // gpt-5.5-pro / gpt-5.4-pro는 첫 토큰까지 ~3분간 무출력이라 SSE 연결이 끊겨
+  // 학생에게 "응답 없음"으로 보인다. enabled_models에서 제거한다.
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      const removeOpenai = ['gpt-5.5-pro', 'gpt-5.4-pro'];
+      if (Array.isArray(models.openai)) {
+        const before = models.openai.length;
+        models.openai = models.openai.filter((id) => !removeOpenai.includes(id));
+        if (models.openai.length !== before) {
+          await client.execute({
+            sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+            args: [JSON.stringify(models)],
+          });
+          console.log('마이그레이션: OpenAI pro 추론 모델 미노출 처리 완료');
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('OpenAI pro 미노출 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

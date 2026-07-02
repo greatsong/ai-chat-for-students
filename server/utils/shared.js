@@ -22,10 +22,8 @@ export const PROVIDERS = {
   openai: {
     name: 'ChatGPT',
     company: 'OpenAI',
-    models: [
-      { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'standard' },
-      { id: 'gpt-5.5-pro', name: 'GPT-5.5 Pro', tier: 'advanced' },
-    ],
+    // gpt-5.5-pro(추론 모델)는 첫 토큰까지 ~3분 침묵해 스트리밍 연결이 끊기므로 미노출
+    models: [{ id: 'gpt-5.5', name: 'GPT-5.5', tier: 'standard' }],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: true },
     imageModel: 'gpt-image-2',
   },
