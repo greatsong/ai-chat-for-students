@@ -360,6 +360,15 @@ export async function run(sql, params = []) {
 }
 
 /**
+ * 여러 쓰기 쿼리를 하나의 트랜잭션으로 원자적 실행 (all-or-nothing)
+ * 하나라도 실패하면 전체 롤백되어 부분 적용을 방지한다.
+ * @param {Array<{sql: string, args: any[]}>} statements - 순서대로 실행할 쿼리 목록
+ */
+export async function batch(statements) {
+  await withTimeout(getDb().batch(statements, 'write'));
+}
+
+/**
  * 설정값 조회
  */
 export async function getSetting(key) {
