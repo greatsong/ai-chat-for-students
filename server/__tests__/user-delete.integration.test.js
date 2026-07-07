@@ -8,19 +8,24 @@ import { createClient } from '@libsql/client';
 
 let db;
 
-// teacher.js DELETE /students/:id 와 동일한 cascade 삭제 순서
+// teacher.js DELETE /students/:id 와 동일한 원자적 cascade 삭제 (batch 트랜잭션)
 async function deleteUserCascade(userId) {
-  await db.execute({
-    sql: 'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
-    args: [userId],
-  });
-  await db.execute({
-    sql: 'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
-    args: [userId],
-  });
-  await db.execute({ sql: 'DELETE FROM conversations WHERE user_id = ?', args: [userId] });
-  await db.execute({ sql: 'DELETE FROM usage_daily WHERE user_id = ?', args: [userId] });
-  await db.execute({ sql: 'DELETE FROM users WHERE id = ?', args: [userId] });
+  await db.batch(
+    [
+      {
+        sql: 'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+        args: [userId],
+      },
+      {
+        sql: 'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+        args: [userId],
+      },
+      { sql: 'DELETE FROM conversations WHERE user_id = ?', args: [userId] },
+      { sql: 'DELETE FROM usage_daily WHERE user_id = ?', args: [userId] },
+      { sql: 'DELETE FROM users WHERE id = ?', args: [userId] },
+    ],
+    'write',
+  );
 }
 
 beforeEach(async () => {

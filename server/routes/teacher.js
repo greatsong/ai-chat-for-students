@@ -5,7 +5,7 @@ import {
   requireAdmin,
   invalidateUserCache,
 } from '../middleware/auth.js';
-import { queryAll, queryOne, run, getSetting, setSetting } from '../db/database.js';
+import { queryAll, queryOne, run, batch, getSetting, setSetting } from '../db/database.js';
 import { encrypt, decrypt, encryptApiKeys, decryptApiKeys } from '../utils/crypto.js';
 import {
   validate,
@@ -260,23 +260,29 @@ router.delete('/students/:id', requireAdmin, async (req, res) => {
       return res.status(400).json({ error: '자기 자신은 삭제할 수 없습니다.' });
     }
 
-    // 관리자 계정은 삭제 불가 (실수 방지)
-    if (target.role === 'admin') {
-      return res.status(403).json({ error: '관리자 계정은 삭제할 수 없습니다.' });
+    // 학생 계정만 삭제 가능 (교사·관리자 계정과 그 대화/사용 기록 보호)
+    // UI는 학생에게만 삭제 버튼을 노출하지만, 실제 권한 경계는 이곳이다.
+    if (target.role !== 'student') {
+      return res.status(403).json({ error: '학생 계정만 삭제할 수 있습니다.' });
     }
 
-    // 외래 키 제약 순서대로 삭제: share_tokens → messages → conversations → usage_daily → users
-    await run(
-      'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
-      [id],
-    );
-    await run(
-      'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
-      [id],
-    );
-    await run('DELETE FROM conversations WHERE user_id = ?', [id]);
-    await run('DELETE FROM usage_daily WHERE user_id = ?', [id]);
-    await run('DELETE FROM users WHERE id = ?', [id]);
+    // 대화/메시지/공유토큰/사용량/계정을 하나의 트랜잭션으로 원자적 삭제.
+    // 서브쿼리가 conversations 를 참조하므로 순서를 지킨다
+    // (share_tokens·messages → conversations → usage_daily → users).
+    // batch()가 all-or-nothing 을 보장하여 중간 실패 시 부분 삭제를 방지한다.
+    await batch([
+      {
+        sql: 'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+        args: [id],
+      },
+      {
+        sql: 'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+        args: [id],
+      },
+      { sql: 'DELETE FROM conversations WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM usage_daily WHERE user_id = ?', args: [id] },
+      { sql: 'DELETE FROM users WHERE id = ?', args: [id] },
+    ]);
 
     invalidateUserCache(id);
 
