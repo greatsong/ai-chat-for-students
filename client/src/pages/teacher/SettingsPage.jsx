@@ -753,12 +753,15 @@ export default function SettingsPage() {
           </p>
           <div className="flex items-center gap-3">
             <input
-              type="number"
-              value={dailyLimit}
-              onChange={(e) => setDailyLimit(parseInt(e.target.value) || 0)}
-              min={0}
-              step={10000}
-              className="w-48 px-4 py-2 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+              type="text"
+              inputMode="numeric"
+              value={dailyLimit === 0 ? '' : String(dailyLimit)}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, '');
+                setDailyLimit(digits ? parseInt(digits, 10) : 0);
+              }}
+              placeholder="0"
+              className="w-48 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
             />
             <span className="text-sm text-gray-500">토큰</span>
           </div>

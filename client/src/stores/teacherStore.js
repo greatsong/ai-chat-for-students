@@ -51,6 +51,18 @@ const useTeacherStore = create((set, get) => ({
     }
   },
 
+  deleteStudent: async (id) => {
+    try {
+      await apiDelete(`/teacher/students/${id}`);
+      set((state) => ({
+        students: state.students.filter((s) => s.id !== id),
+      }));
+    } catch (error) {
+      console.error('사용자 삭제 실패:', error);
+      throw error;
+    }
+  },
+
   // ── 대화 열람 (관리자 전용) ──
 
   loadConversations: async (filters = {}) => {

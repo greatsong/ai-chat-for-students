@@ -2,7 +2,7 @@ import { useEffect, useState, useMemo } from 'react';
 import useTeacherStore from '../../stores/teacherStore';
 
 export default function StudentsPage() {
-  const { students, isLoading, loadStudents, updateStudent, bulkActivateStudents } =
+  const { students, isLoading, loadStudents, updateStudent, bulkActivateStudents, deleteStudent } =
     useTeacherStore();
   const [search, setSearch] = useState('');
   const [editingLimit, setEditingLimit] = useState(null); // { id, value }
@@ -115,6 +115,19 @@ export default function StudentsPage() {
       await updateStudent(student.id, { is_active: !student.is_active });
     } catch (err) {
       alert('상태 변경에 실패했습니다: ' + err.message);
+    }
+  };
+
+  const handleDelete = async (student) => {
+    const label = student.name || student.email || '이 사용자';
+    const msg =
+      `정말 '${label}' 사용자를 삭제하시겠습니까?\n\n` +
+      `이 사용자의 모든 대화·메시지·사용 기록이 영구 삭제되며,\n되돌릴 수 없습니다.`;
+    if (!confirm(msg)) return;
+    try {
+      await deleteStudent(student.id);
+    } catch (err) {
+      alert('삭제에 실패했습니다: ' + err.message);
     }
   };
 
@@ -419,6 +432,7 @@ export default function StudentsPage() {
                       <div className="flex items-center justify-center gap-1">
                         <input
                           type="number"
+                          inputMode="numeric"
                           value={editingLimit.value}
                           onChange={(e) =>
                             setEditingLimit({ id: student.id, value: e.target.value })
@@ -477,16 +491,37 @@ export default function StudentsPage() {
                   {/* 관리 */}
                   <td className="px-4 py-3 text-center">
                     {student.role === 'student' ? (
-                      <button
-                        onClick={() => handleToggleActive(student)}
-                        className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
-                          student.is_active
-                            ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                            : 'bg-green-50 text-green-600 hover:bg-green-100'
-                        }`}
-                      >
-                        {student.is_active ? '비활성화' : '활성화'}
-                      </button>
+                      <div className="flex items-center justify-center gap-1.5">
+                        <button
+                          onClick={() => handleToggleActive(student)}
+                          className={`px-3 py-1 text-xs font-medium rounded-lg transition-colors ${
+                            student.is_active
+                              ? 'bg-red-50 text-red-600 hover:bg-red-100'
+                              : 'bg-green-50 text-green-600 hover:bg-green-100'
+                          }`}
+                        >
+                          {student.is_active ? '비활성화' : '활성화'}
+                        </button>
+                        <button
+                          onClick={() => handleDelete(student)}
+                          className="p-1.5 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="사용자 삭제 (대화 기록 포함)"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke="currentColor"
+                            strokeWidth={2}
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     ) : (
                       <span className="text-xs text-gray-400">—</span>
                     )}
@@ -588,34 +623,55 @@ export default function StudentsPage() {
 
               {/* 하단 버튼 */}
               {student.role === 'student' && (
-                <div className="flex gap-2">
+                <div className="flex flex-col gap-2">
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => handleToggleActive(student)}
+                      className={`flex-1 py-2.5 text-xs font-medium rounded-lg transition-colors ${
+                        student.is_active
+                          ? 'bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100'
+                          : 'bg-green-50 text-green-600 hover:bg-green-100 active:bg-green-100'
+                      }`}
+                    >
+                      {student.is_active ? '비활성화' : '활성화'}
+                    </button>
+                    <button
+                      onClick={() => handleToggleMode(student)}
+                      className={`flex-1 py-2.5 text-xs font-medium rounded-lg transition-colors ${
+                        student.chat_mode === 'project'
+                          ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100 active:bg-emerald-100'
+                          : 'bg-blue-50 text-blue-600 hover:bg-blue-100 active:bg-blue-100'
+                      }`}
+                    >
+                      {student.chat_mode === 'project' ? '학습 모드로' : '프로젝트 모드로'}
+                    </button>
+                    <button
+                      onClick={() =>
+                        setEditingLimit({ id: student.id, value: String(student.daily_limit) })
+                      }
+                      className="flex-1 py-2.5 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 active:bg-gray-100 transition-colors"
+                    >
+                      한도 수정
+                    </button>
+                  </div>
                   <button
-                    onClick={() => handleToggleActive(student)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                      student.is_active
-                        ? 'bg-red-50 text-red-600 hover:bg-red-100'
-                        : 'bg-green-50 text-green-600 hover:bg-green-100'
-                    }`}
+                    onClick={() => handleDelete(student)}
+                    className="w-full py-2 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 transition-colors flex items-center justify-center gap-1.5"
                   >
-                    {student.is_active ? '비활성화' : '활성화'}
-                  </button>
-                  <button
-                    onClick={() => handleToggleMode(student)}
-                    className={`flex-1 py-1.5 text-xs font-medium rounded-lg transition-colors ${
-                      student.chat_mode === 'project'
-                        ? 'bg-emerald-50 text-emerald-600 hover:bg-emerald-100'
-                        : 'bg-blue-50 text-blue-600 hover:bg-blue-100'
-                    }`}
-                  >
-                    {student.chat_mode === 'project' ? '학습 모드로' : '프로젝트 모드로'}
-                  </button>
-                  <button
-                    onClick={() =>
-                      setEditingLimit({ id: student.id, value: String(student.daily_limit) })
-                    }
-                    className="flex-1 py-1.5 text-xs font-medium rounded-lg bg-gray-50 text-gray-600 hover:bg-gray-100 transition-colors"
-                  >
-                    한도 수정
+                    <svg
+                      className="w-3.5 h-3.5"
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                      />
+                    </svg>
+                    사용자 삭제
                   </button>
                 </div>
               )}
@@ -625,20 +681,21 @@ export default function StudentsPage() {
                 <div className="mt-3 flex items-center gap-2">
                   <input
                     type="number"
+                    inputMode="numeric"
                     value={editingLimit.value}
                     onChange={(e) => setEditingLimit({ id: student.id, value: e.target.value })}
-                    className="flex-1 px-3 py-1.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
+                    className="flex-1 px-3 py-2.5 text-sm border border-blue-300 rounded-lg focus:outline-none focus:ring-1 focus:ring-blue-500"
                     autoFocus
                   />
                   <button
                     onClick={() => handleLimitSave(student.id)}
-                    className="px-3 py-1.5 text-xs font-medium bg-blue-600 text-white rounded-lg"
+                    className="px-4 py-2.5 text-xs font-medium bg-blue-600 text-white rounded-lg active:bg-blue-700"
                   >
                     저장
                   </button>
                   <button
                     onClick={() => setEditingLimit(null)}
-                    className="px-3 py-1.5 text-xs text-gray-500"
+                    className="px-4 py-2.5 text-xs text-gray-500"
                   >
                     취소
                   </button>

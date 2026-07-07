@@ -243,6 +243,57 @@ router.post(
 );
 
 // ──────────────────────────────────────────
+// DELETE /api/teacher/students/:id
+// 사용자 완전 삭제 — 대화/메시지/공유토큰/사용량까지 함께 삭제 (관리자 전용)
+// ──────────────────────────────────────────
+router.delete('/students/:id', requireAdmin, async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const target = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
+    if (!target) {
+      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+    }
+
+    // 자기 자신은 삭제 불가
+    if (id === req.user.id) {
+      return res.status(400).json({ error: '자기 자신은 삭제할 수 없습니다.' });
+    }
+
+    // 관리자 계정은 삭제 불가 (실수 방지)
+    if (target.role === 'admin') {
+      return res.status(403).json({ error: '관리자 계정은 삭제할 수 없습니다.' });
+    }
+
+    // 외래 키 제약 순서대로 삭제: share_tokens → messages → conversations → usage_daily → users
+    await run(
+      'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+      [id],
+    );
+    await run(
+      'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+      [id],
+    );
+    await run('DELETE FROM conversations WHERE user_id = ?', [id]);
+    await run('DELETE FROM usage_daily WHERE user_id = ?', [id]);
+    await run('DELETE FROM users WHERE id = ?', [id]);
+
+    invalidateUserCache(id);
+
+    auditLog('USER_DELETE', req.user.id, {
+      deletedUserId: id,
+      email: target.email,
+      role: target.role,
+    });
+
+    res.json({ message: '사용자가 삭제되었습니다.', deletedId: id });
+  } catch (error) {
+    console.error('사용자 삭제 오류:', error);
+    res.status(500).json({ error: '사용자를 삭제하는 중 오류가 발생했습니다.' });
+  }
+});
+
+// ──────────────────────────────────────────
 // GET /api/teacher/conversations
 // 전체 학생 대화 목록 (필터링 + 페이지네이션) (관리자 전용)
 // ──────────────────────────────────────────
