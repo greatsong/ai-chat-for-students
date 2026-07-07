@@ -131,6 +131,19 @@ export const conversationIdParamSchema = z.object({
   conversationId: z.string().uuid(),
 });
 
+// ── 공유(평가 앱 연동) 관련 ──
+
+// 공유 토큰 발급: 대상 대화 id
+export const shareCreateSchema = z.object({
+  conversationId: z.string().uuid(),
+});
+
+// 공유 토큰 조회(공개): 64자리 hex 토큰 (crypto.randomBytes(32).toString('hex')).
+// 토큰은 URL 경로가 아니라 POST 본문으로 받는다 — 경로 기반 접근 로그에 원문이 남지 않도록.
+export const shareRedeemSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/, '유효하지 않은 토큰 형식입니다.'),
+});
+
 // ── 미디어 관련 ──
 
 // TTS 요청

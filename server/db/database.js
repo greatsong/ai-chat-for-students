@@ -105,6 +105,22 @@ export async function initDatabase() {
     )
   `);
 
+  // 공유 토큰: 학생이 대화를 외부 평가 앱으로 넘길 때 발급하는 일회용 토큰.
+  // 원문 토큰은 저장하지 않고 sha256 해시(token_hash)만 보관한다.
+  // used_at 이 채워지면 사용 완료(1회용), expires_at 이 지나면 만료.
+  await client.execute(`
+    CREATE TABLE IF NOT EXISTS share_tokens (
+      id TEXT PRIMARY KEY,
+      token_hash TEXT NOT NULL UNIQUE,
+      conversation_id TEXT NOT NULL,
+      created_by TEXT NOT NULL,
+      used_at TEXT,
+      expires_at TEXT NOT NULL,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (conversation_id) REFERENCES conversations(id)
+    )
+  `);
+
   // TTS/STT 사용량 컬럼 추가 (마이그레이션)
   for (const col of ['tts_count', 'stt_count']) {
     try {
@@ -132,6 +148,9 @@ export async function initDatabase() {
   );
   await client.execute(
     'CREATE INDEX IF NOT EXISTS idx_usage_daily_user_date_provider ON usage_daily(user_id, date, provider)',
+  );
+  await client.execute(
+    'CREATE INDEX IF NOT EXISTS idx_share_tokens_hash ON share_tokens(token_hash)',
   );
 
   // 기본 학급 삽입 (최초 실행 시)
