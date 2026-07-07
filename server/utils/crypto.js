@@ -81,6 +81,17 @@ export function decrypt(encryptedStr) {
 }
 
 /**
+ * 공유 토큰 해싱 (SHA-256, 단방향)
+ * 원문 토큰은 저장하지 않고 해시만 DB에 보관한다. DB가 유출돼도
+ * 유효한 토큰을 복원할 수 없다. (API 키와 달리 복호화가 필요 없으므로 encrypt 대신 해시 사용)
+ * @param {string} rawToken - crypto.randomBytes 로 만든 원문 토큰(hex)
+ * @returns {string} sha256 hex 다이제스트
+ */
+export function hashToken(rawToken) {
+  return crypto.createHash('sha256').update(rawToken).digest('hex');
+}
+
+/**
  * API 키 객체 암호화
  * @param {Object} keys - { provider: apiKey } 형식
  * @returns {Object} 암호화된 키 객체

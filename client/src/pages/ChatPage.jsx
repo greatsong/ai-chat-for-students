@@ -6,6 +6,7 @@ import MessageList from '../components/chat/MessageList';
 import MessageInput from '../components/chat/MessageInput';
 import WelcomeScreen from '../components/chat/WelcomeScreen';
 import ChatExportButton from '../components/chat/ChatExportButton';
+import SendToEvaluatorButton from '../components/chat/SendToEvaluatorButton';
 import { apiGet } from '../lib/api';
 import useChatStore from '../stores/chatStore';
 import useAuthStore from '../stores/authStore';
@@ -240,8 +241,13 @@ export default function ChatPage() {
         <div className="flex-1 flex flex-col min-h-0">
           {hasActiveConversation || isStreaming ? (
             <>
-              {/* 기록 저장 바 — 현재 대화를 md/txt로 다운로드 */}
-              <div className="flex items-center justify-end px-4 pt-2">
+              {/* 기록 저장 / 평가받기 바 */}
+              <div className="flex items-center justify-end gap-2 px-4 pt-2">
+                <SendToEvaluatorButton
+                  conversationId={currentConversation?.id}
+                  messages={messages}
+                  disabled={isStreaming}
+                />
                 <ChatExportButton
                   messages={messages}
                   userName={user?.name}

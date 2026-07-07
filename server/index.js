@@ -13,6 +13,7 @@ import imageRoutes from './routes/image.js';
 import ttsRoutes from './routes/tts.js';
 import sttRoutes from './routes/stt.js';
 import teacherRoutes from './routes/teacher.js';
+import shareRoutes from './routes/share.js';
 
 const app = express();
 // Railway 등 리버스 프록시 뒤에서 실행 시 필요 (express-rate-limit이 IP를 올바르게 인식)
@@ -45,12 +46,16 @@ app.use(
 );
 
 // CORS 설정
-app.use(
-  cors({
-    origin: CLIENT_URL,
-    credentials: true,
-  }),
-);
+// /api/share 는 제외 — 해당 라우터가 자체 CORS(redeemCors: 평가 앱 오리진 허용, credentials 미사용)를
+// 적용하므로, 단일 오리진+credentials:true 인 전역 CORS 가 덧씌워지면 안 된다.
+const globalCors = cors({
+  origin: CLIENT_URL,
+  credentials: true,
+});
+app.use((req, res, next) => {
+  if (req.path.startsWith('/api/share')) return next();
+  return globalCors(req, res, next);
+});
 
 // 요청 타임아웃 미들웨어 (기본 30초, 이미지 생성은 180초)
 app.use((req, res, next) => {
@@ -122,6 +127,9 @@ async function start() {
   app.use('/api/tts', authenticate, requireActive, largeBodyParser, uploadLimiter, ttsRoutes);
   app.use('/api/stt', authenticate, requireActive, largeBodyParser, uploadLimiter, sttRoutes);
   app.use('/api/teacher', teacherRoutes);
+  // 공유: 발급(POST)은 라우트 내부에서 authenticate, 조회(GET)는 공개.
+  // 따라서 여기서는 전역 authenticate 를 걸지 않는다.
+  app.use('/api/share', shareRoutes);
 
   app.listen(PORT, () => {
     console.log(`서버가 포트 ${PORT}에서 실행 중입니다.`);
