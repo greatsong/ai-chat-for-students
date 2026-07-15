@@ -166,7 +166,8 @@ export async function initDatabase() {
   const defaultSettings = {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      claude: ['claude-sonnet-4-6', 'claude-sonnet-5', 'claude-opus-4-8'],
+      // claude-opus-4-8은 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
+      claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
       gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
       solar: ['solar-pro3'],
@@ -204,7 +205,7 @@ export async function initDatabase() {
       const models = JSON.parse(row.rows[0].value);
       // 주의: openai 'pro' 추론 모델(gpt-5.4-pro 등)은 미노출 정책 — 추가하지 않는다.
       const additions = {
-        claude: 'claude-opus-4-8',
+        // claude-opus-4-8은 더 이상 자동 추가하지 않음(학생 기본 제외). 교사가 웹에서 재추가.
         gemini: 'gemini-3.1-pro-preview',
       };
       let changed = false;
@@ -220,7 +221,7 @@ export async function initDatabase() {
           sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
           args: [JSON.stringify(models)],
         });
-        console.log('마이그레이션: 프로 모델 활성화 완료 (opus, gemini pro, gpt pro)');
+        console.log('마이그레이션: 프로 모델 활성화 완료 (gemini pro)');
       }
     }
   } catch (e) {
@@ -305,6 +306,39 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Sonnet 5 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-07): 학생 기본 노출에서 Claude Opus 4.8 제외 (1회성).
+  // 교육용 설명·대화는 Sonnet으로 충분/우세하고 opus는 비싸고 느림. 카탈로그엔 남겨두어
+  // 교사가 웹(설정)에서 재추가할 수 있으며, 아래 플래그로 1번만 수행하므로 재추가는 유지된다.
+  try {
+    const flag = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'opus_student_default_removed'",
+      args: [],
+    });
+    if (flag.rows.length === 0) {
+      const row = await client.execute({
+        sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+        args: [],
+      });
+      if (row.rows.length > 0) {
+        const models = JSON.parse(row.rows[0].value);
+        if (Array.isArray(models.claude) && models.claude.includes('claude-opus-4-8')) {
+          models.claude = models.claude.filter((id) => id !== 'claude-opus-4-8');
+          await client.execute({
+            sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+            args: [JSON.stringify(models)],
+          });
+          console.log('마이그레이션: 학생 기본에서 Claude Opus 4.8 제외 (교사 웹에서 재추가 가능)');
+        }
+      }
+      await client.execute({
+        sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+        args: ['opus_student_default_removed', JSON.stringify(true)],
+      });
+    }
+  } catch (e) {
+    console.warn('Opus 제외 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');
