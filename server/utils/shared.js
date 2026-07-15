@@ -31,7 +31,12 @@ export const PROVIDERS = {
   solar: {
     name: 'Solar',
     company: 'Upstage',
-    models: [{ id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' }],
+    // solar-open2는 추론 모델이라 첫 토큰까지 침묵이 길다(수십초~2분). 한국어 품질은 최상급이나
+    // 실시간 채팅에선 응답이 느리게 시작될 수 있음 — 옵션으로만 제공(기본값 아님).
+    models: [
+      { id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' },
+      { id: 'solar-open2', name: 'Solar Open2 (한국어 특화·느림)', tier: 'standard' },
+    ],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },
   },
 };

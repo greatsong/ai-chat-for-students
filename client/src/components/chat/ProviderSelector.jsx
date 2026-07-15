@@ -31,7 +31,10 @@ const PROVIDERS = {
   solar: {
     name: 'Solar',
     company: 'Upstage',
-    models: [{ id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' }],
+    models: [
+      { id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' },
+      { id: 'solar-open2', name: 'Solar Open2 (한국어 특화·느림)', tier: 'standard' },
+    ],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },
   },
 };
