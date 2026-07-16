@@ -170,7 +170,7 @@ export async function initDatabase() {
       claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
       gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
-      solar: ['solar-pro3'],
+      solar: ['solar-pro3', 'solar-open2'],
     },
     image_generation_enabled: false,
     tts_enabled: false,
@@ -306,6 +306,28 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Sonnet 5 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-07): Solar Open2 활성화 (기존 pro3와 함께 선택 가능)
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (!models.solar) models.solar = [];
+      if (!models.solar.includes('solar-open2')) {
+        models.solar.push('solar-open2');
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: Solar Open2 활성화 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Solar Open2 마이그레이션 스킵:', e.message);
   }
 
   // 마이그레이션 (2026-07): 학생 기본 노출에서 Claude Opus 4.8 제외 (1회성).
