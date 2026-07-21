@@ -17,6 +17,7 @@ const PROVIDERS = {
     name: 'Gemini',
     company: 'Google',
     models: [
+      { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', tier: 'standard' },
       { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', tier: 'standard' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tier: 'advanced' },
     ],
