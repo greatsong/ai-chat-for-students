@@ -352,6 +352,39 @@ export async function initDatabase() {
     console.warn('Gemini 3.6 Flash 마이그레이션 스킵:', e.message);
   }
 
+  // 마이그레이션 (2026-07): 카탈로그에서 은퇴한 구형 모델을 enabled_models에서 제거.
+  // 카탈로그(PROVIDERS)에 없는 모델은 학생 화면에 표시되지 않지만 DB에 잔존하면 혼란을 주므로 정리.
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      const retired = {
+        gemini: ['gemini-3-flash-preview'],
+        openai: ['gpt-5.4'],
+      };
+      let changed = false;
+      for (const [provider, ids] of Object.entries(retired)) {
+        if (Array.isArray(models[provider])) {
+          const before = models[provider].length;
+          models[provider] = models[provider].filter((id) => !ids.includes(id));
+          if (models[provider].length !== before) changed = true;
+        }
+      }
+      if (changed) {
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: 구형 모델(enabled_models) 정리 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('구형 모델 정리 마이그레이션 스킵:', e.message);
+  }
+
   // 마이그레이션 (2026-07): 학생 기본 노출에서 Claude Opus 4.8 제외 (1회성).
   // 교육용 설명·대화는 Sonnet으로 충분/우세하고 opus는 비싸고 느림. 카탈로그엔 남겨두어
   // 교사가 웹(설정)에서 재추가할 수 있으며, 아래 플래그로 1번만 수행하므로 재추가는 유지된다.
