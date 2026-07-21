@@ -168,7 +168,7 @@ export async function initDatabase() {
     enabled_models: {
       // claude-opus-4-8은 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
-      gemini: ['gemini-3.5-flash', 'gemini-3.1-pro-preview'],
+      gemini: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
       solar: ['solar-pro3', 'solar-open2'],
     },
@@ -328,6 +328,28 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Solar Open2 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-07): Gemini 3.6 Flash 활성화 (기존 3.5 Flash와 함께 선택 가능)
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (!models.gemini) models.gemini = [];
+      if (!models.gemini.includes('gemini-3.6-flash')) {
+        models.gemini.push('gemini-3.6-flash');
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: Gemini 3.6 Flash 활성화 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Gemini 3.6 Flash 마이그레이션 스킵:', e.message);
   }
 
   // 마이그레이션 (2026-07): 학생 기본 노출에서 Claude Opus 4.8 제외 (1회성).
