@@ -5,6 +5,18 @@ import { withRetry } from '../utils/retry.js';
 let cachedKey = null;
 let client = null;
 
+// GPT-5.6 계열은 추론(reasoning) 모델이라 기본값(medium)이면 첫 토큰까지 지연이 커
+// Vercel 프록시 120초 한도를 넘길 수 있다(과거 gpt-5.5-pro 미노출 사유와 동일).
+// 실시간 학생 채팅용으로 추론을 끄거나 최소화해 응답이 빨리 시작되도록 강제한다.
+//   Sol  = 'none' (추론 완전 off) — 사용자 요청: 가급적 빠른 답변
+//   Terra/Luna = 'low' (최소 추론) — 속도 우선, 품질 소폭 유지
+// Chat Completions는 reasoning_effort, Responses API는 reasoning:{effort} 로 전달한다.
+const OPENAI_REASONING_EFFORT = {
+  'gpt-5.6-sol': 'none',
+  'gpt-5.6-terra': 'low',
+  'gpt-5.6-luna': 'low',
+};
+
 async function getClient() {
   const key = await getApiKey('openai');
   if (!client || key !== cachedKey) {
@@ -150,6 +162,8 @@ async function streamWithCodeInterpreter({
       stream: true,
       tools: [{ type: 'code_interpreter', container: { type: 'auto' } }],
     };
+    const cieEffort = OPENAI_REASONING_EFFORT[model];
+    if (cieEffort) createParams.reasoning = { effort: cieEffort };
     if (systemPrompt) createParams.instructions = systemPrompt;
 
     const stream = await openai.responses.create(createParams);
@@ -240,6 +254,8 @@ export async function streamChat({
       stream: true,
       stream_options: { include_usage: true },
     };
+    const effort = OPENAI_REASONING_EFFORT[model];
+    if (effort) createParams.reasoning_effort = effort;
 
     const stream = await openai.chat.completions.create(createParams);
 
