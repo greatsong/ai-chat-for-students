@@ -20,7 +20,8 @@ const CONTEXT_LIMITS = {
     'claude-sonnet-4-6': 1_000_000,
     'claude-sonnet-5': 1_000_000,
     'claude-haiku-4-5-20251001': 200_000,
-    'claude-opus-4-8': 1_000_000,
+    'claude-opus-5': 1_000_000, // 2026-07 출시: 1M 기본 (beta 헤더 불필요)
+    'claude-opus-4-8': 1_000_000, // legacy: 과거 로그 호환용 유지
     'claude-opus-4-7': 1_000_000,
   },
   openai: {

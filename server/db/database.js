@@ -166,7 +166,7 @@ export async function initDatabase() {
   const defaultSettings = {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      // claude-opus-4-8은 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
+      // claude-opus-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
       gemini: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
@@ -416,6 +416,33 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Opus 제외 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-07): Claude Opus 4.8 → Opus 5 교체.
+  // 카탈로그에서 4.8이 빠지므로, 교사가 4.8을 켜뒀던 학급은 enabled_models의 4.8을 5로 스왑해
+  // 교사 의도(Opus 노출)를 유지한다. 4.8이 없던 DB는 아무것도 바꾸지 않는다(학생 기본 제외 정책 승계).
+  // 4.8 제거 후에는 재실행돼도 매칭이 없어 멱등.
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (Array.isArray(models.claude) && models.claude.includes('claude-opus-4-8')) {
+        models.claude = models.claude.filter((id) => id !== 'claude-opus-4-8');
+        if (!models.claude.includes('claude-opus-5')) {
+          models.claude.push('claude-opus-5');
+        }
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: enabled_models에서 Claude Opus 4.8 → Opus 5 교체 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Opus 5 교체 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

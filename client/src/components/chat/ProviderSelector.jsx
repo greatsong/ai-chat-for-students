@@ -9,7 +9,7 @@ const PROVIDERS = {
     models: [
       { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'standard' },
       { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', tier: 'standard' },
-      { id: 'claude-opus-4-8', name: 'Claude Opus 4.8', tier: 'advanced' },
+      { id: 'claude-opus-5', name: 'Claude Opus 5', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: false },
   },
