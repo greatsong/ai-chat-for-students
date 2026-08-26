@@ -17,8 +17,8 @@ const PROVIDERS = {
     name: 'Gemini',
     company: 'Google',
     models: [
+      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', tier: 'standard' },
       { id: 'gemini-3.6-flash', name: 'Gemini 3.6 Flash', tier: 'standard' },
-      { id: 'gemini-3.5-flash', name: 'Gemini 3.5 Flash', tier: 'standard' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: true, codeExecution: true, imageGeneration: true },
@@ -38,7 +38,7 @@ const PROVIDERS = {
     name: 'Solar',
     company: 'Upstage',
     models: [
-      { id: 'solar-pro3', name: 'Solar Pro 3', tier: 'standard' },
+      { id: 'solar-pro4', name: 'Solar Pro 4', tier: 'standard' },
       { id: 'solar-open2', name: 'Solar Open2 (한국어 특화·느림)', tier: 'standard' },
     ],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },

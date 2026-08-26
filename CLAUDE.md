@@ -8,7 +8,7 @@
 
 - 프론트엔드: React 19 + Vite + Tailwind CSS 4 (포트 4021)
 - 백엔드: Express 5 + Turso (libSQL) (포트 4022)
-- AI: Claude, Gemini, ChatGPT, Solar 4종 (이미지 생성: Gemini `gemini-3.1-flash-image-preview` / OpenAI `gpt-image-2`)
+- AI: Claude, Gemini, ChatGPT, Solar 4종 (이미지 생성: Gemini `gemini-3.1-flash-image` / OpenAI `gpt-image-2`)
 - 인증: Google OAuth 2.0 + JWT (인증 캐싱 5분 TTL)
 - 배포: Vercel (프론트) + Railway (백엔드)
 

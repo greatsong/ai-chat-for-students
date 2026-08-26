@@ -11,9 +11,9 @@
 // 프로바이더·모델별 컨텍스트 윈도우 (토큰)
 // 출처:
 //   Claude — https://platform.claude.com/docs/en/about-claude/models/overview
-//   OpenAI — https://developers.openai.com/api/docs/models/gpt-5.5, https://openai.com/index/gpt-4-1/
-//   Gemini — https://ai.google.dev/gemini-api/docs/long-context, https://thinkpeak.ai/gemini-3-context-window-size-1-2m-tokens/
-//   Solar  — https://developer.puter.com/ai/upstage/solar-pro-3/
+//   OpenAI — https://developers.openai.com/api/docs/models, https://openai.com/index/gpt-5-6/
+//   Gemini — https://ai.google.dev/gemini-api/docs/models, https://ai.google.dev/gemini-api/docs/long-context
+//   Solar  — https://www.upstage.ai/blog/en/solar-pro-4
 const CONTEXT_LIMITS = {
   claude: {
     default: 1_000_000, // 2026-03 GA: 모든 4.6 모델 1M
@@ -26,6 +26,9 @@ const CONTEXT_LIMITS = {
   },
   openai: {
     default: 128_000,
+    'gpt-5.6-sol': 1_050_000, // GPT-5.6 시리즈: 1.05M (2026-07 출시)
+    'gpt-5.6-terra': 1_050_000,
+    'gpt-5.6-luna': 1_050_000,
     'gpt-5.5': 1_000_000, // 2026-04 출시: 1M context window
     'gpt-5.5-pro': 1_000_000,
     'gpt-5.4': 272_000, // legacy: 기본 272K (1M은 명시적 설정 필요)
@@ -36,6 +39,7 @@ const CONTEXT_LIMITS = {
   },
   gemini: {
     default: 1_000_000,
+    'gemini-3.7-flash': 1_000_000, // Gemini 3.7 Flash: 1M (2026-08 GA)
     'gemini-3.6-flash': 1_000_000, // Gemini 3.6 Flash: 1M (2026-07 GA)
     'gemini-3.5-flash': 1_000_000, // Gemini 3.5 Flash: 1M (2026-05 GA)
     'gemini-3.1-pro-preview': 1_000_000,
@@ -45,8 +49,10 @@ const CONTEXT_LIMITS = {
     'gemini-2.0-flash': 1_000_000,
   },
   solar: {
-    default: 128_000, // Solar Pro 3: 128K (2026-01 출시)
-    'solar-pro3': 128_000,
+    default: 128_000,
+    'solar-pro4': 524_288, // Solar Pro 4: 524K (2026-08 출시)
+    'solar-pro3': 128_000, // legacy: 과거 로그 호환용 유지
+    'solar-open2': 128_000,
     'solar-pro': 32_000,
   },
 };

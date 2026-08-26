@@ -14,8 +14,8 @@ const providers = { claude, gemini, openai, solar };
 const SUMMARY_MODELS = {
   claude: 'claude-haiku-4-5-20251001',
   openai: 'gpt-4o-mini',
-  gemini: 'gemini-3.5-flash',
-  solar: 'solar-pro3',
+  gemini: 'gemini-3.6-flash',
+  solar: 'solar-pro4',
 };
 
 const SUMMARY_PROMPT = `당신은 대화 요약 전문가입니다.
