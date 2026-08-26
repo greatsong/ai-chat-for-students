@@ -59,7 +59,7 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
     if (!convId) {
       convId = crypto.randomUUID();
       const title = `🎨 ${prompt}`.slice(0, 50);
-      const defaultModels = { openai: 'gpt-5.5', gemini: 'gemini-3.5-flash' };
+      const defaultModels = { openai: 'gpt-5.5', gemini: 'gemini-3.6-flash' };
       await run(
         'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [convId, userId, title, provider, defaultModels[provider] || 'gpt-5.5', now, now],

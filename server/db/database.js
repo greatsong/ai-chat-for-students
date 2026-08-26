@@ -168,9 +168,9 @@ export async function initDatabase() {
     enabled_models: {
       // claude-opus-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
-      gemini: ['gemini-3.6-flash', 'gemini-3.5-flash', 'gemini-3.1-pro-preview'],
+      gemini: ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
-      solar: ['solar-pro3', 'solar-open2'],
+      solar: ['solar-pro4', 'solar-open2'],
     },
     image_generation_enabled: false,
     tts_enabled: false,
@@ -443,6 +443,63 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Opus 5 교체 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-08): Solar Pro 3 → Pro 4 교체.
+  // Upstage가 solar-pro4를 출시(2026-08-11)해 카탈로그에서 pro3가 빠지므로 enabled_models도 스왑.
+  // pro3가 없던 DB는 변경하지 않으며, 스왑 후 재실행돼도 매칭이 없어 멱등.
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (Array.isArray(models.solar) && models.solar.includes('solar-pro3')) {
+        models.solar = models.solar.filter((id) => id !== 'solar-pro3');
+        if (!models.solar.includes('solar-pro4')) {
+          models.solar.unshift('solar-pro4');
+        }
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: enabled_models에서 Solar Pro 3 → Pro 4 교체 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Solar Pro 4 교체 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-08): Gemini 3.7 Flash 활성화 + 구형 3.5 Flash 제거.
+  // 3.7-flash가 최신 GA(2026-08-13)로 카탈로그 1순위가 되고 3.5-flash는 카탈로그에서 은퇴.
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (!models.gemini) models.gemini = [];
+      let changed = false;
+      if (!models.gemini.includes('gemini-3.7-flash')) {
+        models.gemini.unshift('gemini-3.7-flash');
+        changed = true;
+      }
+      if (models.gemini.includes('gemini-3.5-flash')) {
+        models.gemini = models.gemini.filter((id) => id !== 'gemini-3.5-flash');
+        changed = true;
+      }
+      if (changed) {
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: Gemini 3.7 Flash 활성화 및 3.5 Flash 제거 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Gemini 3.7 Flash 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

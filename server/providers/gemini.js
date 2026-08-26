@@ -94,7 +94,7 @@ export async function streamChat({
     }
 
     const modelConfig = {
-      model: model || 'gemini-3.5-flash',
+      model: model || 'gemini-3.6-flash',
     };
 
     if (systemPrompt) {
@@ -179,13 +179,13 @@ export async function streamChat({
  * Gemini 이미지 생성
  * @param {Object} params
  * @param {string} params.prompt - 이미지 생성 프롬프트
- * @param {string} params.model - 모델 ID (기본: gemini-3.1-flash-image-preview)
+ * @param {string} params.model - 모델 ID (기본: gemini-3.1-flash-image)
  * @returns {{ imageData: string, mimeType: string }}
  */
 export async function generateImage({ prompt, model }) {
   const client = await getClient();
   const imageModel = client.getGenerativeModel({
-    model: model || 'gemini-3.1-flash-image-preview',
+    model: model || 'gemini-3.1-flash-image',
   });
 
   const result = await withRetry(() =>
