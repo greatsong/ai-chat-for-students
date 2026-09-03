@@ -355,6 +355,14 @@ export async function generateSpeech({ text, voice, model }) {
   };
 }
 
+// STT 모델. whisper-1은 2026-08-26 deprecated, 2027-02-26 셧다운 예정이라
+// 공식 권장 대체 모델인 gpt-transcribe로 교체했다.
+// gpt-transcribe는 기본 response_format(json)에서 { text } 를 반환하며,
+// 단수 `language` 대신 복수 `languages` 배열(힌트)을 받는다.
+export const STT_MODEL = 'gpt-transcribe';
+// 수업 환경 기준 언어 힌트 — 한국어 우선, 영어 병행(강제가 아닌 힌트)
+export const STT_LANGUAGE_HINTS = ['ko', 'en'];
+
 /**
  * OpenAI STT (음성 → 텍스트)
  * @param {Object} params
@@ -372,8 +380,9 @@ export async function transcribeAudio({ audioBuffer, mimeType }) {
 
   const transcription = await withRetry(() =>
     openai.audio.transcriptions.create({
-      model: 'whisper-1',
+      model: STT_MODEL,
       file: blob,
+      languages: STT_LANGUAGE_HINTS,
     }),
   );
 
