@@ -156,7 +156,7 @@ async function streamWithCodeInterpreter({
     const input = convertToResponsesInput(messages);
 
     const createParams = {
-      model: model || 'gpt-5.5',
+      model: model || 'gpt-5.6-terra',
       input,
       max_output_tokens: 16384,
       stream: true,
@@ -248,7 +248,7 @@ export async function streamChat({
     allMessages.push(...messages);
 
     const createParams = {
-      model: model || 'gpt-5.5',
+      model: model || 'gpt-5.6-terra',
       messages: allMessages,
       max_completion_tokens: 16384,
       stream: true,

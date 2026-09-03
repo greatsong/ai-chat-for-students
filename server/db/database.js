@@ -169,7 +169,7 @@ export async function initDatabase() {
       // claude-opus-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-5'],
       gemini: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview'],
-      openai: ['gpt-5.5'],
+      openai: ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.6-sol'],
       solar: ['solar-pro4', 'solar-open2'],
     },
     image_generation_enabled: false,
@@ -228,7 +228,8 @@ export async function initDatabase() {
     console.warn('enabled_models 마이그레이션 스킵:', e.message);
   }
 
-  // 마이그레이션 (2026-05): GPT-5.5 / GPT-5.5 Pro 활성화
+  // 마이그레이션 (2026-09): GPT-5.6 Terra를 기본(1순위)으로, 구형 GPT-5.5는 카탈로그에서 은퇴.
+  // Terra는 5.5 대비 입력·출력 단가 60% 저렴하고 성능 동급 이상. (2026-05 'GPT-5.5 활성화' 마이그레이션 대체)
   try {
     const row = await client.execute({
       sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
@@ -236,27 +237,26 @@ export async function initDatabase() {
     });
     if (row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
-      const newModels = { openai: ['gpt-5.5'] };
+      if (!models.openai) models.openai = [];
       let changed = false;
-      for (const [provider, modelIds] of Object.entries(newModels)) {
-        if (!models[provider]) models[provider] = [];
-        for (const modelId of modelIds) {
-          if (!models[provider].includes(modelId)) {
-            models[provider].push(modelId);
-            changed = true;
-          }
-        }
+      if (models.openai.includes('gpt-5.5')) {
+        models.openai = models.openai.filter((id) => id !== 'gpt-5.5');
+        changed = true;
+      }
+      if (models.openai[0] !== 'gpt-5.6-terra') {
+        models.openai = ['gpt-5.6-terra', ...models.openai.filter((id) => id !== 'gpt-5.6-terra')];
+        changed = true;
       }
       if (changed) {
         await client.execute({
           sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
           args: [JSON.stringify(models)],
         });
-        console.log('마이그레이션: GPT-5.5 / GPT-5.5 Pro 활성화 완료');
+        console.log('마이그레이션: GPT-5.6 Terra 기본화 및 GPT-5.5 제거 완료');
       }
     }
   } catch (e) {
-    console.warn('GPT-5.5 마이그레이션 스킵:', e.message);
+    console.warn('GPT-5.6 Terra 기본화 마이그레이션 스킵:', e.message);
   }
 
   // 마이그레이션 (2026-06): OpenAI 'pro' 추론 모델 미노출.

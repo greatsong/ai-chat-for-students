@@ -26,9 +26,8 @@ export const PROVIDERS = {
     // gpt-5.5-pro(추론 모델)는 첫 토큰까지 ~3분 침묵해 스트리밍 연결이 끊기므로 미노출.
     // gpt-5.6 계열은 서버에서 reasoning을 none/low로 강제해 지연을 줄인다(openai.js 참고).
     models: [
-      { id: 'gpt-5.5', name: 'GPT-5.5', tier: 'standard' },
-      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna (빠름·저비용)', tier: 'standard' },
       { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra (균형)', tier: 'standard' },
+      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna (빠름·저비용)', tier: 'standard' },
       { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol (고성능·추론off)', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: true },
