@@ -85,7 +85,7 @@ router.get('/:id', validate(uuidParamSchema, 'params'), async (req, res) => {
 router.post('/', validate(conversationCreateSchema), async (req, res) => {
   try {
     const userId = req.user.id;
-    const { title, provider = 'claude', model = 'claude-sonnet-4-6' } = req.body;
+    const { title, provider = 'claude', model = 'claude-sonnet-5' } = req.body;
 
     const id = crypto.randomUUID();
     const now = new Date().toISOString();

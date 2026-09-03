@@ -7,7 +7,6 @@ const PROVIDERS = {
     name: 'Claude',
     company: 'Anthropic',
     models: [
-      { id: 'claude-sonnet-4-6', name: 'Claude Sonnet 4.6', tier: 'standard' },
       { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', tier: 'standard' },
       { id: 'claude-opus-5', name: 'Claude Opus 5', tier: 'advanced' },
     ],

@@ -167,7 +167,7 @@ export async function initDatabase() {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
       // claude-opus-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
-      claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
+      claude: ['claude-sonnet-5'],
       gemini: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
       solar: ['solar-pro4', 'solar-open2'],
@@ -286,7 +286,8 @@ export async function initDatabase() {
     console.warn('OpenAI pro 미노출 마이그레이션 스킵:', e.message);
   }
 
-  // 마이그레이션 (2026-07): Claude Sonnet 5 활성화 (기존 4.6과 함께 선택 가능)
+  // 마이그레이션 (2026-09): Claude Sonnet 5를 기본(1순위)으로, 구형 Sonnet 4.6은 카탈로그에서 은퇴.
+  // (2026-07의 'Sonnet 5 활성화' 마이그레이션을 대체 — 4.6을 다시 추가하지 않도록 통합)
   try {
     const row = await client.execute({
       sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
@@ -295,17 +296,28 @@ export async function initDatabase() {
     if (row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
       if (!models.claude) models.claude = [];
-      if (!models.claude.includes('claude-sonnet-5')) {
-        models.claude.push('claude-sonnet-5');
+      let changed = false;
+      if (models.claude.includes('claude-sonnet-4-6')) {
+        models.claude = models.claude.filter((id) => id !== 'claude-sonnet-4-6');
+        changed = true;
+      }
+      if (models.claude[0] !== 'claude-sonnet-5') {
+        models.claude = [
+          'claude-sonnet-5',
+          ...models.claude.filter((id) => id !== 'claude-sonnet-5'),
+        ];
+        changed = true;
+      }
+      if (changed) {
         await client.execute({
           sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
           args: [JSON.stringify(models)],
         });
-        console.log('마이그레이션: Claude Sonnet 5 활성화 완료');
+        console.log('마이그레이션: Claude Sonnet 5 기본화 및 Sonnet 4.6 제거 완료');
       }
     }
   } catch (e) {
-    console.warn('Sonnet 5 마이그레이션 스킵:', e.message);
+    console.warn('Sonnet 5 기본화 마이그레이션 스킵:', e.message);
   }
 
   // 마이그레이션 (2026-07): Solar Open2 활성화 (기존 pro3와 함께 선택 가능)
