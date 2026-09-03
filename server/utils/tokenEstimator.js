@@ -39,6 +39,7 @@ const CONTEXT_LIMITS = {
   },
   gemini: {
     default: 1_000_000,
+    'gemini-3.8-flash': 1_000_000, // Gemini 3.8 Flash: 1M (2026-09-02 GA)
     'gemini-3.7-flash': 1_000_000, // Gemini 3.7 Flash: 1M (2026-08 GA)
     'gemini-3.6-flash': 1_000_000, // Gemini 3.6 Flash: 1M (2026-07 GA)
     'gemini-3.5-flash': 1_000_000, // Gemini 3.5 Flash: 1M (2026-05 GA)

@@ -168,7 +168,7 @@ export async function initDatabase() {
     enabled_models: {
       // claude-opus-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-4-6', 'claude-sonnet-5'],
-      gemini: ['gemini-3.7-flash', 'gemini-3.6-flash', 'gemini-3.1-pro-preview'],
+      gemini: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.5'],
       solar: ['solar-pro4', 'solar-open2'],
     },
@@ -330,28 +330,6 @@ export async function initDatabase() {
     console.warn('Solar Open2 마이그레이션 스킵:', e.message);
   }
 
-  // 마이그레이션 (2026-07): Gemini 3.6 Flash 활성화 (기존 3.5 Flash와 함께 선택 가능)
-  try {
-    const row = await client.execute({
-      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
-      args: [],
-    });
-    if (row.rows.length > 0) {
-      const models = JSON.parse(row.rows[0].value);
-      if (!models.gemini) models.gemini = [];
-      if (!models.gemini.includes('gemini-3.6-flash')) {
-        models.gemini.push('gemini-3.6-flash');
-        await client.execute({
-          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
-          args: [JSON.stringify(models)],
-        });
-        console.log('마이그레이션: Gemini 3.6 Flash 활성화 완료');
-      }
-    }
-  } catch (e) {
-    console.warn('Gemini 3.6 Flash 마이그레이션 스킵:', e.message);
-  }
-
   // 마이그레이션 (2026-07): 카탈로그에서 은퇴한 구형 모델을 enabled_models에서 제거.
   // 카탈로그(PROVIDERS)에 없는 모델은 학생 화면에 표시되지 않지만 DB에 잔존하면 혼란을 주므로 정리.
   try {
@@ -500,6 +478,37 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Gemini 3.7 Flash 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-09): Gemini 3.8 Flash 활성화 + 구형 3.6 Flash 제거.
+  // 3.8-flash가 최신 GA(2026-09-02)로 카탈로그 1순위가 되고 3.6-flash는 카탈로그에서 은퇴.
+  try {
+    const row = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+      args: [],
+    });
+    if (row.rows.length > 0) {
+      const models = JSON.parse(row.rows[0].value);
+      if (!models.gemini) models.gemini = [];
+      let changed = false;
+      if (!models.gemini.includes('gemini-3.8-flash')) {
+        models.gemini.unshift('gemini-3.8-flash');
+        changed = true;
+      }
+      if (models.gemini.includes('gemini-3.6-flash')) {
+        models.gemini = models.gemini.filter((id) => id !== 'gemini-3.6-flash');
+        changed = true;
+      }
+      if (changed) {
+        await client.execute({
+          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+          args: [JSON.stringify(models)],
+        });
+        console.log('마이그레이션: Gemini 3.8 Flash 활성화 및 3.6 Flash 제거 완료');
+      }
+    }
+  } catch (e) {
+    console.warn('Gemini 3.8 Flash 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');
