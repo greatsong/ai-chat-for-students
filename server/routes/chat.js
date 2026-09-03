@@ -110,7 +110,7 @@ router.post(
         const title = (message || '').slice(0, 50) || '새 대화';
         await run(
           'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [convId, userId, title, provider, model || 'claude-sonnet-4-6', now, now],
+          [convId, userId, title, provider, model || 'claude-sonnet-5', now, now],
         );
       } else {
         // 대화 소유권 확인

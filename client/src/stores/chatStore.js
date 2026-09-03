@@ -11,7 +11,7 @@ const useChatStore = create((set, get) => ({
   messages: [],
   isStreaming: false,
   selectedProvider: 'claude',
-  selectedModel: 'claude-sonnet-4-6',
+  selectedModel: 'claude-sonnet-5',
   contextTrimmed: null, // { trimmedCount, totalMessages, usedMessages }
   fileNotice: null, // { kind: 'sampled', files: [{name, originalChars}] }
 
@@ -46,7 +46,7 @@ const useChatStore = create((set, get) => ({
         currentConversation: data.conversation,
         messages: data.messages,
         selectedProvider: data.conversation.provider || 'claude',
-        selectedModel: data.conversation.model || 'claude-sonnet-4-6',
+        selectedModel: data.conversation.model || 'claude-sonnet-5',
       });
     } catch (error) {
       console.error('대화 로드 실패:', error);
@@ -62,7 +62,7 @@ const useChatStore = create((set, get) => ({
       currentConversation: null,
       messages: [],
       selectedProvider: provider || selectedProvider || 'claude',
-      selectedModel: model || selectedModel || 'claude-sonnet-4-6',
+      selectedModel: model || selectedModel || 'claude-sonnet-5',
     });
   },
 
