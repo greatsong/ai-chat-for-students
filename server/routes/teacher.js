@@ -47,6 +47,7 @@ router.get('/public-settings', async (req, res) => {
       'enabled_providers',
       'enabled_models',
       'available_models',
+      'student_restricted_models',
     ];
     const result = {};
     for (const key of publicKeys) {
@@ -134,7 +135,7 @@ router.get('/students', requireAdmin, async (req, res) => {
       `
       SELECT
         u.id, u.name, u.email, u.avatar, u.role, u.is_active, u.daily_limit,
-        u.chat_mode, u.classroom_id, u.created_at,
+        u.chat_mode, u.premium_models, u.classroom_id, u.created_at,
         COALESCE(SUM(ud.input_tokens), 0)  AS today_input_tokens,
         COALESCE(SUM(ud.output_tokens), 0) AS today_output_tokens,
         COALESCE(SUM(ud.request_count), 0) AS today_requests,
@@ -173,7 +174,7 @@ router.get('/students', requireAdmin, async (req, res) => {
 router.patch('/students/:id', requireAdmin, validate(studentUpdateSchema), async (req, res) => {
   try {
     const { id } = req.params;
-    const { is_active, daily_limit, chat_mode } = req.body;
+    const { is_active, daily_limit, chat_mode, premium_models } = req.body;
 
     const user = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
     if (!user) {
@@ -194,6 +195,11 @@ router.patch('/students/:id', requireAdmin, validate(studentUpdateSchema), async
     if (chat_mode !== undefined) {
       updates.push('chat_mode = ?');
       params.push(chat_mode);
+    }
+    if (premium_models !== undefined) {
+      // 학생 개별 고급 모델(student_restricted_models) 허용 예외
+      updates.push('premium_models = ?');
+      params.push(premium_models ? 1 : 0);
     }
 
     if (updates.length === 0) {

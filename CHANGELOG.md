@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased] - 2026-09-04 — 학생 제한 모델(Opus 잠금) + 개별 허용
+
+- **학생 제한 모델 설정** `student_restricted_models` (기본 `['claude-opus-5']`) — `enabled_models`에 켜져 있어도 학생에게는 숨김·차단. 교사·관리자는 항상 사용 가능
+- **학생 개별 허용** `users.premium_models` (0/1) — 사용자 관리 페이지에서 학생마다 "고급 모델" 토글. 상황에 따라 전체 학생에게 열 때는 설정 페이지에서 해당 모델의 🔒 잠금 해제
+- 서버 게이트 `server/utils/modelAccess.js` — `POST /api/chat`에서 허용목록 검사 뒤 역할·개별 예외 검사(403)
+- `GET /api/teacher/public-settings`에 `student_restricted_models` 추가, `GET/PATCH /api/teacher/students`에 `premium_models` 추가, `/api/auth/me` 응답에 `premium_models` 포함
+- 버그 수정: 채팅 화면이 모델 허용목록을 존재하지 않는 `authStore.settings`에서 읽어 학생에게 카탈로그 전체가 노출되던 문제 → `public-settings` 기준으로 필터. 선택 모델이 목록에서 사라지면 첫 허용 모델로 자동 전환
+
 ## [1.2.0] - 2026-03-26 — 500명 스케일링 리팩토링
 
 500명 사용자 / 100명 동시 접속 대비 전면 리팩토링. 53개 파일, +6,177 / -1,198 줄 변경.

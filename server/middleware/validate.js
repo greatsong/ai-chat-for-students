@@ -65,6 +65,7 @@ export const studentUpdateSchema = z.object({
   is_active: z.union([z.boolean(), z.number().int().min(0).max(1)]).optional(),
   daily_limit: z.number().int().min(0).max(10000000).optional(),
   chat_mode: z.enum(['learning', 'project']).optional(),
+  premium_models: z.union([z.boolean(), z.number().int().min(0).max(1)]).optional(),
 });
 
 // 설정 업데이트

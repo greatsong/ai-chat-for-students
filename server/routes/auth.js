@@ -163,6 +163,7 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
         avatar: user.avatar,
         role: user.role,
         is_active: user.is_active,
+        premium_models: user.premium_models === 1,
         privacy_agreed_at: user.privacy_agreed_at || null,
       },
     });
@@ -187,6 +188,7 @@ router.get('/me', authenticate, (req, res) => {
       role: user.role,
       is_active: user.is_active,
       chat_mode: user.chat_mode || 'learning',
+      premium_models: user.premium_models === 1,
       privacy_agreed_at: user.privacy_agreed_at || null,
     },
   });
