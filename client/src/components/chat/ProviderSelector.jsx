@@ -174,6 +174,7 @@ export default function ProviderSelector({
   enabledProviders,
   enabledModels,
   availableModels,
+  restrictedModels = [],
 }) {
   const [showModelDropdown, setShowModelDropdown] = useState(false);
   const dropdownRef = useRef(null);
@@ -203,14 +204,29 @@ export default function ProviderSelector({
     }
 
     // enabledModels가 설정되어 있으면 필터, 없으면 전부 표시
-    if (enabledModelIds && enabledModelIds.length > 0) {
-      return allModels.filter((m) => enabledModelIds.includes(m.id));
+    const visible =
+      enabledModelIds && enabledModelIds.length > 0
+        ? allModels.filter((m) => enabledModelIds.includes(m.id))
+        : allModels;
+
+    // 학생 제한 모델 제외 (교사·개별 허용 학생은 빈 배열이 넘어와 필터되지 않음)
+    if (restrictedModels && restrictedModels.length > 0) {
+      return visible.filter((m) => !restrictedModels.includes(m.id));
     }
-    return allModels;
+    return visible;
   };
 
   const currentModels = getProviderModels(selectedProvider);
   const currentModel = currentModels.find((m) => m.id === selectedModel) || currentModels[0];
+
+  // 선택된 모델이 목록에서 사라지면(제한·비활성화) 첫 번째 허용 모델로 자동 전환
+  useEffect(() => {
+    if (!currentModels.length) return;
+    if (!currentModels.some((m) => m.id === selectedModel)) {
+      onModelChange?.(currentModels[0].id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedModel, selectedProvider, currentModels.map((m) => m.id).join(',')]);
 
   // 드롭다운 외부 클릭 시 닫기
   useEffect(() => {

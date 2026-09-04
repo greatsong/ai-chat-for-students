@@ -97,6 +97,7 @@ export default function StudentsPage() {
   const projectModeCount = students.filter(
     (s) => s.role === 'student' && s.chat_mode === 'project',
   ).length;
+  const premiumCount = students.filter((s) => s.role === 'student' && s.premium_models).length;
 
   // 비활성(대기) 학생 ID 목록 (교사/관리자 제외)
   const pendingIds = students.filter((s) => !s.is_active && s.role === 'student').map((s) => s.id);
@@ -107,6 +108,15 @@ export default function StudentsPage() {
       await updateStudent(student.id, { chat_mode: newMode });
     } catch (err) {
       alert('모드 변경에 실패했습니다: ' + err.message);
+    }
+  };
+
+  // 고급 모델(학생 제한 모델) 개별 허용 토글
+  const handleTogglePremium = async (student) => {
+    try {
+      await updateStudent(student.id, { premium_models: !student.premium_models });
+    } catch (err) {
+      alert('고급 모델 허용 변경에 실패했습니다: ' + err.message);
     }
   };
 
@@ -180,6 +190,7 @@ export default function StudentsPage() {
           <p className="text-sm text-gray-500 mt-1">
             전체 {students.length}명
             {projectModeCount > 0 && ` · 프로젝트 모드 ${projectModeCount}명`}
+            {premiumCount > 0 && ` · 고급 모델 허용 ${premiumCount}명`}
           </p>
         </div>
 
@@ -322,6 +333,12 @@ export default function StudentsPage() {
                 모드{sortIcon('mode')}
               </th>
               <th
+                className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide select-none"
+                title="학생 제한 모델(예: Opus)을 이 학생에게만 허용"
+              >
+                고급 모델
+              </th>
+              <th
                 className="text-center px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer hover:text-gray-700 select-none"
                 onClick={() => handleSort('daily_limit')}
               >
@@ -423,6 +440,25 @@ export default function StudentsPage() {
                       </button>
                     ) : (
                       <span className="text-xs text-gray-400">교사</span>
+                    )}
+                  </td>
+
+                  {/* 고급 모델 개별 허용 */}
+                  <td className="px-4 py-3 text-center">
+                    {student.role === 'student' ? (
+                      <button
+                        onClick={() => handleTogglePremium(student)}
+                        className={`px-2.5 py-0.5 text-xs font-medium rounded-full transition-colors ${
+                          student.premium_models
+                            ? 'bg-amber-100 text-amber-700 hover:bg-amber-200'
+                            : 'bg-gray-100 text-gray-500 hover:bg-gray-200'
+                        }`}
+                        title="클릭하여 고급 모델 허용 전환"
+                      >
+                        {student.premium_models ? '🔓 허용' : '🔒 제한'}
+                      </button>
+                    ) : (
+                      <span className="text-xs text-gray-400">항상 허용</span>
                     )}
                   </td>
 
@@ -583,6 +619,11 @@ export default function StudentsPage() {
                       {student.chat_mode === 'project' ? '프로젝트' : '학습'}
                     </span>
                   )}
+                  {student.role === 'student' && student.premium_models ? (
+                    <span className="px-1.5 py-0.5 text-[10px] font-medium rounded-full bg-amber-100 text-amber-700">
+                      고급 모델
+                    </span>
+                  ) : null}
                   {student.is_active ? (
                     <span className="px-2 py-0.5 text-xs font-medium bg-green-100 text-green-700 rounded-full">
                       활성
@@ -654,6 +695,18 @@ export default function StudentsPage() {
                       한도 수정
                     </button>
                   </div>
+                  <button
+                    onClick={() => handleTogglePremium(student)}
+                    className={`w-full py-2 text-xs font-medium rounded-lg transition-colors ${
+                      student.premium_models
+                        ? 'bg-amber-50 text-amber-700 hover:bg-amber-100 active:bg-amber-100'
+                        : 'bg-gray-50 text-gray-600 hover:bg-gray-100 active:bg-gray-100'
+                    }`}
+                  >
+                    {student.premium_models
+                      ? '🔓 고급 모델 허용 중 (클릭하면 제한)'
+                      : '🔒 고급 모델 제한 중 (클릭하면 허용)'}
+                  </button>
                   <button
                     onClick={() => handleDelete(student)}
                     className="w-full py-2 text-xs font-medium rounded-lg bg-red-50 text-red-600 hover:bg-red-100 active:bg-red-100 transition-colors flex items-center justify-center gap-1.5"

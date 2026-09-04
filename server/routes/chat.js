@@ -10,6 +10,7 @@ import { trimHistoryByTokens } from '../utils/tokenEstimator.js';
 import { summarizeMessages } from '../utils/summarizer.js';
 import { sampleLargeTextFiles, buildSamplingNotice } from '../utils/largeFileSampler.js';
 import { isCodeExecutionEnabled } from '../utils/codeExecutionGate.js';
+import { checkModelAccess } from '../utils/modelAccess.js';
 
 // 프로바이더 모듈 임포트
 import * as claude from '../providers/claude.js';
@@ -81,6 +82,13 @@ router.post(
           !allowedModels.includes(model)
         ) {
           return res.status(400).json({ error: `${model}은(는) 현재 허용되지 않은 모델입니다.` });
+        }
+
+        // 2-2. 학생 제한 모델 게이트 — 교사·관리자·개별 예외(premium_models) 학생만 통과
+        const restrictedModels = (await getSetting('student_restricted_models')) || [];
+        const access = checkModelAccess(model, req.user, restrictedModels);
+        if (!access.allowed) {
+          return res.status(403).json({ error: access.error });
         }
       }
 

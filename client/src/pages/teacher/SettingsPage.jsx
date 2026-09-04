@@ -80,6 +80,8 @@ export default function SettingsPage() {
 
   const [enabledProviders, setEnabledProviders] = useState([]);
   const [enabledModels, setEnabledModels] = useState({});
+  // 학생 제한 모델 — 켜져 있어도 학생에게는 숨김·차단 (교사·관리자·개별 허용 학생만 사용)
+  const [studentRestrictedModels, setStudentRestrictedModels] = useState([]);
   const [availableModels, setAvailableModels] = useState({});
   const [imageModels, setImageModels] = useState({});
   const [systemPrompt, setSystemPrompt] = useState('');
@@ -118,6 +120,9 @@ export default function SettingsPage() {
     if (!settings || isSavingRef.current) return;
     setEnabledProviders(settings.enabled_providers || []);
     setEnabledModels(settings.enabled_models || {});
+    setStudentRestrictedModels(
+      Array.isArray(settings.student_restricted_models) ? settings.student_restricted_models : [],
+    );
     setSystemPrompt(settings.system_prompt || '');
     setDailyLimit(settings.default_daily_limit || 100000);
     setTtsEnabled(settings.tts_enabled || false);
@@ -205,6 +210,13 @@ export default function SettingsPage() {
     });
   };
 
+  // 학생 제한 잠금 토글 (🔒 = 학생 차단, 교사·개별 허용 학생만 사용)
+  const handleToggleRestricted = (modelId) => {
+    setStudentRestrictedModels((prev) =>
+      prev.includes(modelId) ? prev.filter((m) => m !== modelId) : [...prev, modelId],
+    );
+  };
+
   const handleAddModel = (providerId) => {
     const modelId = (newModelInputs[providerId] || '').trim();
     if (!modelId) return;
@@ -277,6 +289,7 @@ export default function SettingsPage() {
       await updateMultipleSettings({
         enabled_providers: enabledProviders,
         enabled_models: enabledModels,
+        student_restricted_models: studentRestrictedModels,
         available_models: availableModels,
         image_models: imageModels,
         system_prompt: systemPrompt,
@@ -381,15 +394,23 @@ export default function SettingsPage() {
                     <div className="p-4 pt-3 space-y-3">
                       {/* 채팅 모델 관리 */}
                       <div>
-                        <div className="text-xs font-medium text-gray-500 mb-2">채팅 모델</div>
+                        <div className="text-xs font-medium text-gray-500 mb-2">
+                          채팅 모델
+                          <span className="ml-2 font-normal text-gray-400">
+                            🔒 = 학생 제한 (교사·관리자와 개별 허용 학생만 사용, 학생 화면에서 숨김)
+                          </span>
+                        </div>
                         <div className="flex flex-wrap gap-1.5">
                           {models.map((model) => {
                             const modelEnabled = (enabledModels[provider.id] || []).includes(model);
                             const isDefault = provider.defaultModels.includes(model);
+                            const isRestricted = studentRestrictedModels.includes(model);
                             return (
-                              <div key={model} className="group relative">
+                              <div key={model} className="group relative inline-flex items-stretch">
                                 <label
-                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-medium cursor-pointer border transition-colors ${
+                                  className={`inline-flex items-center gap-1.5 px-2.5 py-1 text-xs font-medium cursor-pointer border transition-colors ${
+                                    modelEnabled ? 'rounded-l-lg' : 'rounded-lg'
+                                  } ${
                                     modelEnabled
                                       ? `${colors.badge} ${colors.border}`
                                       : 'bg-white border-gray-200 text-gray-400 hover:border-gray-300'
@@ -403,6 +424,25 @@ export default function SettingsPage() {
                                   />
                                   {model}
                                 </label>
+                                {modelEnabled && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleToggleRestricted(model)}
+                                    title={
+                                      isRestricted
+                                        ? '학생 제한 중 — 클릭하면 모든 학생에게 열림'
+                                        : '모든 학생 사용 가능 — 클릭하면 학생 제한'
+                                    }
+                                    aria-label={isRestricted ? '학생 제한 해제' : '학생 제한'}
+                                    className={`px-1.5 py-1 text-xs rounded-r-lg border border-l-0 transition-colors ${
+                                      isRestricted
+                                        ? 'bg-amber-100 border-amber-300 text-amber-700'
+                                        : 'bg-white border-gray-200 text-gray-300 hover:text-gray-500'
+                                    }`}
+                                  >
+                                    {isRestricted ? '🔒' : '🔓'}
+                                  </button>
+                                )}
                                 {!isDefault && (
                                   <button
                                     onClick={() => handleRemoveModel(provider.id, model)}

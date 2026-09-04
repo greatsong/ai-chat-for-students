@@ -43,6 +43,13 @@ export async function initDatabase() {
     // 이미 컬럼이 존재하면 무시
   }
 
+  // 기존 테이블에 premium_models 컬럼 추가 (학생 개별 고급 모델 허용 예외, 0/1)
+  try {
+    await client.execute(`ALTER TABLE users ADD COLUMN premium_models INTEGER DEFAULT 0`);
+  } catch {
+    // 이미 컬럼이 존재하면 무시
+  }
+
   await client.execute(`
     CREATE TABLE IF NOT EXISTS classrooms (
       id TEXT PRIMARY KEY,
@@ -186,6 +193,9 @@ export async function initDatabase() {
     code_execution_openai: false,
     // 'teacher' = 교사/관리자만 사용 가능 (기본), 'student' = 모든 사용자
     code_execution_max_role: 'teacher',
+    // 학생 제한 모델 — enabled_models에 켜져 있어도 학생에게는 차단(교사·관리자·premium_models 예외 학생만 사용).
+    // 상황에 따라 전체 학생에게 열려면 설정 페이지에서 잠금 해제.
+    student_restricted_models: ['claude-opus-5'],
   };
 
   for (const [key, value] of Object.entries(defaultSettings)) {

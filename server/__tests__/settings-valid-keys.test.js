@@ -25,6 +25,7 @@ const CLIENT_SAVED_KEYS = [
   'code_execution_claude',
   'code_execution_openai',
   'code_execution_max_role',
+  'student_restricted_models',
 ];
 
 describe('SETTINGS_VALID_KEYS (관리자 설정 허용목록)', () => {

@@ -21,4 +21,6 @@ export const SETTINGS_VALID_KEYS = [
   'code_execution_claude',
   'code_execution_openai',
   'code_execution_max_role',
+  // 학생 제한 모델 — modelAccess.js가 읽는 키. 교사·관리자와 premium_models 예외 학생만 사용 가능.
+  'student_restricted_models',
 ];

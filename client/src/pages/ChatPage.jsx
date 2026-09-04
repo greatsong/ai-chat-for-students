@@ -43,9 +43,19 @@ export default function ChatPage() {
   const contextTrimmed = useChatStore((s) => s.contextTrimmed);
   const fileNotice = useChatStore((s) => s.fileNotice);
 
-  const enabledProviders = settings?.enabled_providers || ['claude', 'gemini', 'openai', 'solar'];
-  const enabledModels = settings?.enabled_models || {};
-  const availableModels = settings?.available_models || {};
+  // 모델·프로바이더 허용 목록은 /teacher/public-settings에서 가져온다 (authStore에는 settings가 없음)
+  const enabledProviders = publicSettings.enabled_providers || [
+    'claude',
+    'gemini',
+    'openai',
+    'solar',
+  ];
+  const enabledModels = publicSettings.enabled_models || {};
+  const availableModels = publicSettings.available_models || {};
+  // 학생 제한 모델 — 교사·관리자와 개별 허용(premium_models) 학생에게는 적용하지 않음
+  const canUsePremium =
+    user?.role === 'teacher' || user?.role === 'admin' || user?.premium_models === true;
+  const restrictedModels = canUsePremium ? [] : publicSettings.student_restricted_models || [];
 
   // 인증 확인
   useEffect(() => {
@@ -235,6 +245,7 @@ export default function ChatPage() {
           enabledProviders={enabledProviders}
           enabledModels={enabledModels}
           availableModels={availableModels}
+          restrictedModels={restrictedModels}
         />
 
         {/* 메시지 영역 또는 웰컴 스크린 */}
