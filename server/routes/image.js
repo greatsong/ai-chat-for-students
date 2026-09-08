@@ -3,7 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate, imageGenerateSchema } from '../middleware/validate.js';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { generateImage as geminiGenerateImage } from '../providers/gemini.js';
-import { generateImage as openaiGenerateImage } from '../providers/openai.js';
+import { generateImage as openaiGenerateImage, IMAGE_MODEL } from '../providers/openai.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -37,7 +37,7 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
 
     // 어떤 모델로 생성했는지 가벼운 표기 (메시지에 저장 — 새로고침 후에도 유지)
     const modelLabels = {
-      openai: 'ChatGPT · gpt-image-2',
+      openai: `ChatGPT · ${result.model || IMAGE_MODEL}`,
       gemini: 'Gemini · 이미지',
     };
     const assistantContent = `이미지가 생성되었습니다. · ${modelLabels[provider] || provider}`;

@@ -31,7 +31,7 @@ export const PROVIDERS = {
       { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol (고성능·추론off)', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: true },
-    imageModel: 'gpt-image-2',
+    imageModel: 'gpt-image-2.5-flare',
   },
   solar: {
     name: 'Solar',

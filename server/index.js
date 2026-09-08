@@ -21,7 +21,7 @@ app.set('trust proxy', 1);
 const PORT = process.env.PORT || 4022;
 const CLIENT_URL = process.env.CLIENT_URL || 'http://localhost:4021';
 const REQUEST_TIMEOUT_MS = parseInt(process.env.REQUEST_TIMEOUT_MS, 10) || 30000;
-// 이미지 생성(gpt-image-2 등)은 모델 추론에 수십 초~분 단위가 걸려 기본 30초로는 부족.
+// 이미지 생성(gpt-image-2.5 등)은 모델 추론에 수십 초~분 단위가 걸려 기본 30초로는 부족.
 const IMAGE_TIMEOUT_MS = parseInt(process.env.IMAGE_TIMEOUT_MS, 10) || 180000;
 
 // 보안 HTTP 헤더 (helmet + CSP)
