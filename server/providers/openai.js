@@ -290,32 +290,76 @@ export async function streamChat({
 }
 
 /**
- * OpenAI 이미지 생성 (gpt-image-2)
+ * OpenAI 이미지 생성 모델
+ *
+ * gpt-image-2.5-flare가 기본이다. 다만 2.5 계열은 OpenAI 조직 인증(organization verification)을
+ * 마친 계정에서만 호출되고 미인증 상태에서는 403을 반환한다. 인증 전에도 교사용 이미지 생성이
+ * 멈추지 않도록 그 경우에만 구형 gpt-image-2로 폴백하며, 인증이 끝나면 자동으로 2.5를 사용한다.
+ * 조직 인증: https://platform.openai.com/settings/organization/general
+ */
+export const IMAGE_MODEL = 'gpt-image-2.5-flare';
+export const IMAGE_MODEL_FALLBACK = 'gpt-image-2';
+
+// gpt-image-2는 xhigh/max 품질을 지원하지 않는다 (2.5에서 추가된 값).
+const QUALITY_UNSUPPORTED_BY_FALLBACK = ['xhigh', 'max'];
+
+/**
+ * 조직 미인증으로 인한 모델 접근 거부인지 판별
+ * @param {any} error
+ * @returns {boolean}
+ */
+export function isOrgVerificationError(error) {
+  if (error?.status !== 403) return false;
+  return /must be verified/i.test(error?.message || '');
+}
+
+/**
+ * OpenAI 이미지 생성 (gpt-image-2.5-flare)
  * @param {Object} params
  * @param {string} params.prompt - 이미지 생성 프롬프트
- * @param {string} params.model - 모델 ID (기본: gpt-image-2)
+ * @param {string} params.model - 모델 ID (기본: gpt-image-2.5-flare)
  * @param {string} params.size - 이미지 크기 (기본: 1024x1024)
- * @param {string} params.quality - 렌더링 품질 (low|medium|high|auto, 기본: medium)
- *   high는 Vercel 프록시 120초 한도를 넘겨 502가 나므로 medium 사용 (동기 요청 구조 제약)
- * @returns {{ imageData: string, mimeType: string }}
+ * @param {string} params.quality - 렌더링 품질 (low|medium|high|xhigh|max|auto, 기본: medium)
+ *   high 이상은 Vercel 프록시 120초 한도를 넘겨 502가 나므로 medium 사용 (동기 요청 구조 제약)
+ * @returns {{ imageData: string, mimeType: string, model: string }} model은 실제로 사용된 모델 ID
  *
  * 주의: gpt-image 계열은 항상 base64(b64_json)로 반환하며 response_format 파라미터를
  * 지원하지 않는다 (전달 시 "Unknown parameter" 400 에러). DALL·E와 다른 점.
  */
 export async function generateImage({ prompt, model, size, quality }) {
   const openai = await getClient();
+  const requestedModel = model || IMAGE_MODEL;
+  const requestedQuality = quality || 'medium';
 
-  const result = await withRetry(() =>
-    openai.images.generate({
-      model: model || 'gpt-image-2',
-      prompt,
-      n: 1,
-      size: size || '1024x1024',
-      quality: quality || 'medium',
-      // 교사 전용 기능 — 무난한 교육용 프롬프트의 오탐을 줄이되 완전 해제는 아님(여전히 필터링됨)
-      moderation: 'low',
-    }),
-  );
+  const call = (targetModel, targetQuality) =>
+    withRetry(() =>
+      openai.images.generate({
+        model: targetModel,
+        prompt,
+        n: 1,
+        size: size || '1024x1024',
+        quality: targetQuality,
+        // 교사 전용 기능 — 무난한 교육용 프롬프트의 오탐을 줄이되 완전 해제는 아님(여전히 필터링됨)
+        moderation: 'low',
+      }),
+    );
+
+  let usedModel = requestedModel;
+  let result;
+  try {
+    result = await call(requestedModel, requestedQuality);
+  } catch (error) {
+    if (!isOrgVerificationError(error) || requestedModel === IMAGE_MODEL_FALLBACK) throw error;
+    console.warn(
+      `[image] ${requestedModel} 호출이 조직 미인증으로 거부됨 — ${IMAGE_MODEL_FALLBACK}로 폴백합니다. ` +
+        'https://platform.openai.com/settings/organization/general 에서 조직 인증을 마치면 자동 복구됩니다.',
+    );
+    usedModel = IMAGE_MODEL_FALLBACK;
+    result = await call(
+      IMAGE_MODEL_FALLBACK,
+      QUALITY_UNSUPPORTED_BY_FALLBACK.includes(requestedQuality) ? 'high' : requestedQuality,
+    );
+  }
 
   const imageData = result.data?.[0]?.b64_json;
   if (!imageData) {
@@ -325,6 +369,7 @@ export async function generateImage({ prompt, model, size, quality }) {
   return {
     imageData,
     mimeType: 'image/png',
+    model: usedModel,
   };
 }
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [Unreleased] - 2026-09-09 — GPT Image 2.5 (교사 전용 이미지 생성)
+
+- **OpenAI 이미지 모델을 `gpt-image-2.5-flare`로 교체** (2026-09-08 공개). 이미지 생성은 기존과 동일하게 교사·관리자 전용 (`server/routes/image.js` 403 게이트, 학생에게는 UI 미노출)
+- **조직 미인증 자동 폴백** — GPT Image 2.5 계열은 OpenAI 조직 인증(organization verification)을 마친 계정에서만 호출된다. 미인증 403이면 구형 `gpt-image-2`로 폴백해 교사 기능이 멈추지 않게 하고, 인증 완료 후에는 자동으로 2.5를 사용
+- 채팅에 표시되는 모델 캡션이 **실제 사용된 모델**을 반영 (폴백 시 `ChatGPT · gpt-image-2`로 정직하게 표기)
+- 폴백 시 `gpt-image-2`가 지원하지 않는 `xhigh`/`max` 품질은 `high`로 자동 하향 (2.5에서 추가된 값)
+- 품질은 `medium` 유지 — Vercel 프록시 120초 한도 제약. 조직 인증 완료 후 실측해 상향 여부 재검토
+
 ## [Unreleased] - 2026-09-04 — 학생 제한 모델(Opus 잠금) + 개별 허용
 
 - **학생 제한 모델 설정** `student_restricted_models` (기본 `['claude-opus-5']`) — `enabled_models`에 켜져 있어도 학생에게는 숨김·차단. 교사·관리자는 항상 사용 가능
