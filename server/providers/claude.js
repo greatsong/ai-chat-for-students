@@ -225,7 +225,14 @@ export async function streamChat({
     // 보장하기 위해 thinking을 명시적으로 끈다.
     // 주의: Opus 5는 disabled + effort xhigh/max 조합이 400 에러 —
     // effort를 별도 지정하지 않으므로(기본 high) 현재 조합은 유효하다.
-    if ((model || '').startsWith('claude-sonnet-5') || (model || '').startsWith('claude-opus-5')) {
+    // Opus 5.5는 thinking을 끌 수 없다(disabled·budget_tokens 모두 400).
+    // effort 'low'로 생각을 짧게 제한한다 — 실측(2026-09-23) 첫 토큰 2~3초,
+    // 전체 응답은 Opus 5 disabled보다 짧았다. 'claude-opus-5-5'도 'claude-opus-5'로
+    // 시작하므로 startsWith 대신 정확히 비교한다.
+    const modelId = model || '';
+    if (modelId === 'claude-opus-5-5') {
+      streamParams.output_config = { effort: 'low' };
+    } else if (modelId.startsWith('claude-sonnet-5') || modelId === 'claude-opus-5') {
       streamParams.thinking = { type: 'disabled' };
     }
 
