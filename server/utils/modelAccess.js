@@ -8,7 +8,7 @@
  * 상황에 따라 전체 학생에게 열어야 할 때는 설정 페이지에서 해당 모델의 잠금을 해제하면 된다.
  */
 
-export const DEFAULT_STUDENT_RESTRICTED_MODELS = ['claude-opus-5'];
+export const DEFAULT_STUDENT_RESTRICTED_MODELS = ['claude-opus-5-5'];
 
 /**
  * 이 사용자가 제한 모델을 사용할 수 있는가 (역할 또는 개별 예외)

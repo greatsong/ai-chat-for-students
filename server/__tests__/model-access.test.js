@@ -13,7 +13,7 @@ import {
   DEFAULT_STUDENT_RESTRICTED_MODELS,
 } from '../utils/modelAccess.js';
 
-const restricted = ['claude-opus-5'];
+const restricted = ['claude-opus-5-5'];
 const student = { role: 'student', premium_models: 0 };
 const premiumStudent = { role: 'student', premium_models: 1 };
 const teacher = { role: 'teacher' };
@@ -37,7 +37,7 @@ describe('canUsePremiumModels', () => {
 
 describe('getRestrictedModelsForUser', () => {
   it('학생에게는 제한 목록 그대로', () => {
-    expect(getRestrictedModelsForUser(student, restricted)).toEqual(['claude-opus-5']);
+    expect(getRestrictedModelsForUser(student, restricted)).toEqual(['claude-opus-5-5']);
   });
   it('교사·예외 학생에게는 빈 목록', () => {
     expect(getRestrictedModelsForUser(teacher, restricted)).toEqual([]);
@@ -47,13 +47,13 @@ describe('getRestrictedModelsForUser', () => {
     expect(getRestrictedModelsForUser(student, [])).toEqual([]);
     expect(getRestrictedModelsForUser(student, null)).toEqual([]);
     expect(getRestrictedModelsForUser(student, undefined)).toEqual([]);
-    expect(getRestrictedModelsForUser(student, 'claude-opus-5')).toEqual([]);
+    expect(getRestrictedModelsForUser(student, 'claude-opus-5-5')).toEqual([]);
   });
 });
 
 describe('checkModelAccess', () => {
   it('학생이 Opus 요청 → 차단 + 안내 메시지', () => {
-    const r = checkModelAccess('claude-opus-5', student, restricted);
+    const r = checkModelAccess('claude-opus-5-5', student, restricted);
     expect(r.allowed).toBe(false);
     expect(r.error).toContain('교사 승인');
   });
@@ -61,18 +61,18 @@ describe('checkModelAccess', () => {
     expect(checkModelAccess('claude-sonnet-5', student, restricted).allowed).toBe(true);
   });
   it('교사가 Opus 요청 → 통과', () => {
-    expect(checkModelAccess('claude-opus-5', teacher, restricted).allowed).toBe(true);
+    expect(checkModelAccess('claude-opus-5-5', teacher, restricted).allowed).toBe(true);
   });
   it('예외 학생이 Opus 요청 → 통과', () => {
-    expect(checkModelAccess('claude-opus-5', premiumStudent, restricted).allowed).toBe(true);
+    expect(checkModelAccess('claude-opus-5-5', premiumStudent, restricted).allowed).toBe(true);
   });
   it('제한 목록이 비어 있으면 학생도 Opus 통과 (전체 오픈 상황)', () => {
-    expect(checkModelAccess('claude-opus-5', student, []).allowed).toBe(true);
+    expect(checkModelAccess('claude-opus-5-5', student, []).allowed).toBe(true);
   });
   it('model 미지정은 통과', () => {
     expect(checkModelAccess(undefined, student, restricted).allowed).toBe(true);
   });
   it('기본 제한 목록에 Opus 5가 포함된다', () => {
-    expect(DEFAULT_STUDENT_RESTRICTED_MODELS).toContain('claude-opus-5');
+    expect(DEFAULT_STUDENT_RESTRICTED_MODELS).toContain('claude-opus-5-5');
   });
 });

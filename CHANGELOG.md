@@ -1,5 +1,12 @@
 # Changelog
 
+## [Unreleased] - 2026-09-23 — Claude Opus 5.5
+
+- **Claude Opus 5를 `claude-opus-5-5`로 교체.** 컨텍스트(1M)와 토크나이저는 같고 가격은 입력 $5→$4, 출력 $25→$20(100만 토큰당)으로 20% 낮다
+- **생각(thinking) 설정 변경.** Opus 5.5는 thinking을 끌 수 없어 `disabled`를 보내면 400 오류가 난다. 대신 `output_config.effort: 'low'`로 생각을 짧게 제한한다. 기존 `startsWith('claude-opus-5')` 조건은 `claude-opus-5-5`에도 걸리므로 정확히 비교하도록 고쳤다
+- **실측(2026-09-23, 같은 프롬프트, 스트리밍).** Opus 5(thinking 끔)는 첫 토큰 1.1초·전체 9.0초·출력 551토큰, Opus 5.5(effort low)는 첫 토큰 2.1~3.1초·전체 5.3~6.3초·출력 420~444토큰. 첫 토큰은 1~2초 늦지만 전체 응답은 짧고 출력 토큰도 적다. Vercel 120초 한도와는 거리가 멀다
+- **DB 마이그레이션.** `enabled_models`와 `student_restricted_models`의 `claude-opus-5`를 `claude-opus-5-5`로 바꿔 교사 설정(노출 여부·학생 잠금)을 유지한다. 잠금 목록을 함께 바꾸지 않으면 Opus 5.5가 학생에게 잠금 없이 열린다. 재실행해도 변경이 없다(멱등)
+
 ## [Unreleased] - 2026-09-09 — GPT Image 2.5 (교사 전용 이미지 생성)
 
 - **OpenAI 이미지 모델을 `gpt-image-2.5-flare`로 교체** (2026-09-08 공개). 이미지 생성은 기존과 동일하게 교사·관리자 전용 (`server/routes/image.js` 403 게이트, 학생에게는 UI 미노출)

@@ -173,7 +173,7 @@ export async function initDatabase() {
   const defaultSettings = {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
-      // claude-opus-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
+      // claude-opus-5-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-5'],
       gemini: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview'],
       openai: ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.6-sol'],
@@ -195,7 +195,7 @@ export async function initDatabase() {
     code_execution_max_role: 'teacher',
     // 학생 제한 모델 — enabled_models에 켜져 있어도 학생에게는 차단(교사·관리자·premium_models 예외 학생만 사용).
     // 상황에 따라 전체 학생에게 열려면 설정 페이지에서 잠금 해제.
-    student_restricted_models: ['claude-opus-5'],
+    student_restricted_models: ['claude-opus-5-5'],
   };
 
   for (const [key, value] of Object.entries(defaultSettings)) {
@@ -431,18 +431,48 @@ export async function initDatabase() {
       const models = JSON.parse(row.rows[0].value);
       if (Array.isArray(models.claude) && models.claude.includes('claude-opus-4-8')) {
         models.claude = models.claude.filter((id) => id !== 'claude-opus-4-8');
-        if (!models.claude.includes('claude-opus-5')) {
-          models.claude.push('claude-opus-5');
+        // 4.8을 켜뒀던 학급은 현재 Opus(5.5)로 바로 옮긴다 (5는 2026-09 카탈로그 은퇴)
+        if (!models.claude.includes('claude-opus-5-5')) {
+          models.claude.push('claude-opus-5-5');
         }
         await client.execute({
           sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
           args: [JSON.stringify(models)],
         });
-        console.log('마이그레이션: enabled_models에서 Claude Opus 4.8 → Opus 5 교체 완료');
+        console.log('마이그레이션: enabled_models에서 Claude Opus 4.8 → Opus 5.5 교체 완료');
       }
     }
   } catch (e) {
     console.warn('Opus 5 교체 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-09): Claude Opus 5 → Opus 5.5 교체.
+  // Opus 5.5가 같은 1M 컨텍스트에 20% 저렴해($4/$20) 카탈로그에서 5를 뺀다.
+  // enabled_models와 student_restricted_models 양쪽을 스왑해 교사 설정(노출 여부·학생 잠금)을 그대로 유지한다.
+  // 잠금 목록을 스왑하지 않으면 Opus 5.5가 학생에게 잠금 없이 열리므로 반드시 함께 바꾼다.
+  // 5가 없는 DB는 변경하지 않으며, 스왑 후 재실행돼도 매칭이 없어 멱등.
+  for (const key of ['enabled_models', 'student_restricted_models']) {
+    try {
+      const row = await client.execute({
+        sql: 'SELECT value FROM settings WHERE key = ?',
+        args: [key],
+      });
+      if (row.rows.length === 0) continue;
+      const value = JSON.parse(row.rows[0].value);
+      const list = key === 'enabled_models' ? value.claude : value;
+      if (!Array.isArray(list) || !list.includes('claude-opus-5')) continue;
+      const swapped = list.includes('claude-opus-5-5')
+        ? list.filter((id) => id !== 'claude-opus-5')
+        : list.map((id) => (id === 'claude-opus-5' ? 'claude-opus-5-5' : id));
+      const next = key === 'enabled_models' ? { ...value, claude: swapped } : swapped;
+      await client.execute({
+        sql: 'UPDATE settings SET value = ? WHERE key = ?',
+        args: [JSON.stringify(next), key],
+      });
+      console.log(`마이그레이션: ${key}에서 Claude Opus 5 → Opus 5.5 교체 완료`);
+    } catch (e) {
+      console.warn(`Opus 5.5 교체 마이그레이션 스킵 (${key}):`, e.message);
+    }
   }
 
   // 마이그레이션 (2026-08): Solar Pro 3 → Pro 4 교체.
