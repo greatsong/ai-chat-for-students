@@ -174,9 +174,9 @@ export async function initDatabase() {
     enabled_providers: ['claude', 'gemini', 'openai', 'solar'],
     enabled_models: {
       // claude-opus-5-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
-      claude: ['claude-sonnet-5'],
+      claude: ['claude-sonnet-5-5'],
       gemini: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview'],
-      openai: ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.6-sol'],
+      openai: ['gpt-6.1-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
       solar: ['solar-pro4', 'solar-open2'],
     },
     image_generation_enabled: false,
@@ -238,37 +238,6 @@ export async function initDatabase() {
     console.warn('enabled_models 마이그레이션 스킵:', e.message);
   }
 
-  // 마이그레이션 (2026-09): GPT-5.6 Terra를 기본(1순위)으로, 구형 GPT-5.5는 카탈로그에서 은퇴.
-  // Terra는 5.5 대비 입력·출력 단가 60% 저렴하고 성능 동급 이상. (2026-05 'GPT-5.5 활성화' 마이그레이션 대체)
-  try {
-    const row = await client.execute({
-      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
-      args: [],
-    });
-    if (row.rows.length > 0) {
-      const models = JSON.parse(row.rows[0].value);
-      if (!models.openai) models.openai = [];
-      let changed = false;
-      if (models.openai.includes('gpt-5.5')) {
-        models.openai = models.openai.filter((id) => id !== 'gpt-5.5');
-        changed = true;
-      }
-      if (models.openai[0] !== 'gpt-5.6-terra') {
-        models.openai = ['gpt-5.6-terra', ...models.openai.filter((id) => id !== 'gpt-5.6-terra')];
-        changed = true;
-      }
-      if (changed) {
-        await client.execute({
-          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
-          args: [JSON.stringify(models)],
-        });
-        console.log('마이그레이션: GPT-5.6 Terra 기본화 및 GPT-5.5 제거 완료');
-      }
-    }
-  } catch (e) {
-    console.warn('GPT-5.6 Terra 기본화 마이그레이션 스킵:', e.message);
-  }
-
   // 마이그레이션 (2026-06): OpenAI 'pro' 추론 모델 미노출.
   // gpt-5.5-pro / gpt-5.4-pro는 첫 토큰까지 ~3분간 무출력이라 SSE 연결이 끊겨
   // 학생에게 "응답 없음"으로 보인다. enabled_models에서 제거한다.
@@ -296,38 +265,46 @@ export async function initDatabase() {
     console.warn('OpenAI pro 미노출 마이그레이션 스킵:', e.message);
   }
 
-  // 마이그레이션 (2026-09): Claude Sonnet 5를 기본(1순위)으로, 구형 Sonnet 4.6은 카탈로그에서 은퇴.
-  // (2026-07의 'Sonnet 5 활성화' 마이그레이션을 대체 — 4.6을 다시 추가하지 않도록 통합)
-  try {
-    const row = await client.execute({
-      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
-      args: [],
-    });
-    if (row.rows.length > 0) {
-      const models = JSON.parse(row.rows[0].value);
-      if (!models.claude) models.claude = [];
-      let changed = false;
-      if (models.claude.includes('claude-sonnet-4-6')) {
-        models.claude = models.claude.filter((id) => id !== 'claude-sonnet-4-6');
-        changed = true;
+  // 마이그레이션 (2026-09-30): Claude Sonnet 5 → 5.5, GPT-5.6 Sol → GPT-6.1 Sol 교체.
+  // 두 신모델을 각 프로바이더의 기본(1순위)으로 두고 구형은 카탈로그에서 은퇴시킨다.
+  //   Sonnet 5.5는 Sonnet 5와 가격이 같다($2/$10).
+  //   GPT-6.1 Sol은 5.6 Sol의 절반($2/$10)이고 기본이던 Terra($2/$12)보다도 싸다.
+  // 'Sonnet 5 기본화'·'GPT-5.6 Terra 기본화' 마이그레이션(매 기동마다 1순위를 강제)을 대체한다.
+  // student_restricted_models도 함께 바꿔 교사의 학생 잠금 설정을 유지한다.
+  // 구형이 없는 DB는 변경하지 않으며, 교체 후 재실행돼도 매칭이 없어 멱등.
+  const defaultModelSwaps = [
+    { provider: 'claude', from: 'claude-sonnet-5', to: 'claude-sonnet-5-5' },
+    { provider: 'openai', from: 'gpt-5.6-sol', to: 'gpt-6.1-sol' },
+  ];
+  for (const key of ['enabled_models', 'student_restricted_models']) {
+    try {
+      const row = await client.execute({
+        sql: 'SELECT value FROM settings WHERE key = ?',
+        args: [key],
+      });
+      if (row.rows.length === 0) continue;
+      let value = JSON.parse(row.rows[0].value);
+      const swappedIds = [];
+      for (const { provider, from, to } of defaultModelSwaps) {
+        const list = key === 'enabled_models' ? value[provider] : value;
+        if (!Array.isArray(list) || !list.includes(from)) continue;
+        const rest = list.filter((id) => id !== from && id !== to);
+        if (key === 'enabled_models') {
+          value = { ...value, [provider]: [to, ...rest] };
+        } else {
+          value = [...rest, to];
+        }
+        swappedIds.push(`${from} → ${to}`);
       }
-      if (models.claude[0] !== 'claude-sonnet-5') {
-        models.claude = [
-          'claude-sonnet-5',
-          ...models.claude.filter((id) => id !== 'claude-sonnet-5'),
-        ];
-        changed = true;
-      }
-      if (changed) {
-        await client.execute({
-          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
-          args: [JSON.stringify(models)],
-        });
-        console.log('마이그레이션: Claude Sonnet 5 기본화 및 Sonnet 4.6 제거 완료');
-      }
+      if (swappedIds.length === 0) continue;
+      await client.execute({
+        sql: 'UPDATE settings SET value = ? WHERE key = ?',
+        args: [JSON.stringify(value), key],
+      });
+      console.log(`마이그레이션: ${key}에서 ${swappedIds.join(', ')} 교체 완료`);
+    } catch (e) {
+      console.warn(`Sonnet 5.5·GPT-6.1 Sol 교체 마이그레이션 스킵 (${key}):`, e.message);
     }
-  } catch (e) {
-    console.warn('Sonnet 5 기본화 마이그레이션 스킵:', e.message);
   }
 
   // 마이그레이션 (2026-07): Solar Open2 활성화 (기존 pro3와 함께 선택 가능)
@@ -362,8 +339,9 @@ export async function initDatabase() {
     if (row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
       const retired = {
+        claude: ['claude-sonnet-4-6'],
         gemini: ['gemini-3-flash-preview'],
-        openai: ['gpt-5.4'],
+        openai: ['gpt-5.4', 'gpt-5.5'],
       };
       let changed = false;
       for (const [provider, ids] of Object.entries(retired)) {

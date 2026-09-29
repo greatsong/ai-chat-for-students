@@ -7,7 +7,7 @@ const PROVIDERS = {
     name: 'Claude',
     company: 'Anthropic',
     models: [
-      { id: 'claude-sonnet-5', name: 'Claude Sonnet 5', tier: 'standard' },
+      { id: 'claude-sonnet-5-5', name: 'Claude Sonnet 5.5', tier: 'standard' },
       { id: 'claude-opus-5-5', name: 'Claude Opus 5.5', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: false },
@@ -26,9 +26,9 @@ const PROVIDERS = {
     name: 'ChatGPT',
     company: 'OpenAI',
     models: [
+      { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol (고성능)', tier: 'advanced' },
       { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra (균형)', tier: 'standard' },
       { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna (빠름·저비용)', tier: 'standard' },
-      { id: 'gpt-5.6-sol', name: 'GPT-5.6 Sol (고성능·추론off)', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: true },
   },

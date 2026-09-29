@@ -58,7 +58,7 @@ describe('checkModelAccess', () => {
     expect(r.error).toContain('교사 승인');
   });
   it('학생이 Sonnet 요청 → 통과', () => {
-    expect(checkModelAccess('claude-sonnet-5', student, restricted).allowed).toBe(true);
+    expect(checkModelAccess('claude-sonnet-5-5', student, restricted).allowed).toBe(true);
   });
   it('교사가 Opus 요청 → 통과', () => {
     expect(checkModelAccess('claude-opus-5-5', teacher, restricted).allowed).toBe(true);

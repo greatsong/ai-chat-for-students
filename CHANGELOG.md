@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] - 2026-09-30 — Claude Sonnet 5.5 · GPT-6.1 Sol
+
+- **Claude Sonnet 5를 `claude-sonnet-5-5`로 교체하고 Claude 기본 모델로 지정.** 가격($2/$10), 컨텍스트(1M), 토크나이저는 Sonnet 5와 같다
+- **Sonnet 5.5 생각(thinking) 설정.** Sonnet 5.5에 `thinking: disabled`를 보내면 400 오류가 난다. 기존 `startsWith('claude-sonnet-5')` 조건이 5.5에도 걸려 그대로 두면 모든 요청이 실패하므로, Opus 5.5와 같이 `output_config.effort: 'low'`를 보내고 모델 ID를 정확히 비교하도록 고쳤다
+- **실측(2026-09-30, 3차 방정식 풀이, 스트리밍).** effort low는 첫 토큰 0.7초·전체 9.1초, 생각을 끄는 `between_tools`는 0.9초·11.1초, 기본 high는 5.5초·14.4초였다. 가장 빠른 low를 사용한다
+- **GPT-5.6 Sol을 `gpt-6.1-sol`로 교체하고 ChatGPT 기본 모델로 지정.** 가격은 $2/$10(100만 토큰당)으로 5.6 Sol($4/$20)의 절반이고 기존 기본 모델 Terra($2/$12)보다도 낮다. Terra와 Luna는 선택지로 남긴다
+- **GPT-6.1 Sol 추론 강도.** 6.1 Sol은 `reasoning_effort`로 `none`과 `minimal`을 지원하지 않아 최솟값 `low`를 사용한다. 모델을 지정하지 않은 요청에도 기본 모델의 추론 강도가 적용되도록 조회 기준을 실제 사용 모델 ID로 바꿨다
+- **Claude 거절 폴백.** Sonnet 5.5와 Opus 5.5 요청에 서버측 폴백(`fallbacks: 'default'`, beta `server-side-fallback-2026-07-01`)을 켰다. 안전 분류기가 거절하면 Anthropic이 거절 유형별 권장 모델로 같은 스트림에서 이어 답한다. Sonnet 5.5는 cyber·frontier_llm 거절만 재시도된다. 폴백까지 거절되면 응답 끝에 안내 문구를 붙여 빈 답변으로 끝나지 않게 했다
+- **DB 마이그레이션.** `enabled_models`에서 Sonnet 5를 Sonnet 5.5로, GPT-5.6 Sol을 GPT-6.1 Sol로 바꿔 각 프로바이더의 1순위에 둔다. `student_restricted_models`도 함께 바꿔 교사의 학생 잠금 설정을 유지한다. 매 기동마다 1순위를 강제하던 'Sonnet 5 기본화'·'GPT-5.6 Terra 기본화' 마이그레이션은 삭제했다. 이제 교사가 순서를 바꿔도 재기동 후 유지된다. 은퇴한 `claude-sonnet-4-6`과 `gpt-5.5`는 구형 모델 정리 목록으로 옮겼다
+- **회귀 테스트.** `server/__tests__/claude-stream-params.test.js`에서 모델별 thinking·effort·폴백 파라미터와 거절 안내 문구를 검사한다
+
 ## [Unreleased] - 2026-09-23 — Claude Opus 5.5
 
 - **Claude Opus 5를 `claude-opus-5-5`로 교체.** 컨텍스트(1M)와 토크나이저는 같고 가격은 입력 $5→$4, 출력 $25→$20(100만 토큰당)으로 20% 낮다

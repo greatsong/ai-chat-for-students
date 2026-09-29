@@ -11,13 +11,15 @@
 // 프로바이더·모델별 컨텍스트 윈도우 (토큰)
 // 출처:
 //   Claude — https://platform.claude.com/docs/en/about-claude/models/overview
-//   OpenAI — https://developers.openai.com/api/docs/models, https://openai.com/index/gpt-5-6/
+//   OpenAI — https://developers.openai.com/api/docs/models, https://openai.com/index/gpt-5-6/,
+//            https://openai.com/index/introducing-gpt-6-1-sol/
 //   Gemini — https://ai.google.dev/gemini-api/docs/models, https://ai.google.dev/gemini-api/docs/long-context
 //   Solar  — https://www.upstage.ai/blog/en/solar-pro-4
 const CONTEXT_LIMITS = {
   claude: {
     default: 1_000_000, // 2026-03 GA: 모든 4.6 모델 1M
-    'claude-sonnet-5': 1_000_000,
+    'claude-sonnet-5-5': 1_000_000, // 2026-09 출시: Sonnet 5 후속, 1M 기본
+    'claude-sonnet-5': 1_000_000, // legacy: 과거 로그 호환용 유지 (2026-09 카탈로그 은퇴)
     'claude-sonnet-4-6': 1_000_000, // legacy: 과거 로그 호환용 유지 (2026-09 카탈로그 은퇴)
     'claude-haiku-4-5-20251001': 200_000,
     'claude-opus-5-5': 1_000_000, // 2026-09 출시: Opus 5 후속, 1M 기본
@@ -27,8 +29,9 @@ const CONTEXT_LIMITS = {
   },
   openai: {
     default: 128_000,
-    'gpt-5.6-sol': 1_050_000, // GPT-5.6 시리즈: 1.05M (2026-07 출시)
-    'gpt-5.6-terra': 1_050_000,
+    'gpt-6.1-sol': 1_050_000, // GPT-6.1 Sol: 1.05M (2026-09-29 출시)
+    'gpt-5.6-sol': 1_050_000, // legacy: 과거 로그 호환용 유지 (2026-09 카탈로그 은퇴)
+    'gpt-5.6-terra': 1_050_000, // GPT-5.6 시리즈: 1.05M (2026-07 출시)
     'gpt-5.6-luna': 1_050_000,
     'gpt-5.5': 1_000_000, // legacy: 과거 로그 호환용 유지 (2026-09 카탈로그 은퇴)
     'gpt-5.5-pro': 1_000_000,
