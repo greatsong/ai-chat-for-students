@@ -10,7 +10,7 @@ const PROVIDERS = [
     name: 'Claude',
     company: 'Anthropic',
     placeholder: 'sk-ant-api03-...',
-    defaultModels: ['claude-sonnet-5', 'claude-opus-5-5'],
+    defaultModels: ['claude-sonnet-5-5', 'claude-opus-5-5'],
     color: 'orange',
     modelsUrl: 'https://docs.anthropic.com/en/docs/about-claude/models',
   },
@@ -31,7 +31,7 @@ const PROVIDERS = [
     name: 'ChatGPT',
     company: 'OpenAI',
     placeholder: 'sk-proj-...',
-    defaultModels: ['gpt-5.6-terra', 'gpt-5.6-luna', 'gpt-5.6-sol'],
+    defaultModels: ['gpt-6.1-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
     defaultImageModels: ['gpt-image-2.5-flare', 'gpt-image-2'],
     color: 'green',
     modelsUrl: 'https://platform.openai.com/docs/models',
@@ -680,7 +680,7 @@ export default function SettingsPage() {
               <div>
                 <div className="text-sm font-medium text-gray-700">Claude</div>
                 <div className="text-xs text-gray-400 mt-0.5">
-                  Opus 4.8 / Sonnet 4.6 — code_execution_20260521
+                  Opus 5.5 / Sonnet 5.5 — code_execution_20260521
                 </div>
               </div>
               <label className="flex items-center cursor-pointer">

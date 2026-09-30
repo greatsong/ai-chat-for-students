@@ -5,6 +5,17 @@ import { withRetry } from '../utils/retry.js';
 let cachedKey = null;
 let anthropic = null;
 
+// thinking을 끌 수 없는 모델 — effort 'low'로 생각을 짧게 제한한다 (streamChat 참고)
+const LOW_EFFORT_MODELS = new Set(['claude-sonnet-5-5', 'claude-opus-5-5']);
+
+// 안전 분류기(cyber·bio 등)가 요청을 거절하면 응답이 비거나 중간에 끊기는 모델.
+// 서버측 폴백(beta, fallbacks: 'default')을 켜면 Anthropic이 거절 유형별 권장 모델로
+// 같은 요청을 다시 실행한다. Sonnet 5.5는 cyber·frontier_llm 거절만 Sonnet 5로 재시도한다.
+const REFUSAL_FALLBACK_MODELS = new Set(['claude-sonnet-5-5', 'claude-opus-5-5']);
+
+const REFUSAL_NOTICE =
+  '이 질문에는 안전 정책에 따라 답변할 수 없습니다. 표현을 바꿔 다시 질문해 주세요.';
+
 async function getClient() {
   const key = await getApiKey('anthropic');
   if (!anthropic || key !== cachedKey) {
@@ -214,7 +225,7 @@ export async function streamChat({
     console.log('[claude.streamChat] 메시지 구조:', JSON.stringify(debugMessages));
 
     const streamParams = {
-      model: model || 'claude-sonnet-5',
+      model: model || 'claude-sonnet-5-5',
       max_tokens: 16384,
       messages,
     };
@@ -225,14 +236,15 @@ export async function streamChat({
     // 보장하기 위해 thinking을 명시적으로 끈다.
     // 주의: Opus 5는 disabled + effort xhigh/max 조합이 400 에러 —
     // effort를 별도 지정하지 않으므로(기본 high) 현재 조합은 유효하다.
-    // Opus 5.5는 thinking을 끌 수 없다(disabled·budget_tokens 모두 400).
-    // effort 'low'로 생각을 짧게 제한한다 — 실측(2026-09-23) 첫 토큰 2~3초,
-    // 전체 응답은 Opus 5 disabled보다 짧았다. 'claude-opus-5-5'도 'claude-opus-5'로
-    // 시작하므로 startsWith 대신 정확히 비교한다.
-    const modelId = model || '';
-    if (modelId === 'claude-opus-5-5') {
+    // Sonnet 5.5·Opus 5.5는 disabled를 보내면 400이다. effort 'low'로 생각을 짧게 제한한다.
+    //   Opus 5.5 실측(2026-09-23): 첫 토큰 2~3초, 전체 응답은 Opus 5 disabled보다 짧았다.
+    //   Sonnet 5.5 실측(2026-09-30, 3차 방정식 풀이): low 첫 토큰 0.7초·전체 9.1초,
+    //   생각을 끄는 between_tools는 0.9초·11.1초, 기본 high는 5.5초·14.4초.
+    // 'claude-opus-5-5'·'claude-sonnet-5-5'도 구형 ID로 시작하므로 startsWith 대신 정확히 비교한다.
+    const modelId = streamParams.model;
+    if (LOW_EFFORT_MODELS.has(modelId)) {
       streamParams.output_config = { effort: 'low' };
-    } else if (modelId.startsWith('claude-sonnet-5') || modelId === 'claude-opus-5') {
+    } else if (modelId === 'claude-sonnet-5' || modelId === 'claude-opus-5') {
       streamParams.thinking = { type: 'disabled' };
     }
 
@@ -249,7 +261,15 @@ export async function streamChat({
     }
 
     const client = await getClient();
-    const stream = client.messages.stream(streamParams);
+    // 거절 폴백은 beta 엔드포인트로만 보낼 수 있다. 같은 스트림 안에서 폴백 모델이
+    // 이어서 답하므로 text 이벤트 처리는 그대로 둔다.
+    const stream = REFUSAL_FALLBACK_MODELS.has(modelId)
+      ? client.beta.messages.stream({
+          ...streamParams,
+          betas: ['server-side-fallback-2026-07-01'],
+          fallbacks: 'default',
+        })
+      : client.messages.stream(streamParams);
 
     let fullContent = '';
 
@@ -266,6 +286,18 @@ export async function streamChat({
           fullContent += toolOutput;
           onText(toolOutput);
         }
+      }
+      if (message.usage?.iterations?.some((it) => it.type === 'fallback_message')) {
+        console.log(`[claude.streamChat] 거절 폴백: ${modelId} → ${message.model}`);
+      }
+      // 폴백까지 모두 거절하면 응답이 비거나 중간에 끊긴다 → 학생에게 이유를 알린다
+      if (message.stop_reason === 'refusal') {
+        console.warn(
+          `[claude.streamChat] 안전 정책 거절 (${message.model}, ${message.stop_details?.category ?? 'unknown'})`,
+        );
+        const notice = `${fullContent ? '\n\n' : ''}${REFUSAL_NOTICE}`;
+        fullContent += notice;
+        onText(notice);
       }
       const inputTokens = message.usage?.input_tokens || 0;
       const outputTokens = message.usage?.output_tokens || 0;

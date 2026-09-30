@@ -115,7 +115,7 @@ export const googleAuthSchema = z.object({
 export const conversationCreateSchema = z.object({
   title: z.string().max(500).optional(),
   provider: z.enum(['claude', 'gemini', 'openai', 'solar']).default('claude'),
-  model: z.string().max(100).default('claude-sonnet-5'),
+  model: z.string().max(100).default('claude-sonnet-5-5'),
 });
 
 // 대화 제목 수정
