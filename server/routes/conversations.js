@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { queryOne, queryAll, run } from '../db/database.js';
+import { queryOne, queryAll, run, batch, conversationDeleteStatements } from '../db/database.js';
 import {
   validate,
   conversationCreateSchema,
@@ -90,8 +90,8 @@ router.post('/', validate(conversationCreateSchema), async (req, res) => {
     const id = crypto.randomUUID();
     const now = new Date().toISOString();
     await run(
-      'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [id, userId, title || '새 대화', provider, model, now, now],
+      'INSERT INTO conversations (id, user_id, title, provider, model, owner_role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [id, userId, title || '새 대화', provider, model, req.user.role, now, now],
     );
 
     const conversation = await queryOne('SELECT * FROM conversations WHERE id = ?', [id]);
@@ -153,9 +153,7 @@ router.delete('/:id', validate(uuidParamSchema, 'params'), async (req, res) => {
       return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
     }
 
-    // 메시지 먼저 삭제 (외래 키 제약)
-    await run('DELETE FROM messages WHERE conversation_id = ?', [convId]);
-    await run('DELETE FROM conversations WHERE id = ?', [convId]);
+    await batch(conversationDeleteStatements(convId));
 
     res.json({ message: '대화가 삭제되었습니다.' });
   } catch (error) {

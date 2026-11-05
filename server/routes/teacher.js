@@ -5,7 +5,15 @@ import {
   requireAdmin,
   invalidateUserCache,
 } from '../middleware/auth.js';
-import { queryAll, queryOne, run, batch, getSetting, setSetting } from '../db/database.js';
+import {
+  queryAll,
+  queryOne,
+  run,
+  batch,
+  getSetting,
+  setSetting,
+  conversationDeleteStatements,
+} from '../db/database.js';
 import { encrypt, decrypt, encryptApiKeys, decryptApiKeys } from '../utils/crypto.js';
 import {
   validate,
@@ -17,10 +25,12 @@ import {
   usageQuerySchema,
   settingsPutSchema,
   conversationIdParamSchema,
+  uuidParamSchema,
 } from '../middleware/validate.js';
 import { auditLog } from '../utils/logger.js';
 import { clearKeyCache } from '../utils/apiKeys.js';
 import { SETTINGS_VALID_KEYS } from '../utils/settingsKeys.js';
+import { csvCell } from '../utils/csv.js';
 
 const router = Router();
 
@@ -29,6 +39,34 @@ const ENV_TEACHER_EMAILS = (process.env.TEACHER_EMAILS || '')
   .split(',')
   .map((e) => e.trim())
   .filter(Boolean);
+
+// 관리 화면에 돌려주는 사용자 필드. google_id처럼 화면에 필요 없는 값은 내보내지 않는다.
+const USER_PUBLIC_COLUMNS =
+  'id, name, email, avatar, role, is_active, daily_limit, chat_mode, premium_models, classroom_id, created_at';
+
+// 관리자가 열람할 수 있는 학생 대화. 지금 학생이면서 대화를 만들 때도 학생이었던 경우만 해당한다.
+const STUDENT_CONVERSATION_FILTER = "u.role = 'student' AND c.owner_role = 'student'";
+
+/** 교사·관리자의 대화인가. 현재 역할과 작성 당시 역할 중 하나라도 교직원이면 본인만 볼 수 있다. */
+function isStaffConversation(conversation, owner) {
+  return owner.role !== 'student' || conversation.owner_role !== 'student';
+}
+
+/**
+ * 전체 설정 조회. api_keys는 전용 API(/api-keys)에서 마스킹해 다루므로 암호문도 내보내지 않는다.
+ */
+async function readSettingsForAdmin() {
+  const rows = await queryAll("SELECT key, value FROM settings WHERE key != 'api_keys'");
+  const settings = {};
+  for (const row of rows) {
+    try {
+      settings[row.key] = JSON.parse(row.value);
+    } catch {
+      settings[row.key] = row.value;
+    }
+  }
+  return settings;
+}
 
 // 모든 라우트에 인증 미들웨어 적용
 router.use(authenticate);
@@ -171,52 +209,58 @@ router.get('/students', requireAdmin, async (req, res) => {
 // PATCH /api/teacher/students/:id
 // 학생 정보 수정 (활성화 상태, 일일 한도) (관리자 전용)
 // ──────────────────────────────────────────
-router.patch('/students/:id', requireAdmin, validate(studentUpdateSchema), async (req, res) => {
-  try {
-    const { id } = req.params;
-    const { is_active, daily_limit, chat_mode, premium_models } = req.body;
+router.patch(
+  '/students/:id',
+  requireAdmin,
+  validate(uuidParamSchema, 'params'),
+  validate(studentUpdateSchema),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { is_active, daily_limit, chat_mode, premium_models } = req.body;
 
-    const user = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
-    if (!user) {
-      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
-    }
+      const user = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
+      if (!user) {
+        return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+      }
 
-    const updates = [];
-    const params = [];
+      const updates = [];
+      const params = [];
 
-    if (is_active !== undefined) {
-      updates.push('is_active = ?');
-      params.push(is_active ? 1 : 0);
-    }
-    if (daily_limit !== undefined) {
-      updates.push('daily_limit = ?');
-      params.push(daily_limit);
-    }
-    if (chat_mode !== undefined) {
-      updates.push('chat_mode = ?');
-      params.push(chat_mode);
-    }
-    if (premium_models !== undefined) {
-      // 학생 개별 고급 모델(student_restricted_models) 허용 예외
-      updates.push('premium_models = ?');
-      params.push(premium_models ? 1 : 0);
-    }
+      if (is_active !== undefined) {
+        updates.push('is_active = ?');
+        params.push(is_active ? 1 : 0);
+      }
+      if (daily_limit !== undefined) {
+        updates.push('daily_limit = ?');
+        params.push(daily_limit);
+      }
+      if (chat_mode !== undefined) {
+        updates.push('chat_mode = ?');
+        params.push(chat_mode);
+      }
+      if (premium_models !== undefined) {
+        // 학생 개별 고급 모델(student_restricted_models) 허용 예외
+        updates.push('premium_models = ?');
+        params.push(premium_models ? 1 : 0);
+      }
 
-    if (updates.length === 0) {
-      return res.status(400).json({ error: '수정할 항목이 없습니다.' });
+      if (updates.length === 0) {
+        return res.status(400).json({ error: '수정할 항목이 없습니다.' });
+      }
+
+      params.push(id);
+      await run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+      invalidateUserCache(id);
+
+      const updated = await queryOne(`SELECT ${USER_PUBLIC_COLUMNS} FROM users WHERE id = ?`, [id]);
+      res.json(updated);
+    } catch (error) {
+      console.error('학생 정보 수정 오류:', error);
+      res.status(500).json({ error: '학생 정보를 수정하는 중 오류가 발생했습니다.' });
     }
-
-    params.push(id);
-    await run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
-    invalidateUserCache(id);
-
-    const updated = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
-    res.json(updated);
-  } catch (error) {
-    console.error('학생 정보 수정 오류:', error);
-    res.status(500).json({ error: '학생 정보를 수정하는 중 오류가 발생했습니다.' });
-  }
-});
+  },
+);
 
 // ──────────────────────────────────────────
 // POST /api/teacher/students/bulk-activate
@@ -252,58 +296,60 @@ router.post(
 // DELETE /api/teacher/students/:id
 // 사용자 완전 삭제 — 대화/메시지/공유토큰/사용량까지 함께 삭제 (관리자 전용)
 // ──────────────────────────────────────────
-router.delete('/students/:id', requireAdmin, async (req, res) => {
-  try {
-    const { id } = req.params;
+router.delete(
+  '/students/:id',
+  requireAdmin,
+  validate(uuidParamSchema, 'params'),
+  async (req, res) => {
+    try {
+      const { id } = req.params;
 
-    const target = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
-    if (!target) {
-      return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+      const target = await queryOne('SELECT * FROM users WHERE id = ?', [id]);
+      if (!target) {
+        return res.status(404).json({ error: '사용자를 찾을 수 없습니다.' });
+      }
+
+      // 자기 자신은 삭제 불가
+      if (id === req.user.id) {
+        return res.status(400).json({ error: '자기 자신은 삭제할 수 없습니다.' });
+      }
+
+      // 학생 계정만 삭제 가능 (교사·관리자 계정과 그 대화/사용 기록 보호)
+      // UI는 학생에게만 삭제 버튼을 노출하지만, 실제 권한 경계는 이곳이다.
+      if (target.role !== 'student') {
+        return res.status(403).json({ error: '학생 계정만 삭제할 수 있습니다.' });
+      }
+
+      // 대화/메시지/공유토큰/사용량/계정을 하나의 트랜잭션으로 원자적 삭제.
+      // 서브쿼리가 conversations 를 참조하므로 순서를 지킨다
+      // (share_tokens·messages → conversations → usage_daily → users).
+      // batch()가 all-or-nothing 을 보장하여 중간 실패 시 부분 삭제를 방지한다.
+      await batch([
+        {
+          sql: 'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+          args: [id],
+        },
+        {
+          sql: 'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
+          args: [id],
+        },
+        { sql: 'DELETE FROM conversations WHERE user_id = ?', args: [id] },
+        { sql: 'DELETE FROM usage_daily WHERE user_id = ?', args: [id] },
+        { sql: 'DELETE FROM users WHERE id = ?', args: [id] },
+      ]);
+
+      invalidateUserCache(id);
+
+      // 삭제된 사람의 이메일이 로그에 남지 않도록 id만 기록한다
+      auditLog('USER_DELETE', req.user.id, { deletedUserId: id, role: target.role });
+
+      res.json({ message: '사용자가 삭제되었습니다.', deletedId: id });
+    } catch (error) {
+      console.error('사용자 삭제 오류:', error);
+      res.status(500).json({ error: '사용자를 삭제하는 중 오류가 발생했습니다.' });
     }
-
-    // 자기 자신은 삭제 불가
-    if (id === req.user.id) {
-      return res.status(400).json({ error: '자기 자신은 삭제할 수 없습니다.' });
-    }
-
-    // 학생 계정만 삭제 가능 (교사·관리자 계정과 그 대화/사용 기록 보호)
-    // UI는 학생에게만 삭제 버튼을 노출하지만, 실제 권한 경계는 이곳이다.
-    if (target.role !== 'student') {
-      return res.status(403).json({ error: '학생 계정만 삭제할 수 있습니다.' });
-    }
-
-    // 대화/메시지/공유토큰/사용량/계정을 하나의 트랜잭션으로 원자적 삭제.
-    // 서브쿼리가 conversations 를 참조하므로 순서를 지킨다
-    // (share_tokens·messages → conversations → usage_daily → users).
-    // batch()가 all-or-nothing 을 보장하여 중간 실패 시 부분 삭제를 방지한다.
-    await batch([
-      {
-        sql: 'DELETE FROM share_tokens WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
-        args: [id],
-      },
-      {
-        sql: 'DELETE FROM messages WHERE conversation_id IN (SELECT id FROM conversations WHERE user_id = ?)',
-        args: [id],
-      },
-      { sql: 'DELETE FROM conversations WHERE user_id = ?', args: [id] },
-      { sql: 'DELETE FROM usage_daily WHERE user_id = ?', args: [id] },
-      { sql: 'DELETE FROM users WHERE id = ?', args: [id] },
-    ]);
-
-    invalidateUserCache(id);
-
-    auditLog('USER_DELETE', req.user.id, {
-      deletedUserId: id,
-      email: target.email,
-      role: target.role,
-    });
-
-    res.json({ message: '사용자가 삭제되었습니다.', deletedId: id });
-  } catch (error) {
-    console.error('사용자 삭제 오류:', error);
-    res.status(500).json({ error: '사용자를 삭제하는 중 오류가 발생했습니다.' });
-  }
-});
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/conversations
@@ -318,7 +364,7 @@ router.get(
       const { userId, search, page = 1, limit = 20 } = req.validatedQuery || req.query;
       const offset = (parseInt(page) - 1) * parseInt(limit);
 
-      let where = ["u.role = 'student'"]; // 교사/관리자 채팅은 수집하지 않음
+      let where = [STUDENT_CONVERSATION_FILTER]; // 교사/관리자 채팅은 수집하지 않음
       let params = [];
 
       if (userId) {
@@ -390,26 +436,30 @@ router.get(
 // GET /api/teacher/conversations/export
 // 대화 목록 CSV 내보내기 (관리자 전용)
 // ──────────────────────────────────────────
-router.get('/conversations/export', requireAdmin, async (req, res) => {
-  try {
-    const { userId, search } = req.query;
+router.get(
+  '/conversations/export',
+  requireAdmin,
+  validate(conversationsQuerySchema, 'query'),
+  async (req, res) => {
+    try {
+      const { userId, search } = req.validatedQuery;
 
-    let where = ["u.role = 'student'"];
-    let params = [];
+      let where = [STUDENT_CONVERSATION_FILTER];
+      let params = [];
 
-    if (userId) {
-      where.push('c.user_id = ?');
-      params.push(userId);
-    }
-    if (search) {
-      where.push('(c.title LIKE ? OR u.name LIKE ?)');
-      params.push(`%${search}%`, `%${search}%`);
-    }
+      if (userId) {
+        where.push('c.user_id = ?');
+        params.push(userId);
+      }
+      if (search) {
+        where.push('(c.title LIKE ? OR u.name LIKE ?)');
+        params.push(`%${search}%`, `%${search}%`);
+      }
 
-    const whereClause = `WHERE ${where.join(' AND ')}`;
+      const whereClause = `WHERE ${where.join(' AND ')}`;
 
-    const conversations = await queryAll(
-      `SELECT
+      const conversations = await queryAll(
+        `SELECT
         u.name AS student_name, u.email AS student_email, u.chat_mode AS student_mode,
         c.title, c.provider, c.model, c.created_at, c.updated_at,
         (SELECT COUNT(*) FROM messages WHERE conversation_id = c.id) AS message_count
@@ -418,41 +468,42 @@ router.get('/conversations/export', requireAdmin, async (req, res) => {
       ${whereClause}
       ORDER BY c.updated_at DESC
       LIMIT 5000`,
-      params,
-    );
+        params,
+      );
 
-    // CSV 생성 (한글 BOM 포함)
-    const BOM = '\uFEFF';
-    const header = '학생이름,학생이메일,대화제목,AI모델,프로바이더,메시지수,생성일,마지막활동';
-    const escCsv = (v) => {
-      const s = String(v ?? '');
-      return s.includes(',') || s.includes('"') || s.includes('\n')
-        ? `"${s.replace(/"/g, '""')}"`
-        : s;
-    };
-    const rows = conversations.map((c) =>
-      [
-        escCsv(c.student_name),
-        escCsv(c.student_email),
-        escCsv(c.title),
-        escCsv(c.model),
-        escCsv(c.provider),
-        c.message_count,
-        escCsv(c.created_at),
-        escCsv(c.updated_at),
-      ].join(','),
-    );
+      // CSV 생성 (한글 BOM 포함)
+      const BOM = '\uFEFF';
+      const header = '학생이름,학생이메일,대화제목,AI모델,프로바이더,메시지수,생성일,마지막활동';
+      const rows = conversations.map((c) =>
+        [
+          csvCell(c.student_name),
+          csvCell(c.student_email),
+          csvCell(c.title),
+          csvCell(c.model),
+          csvCell(c.provider),
+          c.message_count,
+          csvCell(c.created_at),
+          csvCell(c.updated_at),
+        ].join(','),
+      );
 
-    const csv = BOM + header + '\n' + rows.join('\n');
+      const csv = BOM + header + '\n' + rows.join('\n');
 
-    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
-    res.setHeader('Content-Disposition', 'attachment; filename="conversations.csv"');
-    res.send(csv);
-  } catch (error) {
-    console.error('대화 CSV 내보내기 오류:', error);
-    res.status(500).json({ error: 'CSV 내보내기 중 오류가 발생했습니다.' });
-  }
-});
+      auditLog('CONVERSATION_EXPORT', req.user.id, {
+        filterUserId: userId || null,
+        searched: !!search,
+        rowCount: conversations.length,
+      });
+
+      res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+      res.setHeader('Content-Disposition', 'attachment; filename="conversations.csv"');
+      res.send(csv);
+    } catch (error) {
+      console.error('대화 CSV 내보내기 오류:', error);
+      res.status(500).json({ error: 'CSV 내보내기 중 오류가 발생했습니다.' });
+    }
+  },
+);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/conversations/:conversationId/messages
@@ -478,10 +529,7 @@ router.get(
       if (!owner) {
         return res.status(404).json({ error: '대화 소유자를 찾을 수 없습니다.' });
       }
-      if (
-        (owner.role === 'teacher' || owner.role === 'admin') &&
-        conversation.user_id !== req.user.id
-      ) {
+      if (isStaffConversation(conversation, owner) && conversation.user_id !== req.user.id) {
         return res.status(403).json({ error: '교사의 채팅 기록은 본인만 열람할 수 있습니다.' });
       }
 
@@ -504,6 +552,14 @@ router.get(
         }
         return { ...msg, files };
       });
+
+      // 누가 어떤 학생의 대화를 열람했는지 내용 없이 기록한다
+      if (conversation.user_id !== req.user.id) {
+        auditLog('CONVERSATION_VIEW', req.user.id, {
+          conversationId,
+          ownerId: conversation.user_id,
+        });
+      }
 
       res.json({
         conversation,
@@ -644,16 +700,7 @@ router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (r
 // ──────────────────────────────────────────
 router.get('/settings', requireAdmin, async (req, res) => {
   try {
-    const rows = await queryAll('SELECT key, value FROM settings');
-    const settings = {};
-    for (const row of rows) {
-      try {
-        settings[row.key] = JSON.parse(row.value);
-      } catch {
-        settings[row.key] = row.value;
-      }
-    }
-    res.json(settings);
+    res.json(await readSettingsForAdmin());
   } catch (error) {
     console.error('설정 조회 오류:', error);
     res.status(500).json({ error: '설정을 불러오는 중 오류가 발생했습니다.' });
@@ -689,16 +736,7 @@ router.put('/settings', requireAdmin, validate(settingsPutSchema), async (req, r
     }
 
     // 변경 후 전체 설정 반환
-    const rows = await queryAll('SELECT key, value FROM settings');
-    const allSettings = {};
-    for (const row of rows) {
-      try {
-        allSettings[row.key] = JSON.parse(row.value);
-      } catch {
-        allSettings[row.key] = row.value;
-      }
-    }
-    res.json(allSettings);
+    res.json(await readSettingsForAdmin());
   } catch (error) {
     console.error('설정 변경 오류:', error);
     res.status(500).json({ error: '설정을 변경하는 중 오류가 발생했습니다.' });
@@ -728,15 +766,13 @@ router.delete(
       const owner = await queryOne('SELECT role FROM users WHERE id = ?', [conversation.user_id]);
       if (
         owner &&
-        (owner.role === 'teacher' || owner.role === 'admin') &&
+        isStaffConversation(conversation, owner) &&
         conversation.user_id !== req.user.id
       ) {
         return res.status(403).json({ error: '교사의 채팅 기록은 본인만 관리할 수 있습니다.' });
       }
 
-      // 메시지 먼저 삭제 (외래 키 제약)
-      await run('DELETE FROM messages WHERE conversation_id = ?', [conversationId]);
-      await run('DELETE FROM conversations WHERE id = ?', [conversationId]);
+      await batch(conversationDeleteStatements(conversationId));
 
       auditLog('CONVERSATION_DELETE', req.user.id, {
         conversationId,
@@ -857,10 +893,15 @@ router.delete('/teachers', requireAdmin, validate(teacherEmailSchema), async (re
       trimmedEmail,
     ]);
     if (existingUser && existingUser.role === 'teacher') {
-      await run('UPDATE users SET role = ? WHERE id = ?', ['student', existingUser.id]);
+      // 교사 해제와 함께 기존 세션을 끊는다. 외부 메일 교사는 이후 로그인도 막힌다.
+      await run(
+        'UPDATE users SET role = ?, token_version = COALESCE(token_version, 0) + 1 WHERE id = ?',
+        ['student', existingUser.id],
+      );
       invalidateUserCache(existingUser.id);
     }
 
+    auditLog('TEACHER_REMOVE', req.user.id, { email: trimmedEmail });
     res.json({
       message: `${trimmedEmail} 교사 권한이 해제되었습니다.`,
       dbEmails: emailList,

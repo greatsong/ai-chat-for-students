@@ -3,6 +3,7 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter';
 import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism';
+import MarkdownImageLink from './MarkdownImageLink';
 
 // 코드 블록 컴포넌트
 function CodeBlock({ language, children }) {
@@ -118,6 +119,7 @@ const markdownComponents = {
   td({ children }) {
     return <td className="border border-gray-200 px-3 py-1.5">{children}</td>;
   },
+  img: MarkdownImageLink,
   a({ href, children }) {
     return (
       <a

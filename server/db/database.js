@@ -50,6 +50,13 @@ export async function initDatabase() {
     // 이미 컬럼이 존재하면 무시
   }
 
+  // 세션 폐기용 토큰 버전. JWT의 tv와 다르면 인증을 거부한다. 기존 토큰은 tv가 없어 0으로 본다.
+  try {
+    await client.execute(`ALTER TABLE users ADD COLUMN token_version INTEGER DEFAULT 0`);
+  } catch {
+    // 이미 컬럼이 존재하면 무시
+  }
+
   await client.execute(`
     CREATE TABLE IF NOT EXISTS classrooms (
       id TEXT PRIMARY KEY,
@@ -72,6 +79,18 @@ export async function initDatabase() {
       updated_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id)
     )
+  `);
+
+  // 대화를 만든 시점의 역할. 교사가 해제되어 학생이 되어도 교사 시절 대화가 열람 대상이 되지 않게 한다.
+  try {
+    await client.execute(`ALTER TABLE conversations ADD COLUMN owner_role TEXT`);
+  } catch {
+    // 이미 컬럼이 존재하면 무시
+  }
+  await client.execute(`
+    UPDATE conversations
+    SET owner_role = (SELECT role FROM users WHERE users.id = conversations.user_id)
+    WHERE owner_role IS NULL
   `);
 
   await client.execute(`
@@ -643,6 +662,30 @@ export async function batch(statements) {
 /**
  * 설정값 조회
  */
+/**
+ * 교사·관리자가 학생 때 만든 대화를 이어 쓰면 그 대화를 교직원 대화로 바꾼다.
+ * 교사 해제 뒤 교사 시절 메시지가 관리자 열람 대상이 되지 않게 한다.
+ */
+export async function markStaffConversation(conversationId, user) {
+  if (user.role === 'student') return;
+  await run(`UPDATE conversations SET owner_role = ? WHERE id = ? AND owner_role = 'student'`, [
+    user.role,
+    conversationId,
+  ]);
+}
+
+/**
+ * 대화 한 건을 지우는 문장 묶음. batch()로 실행해 일부만 지워지지 않게 한다.
+ * 운영 Turso는 외래 키를 강제하므로 공유 토큰을 먼저 지워야 대화를 지울 수 있다.
+ */
+export function conversationDeleteStatements(conversationId) {
+  return [
+    { sql: 'DELETE FROM share_tokens WHERE conversation_id = ?', args: [conversationId] },
+    { sql: 'DELETE FROM messages WHERE conversation_id = ?', args: [conversationId] },
+    { sql: 'DELETE FROM conversations WHERE id = ?', args: [conversationId] },
+  ];
+}
+
 export async function getSetting(key) {
   const row = await queryOne('SELECT value FROM settings WHERE key = ?', [key]);
   if (!row) return null;

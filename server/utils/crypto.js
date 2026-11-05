@@ -66,18 +66,25 @@ export function decrypt(encryptedStr) {
     throw new Error('[security] 잘못된 암호화 형식: 복호화 불가');
   }
 
-  const key = getEncryptionKey();
   const iv = Buffer.from(parts[0], 'hex');
   const encrypted = parts[1];
   const tag = Buffer.from(parts[2], 'hex');
 
-  const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(tag);
+  const decryptWith = (key) => {
+    const decipher = crypto.createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(tag);
+    return decipher.update(encrypted, 'hex', 'utf8') + decipher.final('utf8');
+  };
 
-  let decrypted = decipher.update(encrypted, 'hex', 'utf8');
-  decrypted += decipher.final('utf8');
-
-  return decrypted;
+  try {
+    return decryptWith(getEncryptionKey());
+  } catch (err) {
+    // ENCRYPTION_KEY 도입 전에 JWT_SECRET으로 암호화한 값 호환. 관리 화면에서 다시 저장하면 새 키로 바뀐다.
+    if (process.env.ENCRYPTION_KEY && process.env.JWT_SECRET) {
+      return decryptWith(crypto.createHash('sha256').update(process.env.JWT_SECRET).digest());
+    }
+    throw err;
+  }
 }
 
 /**

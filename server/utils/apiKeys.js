@@ -34,10 +34,8 @@ export async function getApiKey(provider) {
         const decrypted = decryptApiKeys({ [provider]: dbKeys[provider] });
         key = decrypted[provider];
       } catch (err) {
-        console.warn(
-          `[security] ${provider} API 키 복호화 실패 — 평문 fallback 사용: ${err.message}`,
-        );
-        key = dbKeys[provider];
+        // 암호문을 키로 쓰면 제공사에 암호문이 전송되므로 환경변수로 넘어간다
+        console.warn(`[security] ${provider} API 키 복호화 실패, 환경변수로 전환: ${err.message}`);
       }
     }
   } catch {

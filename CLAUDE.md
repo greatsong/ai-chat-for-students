@@ -20,6 +20,9 @@
 - **Rate Limiting**: 사용자별 (`req.user?.id || req.ip`), 글로벌 500/min
 - **코드 스플리팅**: 교사 페이지 `React.lazy()`, markdown 라이브러리 별도 청크
 - **입력 검증**: Zod 스키마 (`validate.js` 미들웨어)
+- **세션 폐기**: JWT의 `tv`와 `users.token_version`이 다르면 401. 로그아웃·교사 해제 시 버전을 올린다
+- **앱 구성**: `server/app.js`의 `createApp()`. `index.js`는 DB 초기화와 listen만 맡는다
+- **보안 분석**: [docs/SECURITY-PII-2026-11.md](docs/SECURITY-PII-2026-11.md)
 
 ## 실행 방법
 

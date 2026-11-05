@@ -5,6 +5,7 @@
  */
 
 import dns from 'dns/promises';
+import net from 'net';
 import { isYouTubeUrl, getYouTubeTranscript } from './youtube.js';
 
 // URL 정규식 패턴
@@ -20,30 +21,44 @@ const BLOCKED_HOSTNAMES = [
   'instance-data',
 ];
 
+// 외부로 나가면 안 되는 대역. IPv4-mapped IPv6(::ffff:7f00:1 등)는 BlockList가 IPv4 규칙으로 판정한다.
+const BLOCKED_RANGES = new net.BlockList();
+for (const [address, prefix] of [
+  ['0.0.0.0', 8],
+  ['10.0.0.0', 8],
+  ['100.64.0.0', 10], // CGNAT, 클라우드 내부망에서 사용
+  ['127.0.0.0', 8],
+  ['169.254.0.0', 16], // 링크-로컬, 클라우드 메타데이터
+  ['172.16.0.0', 12],
+  ['192.0.0.0', 24],
+  ['192.168.0.0', 16],
+  ['198.18.0.0', 15],
+  ['224.0.0.0', 4],
+  ['240.0.0.0', 4],
+]) {
+  BLOCKED_RANGES.addSubnet(address, prefix, 'ipv4');
+}
+for (const [address, prefix] of [
+  ['::', 128],
+  ['::1', 128],
+  ['64:ff9b::', 96], // NAT64
+  ['fc00::', 7], // ULA, Railway 내부망도 이 대역
+  ['fe80::', 10],
+  ['ff00::', 8],
+]) {
+  BLOCKED_RANGES.addSubnet(address, prefix, 'ipv6');
+}
+
 /**
  * IP 주소가 사설/내부 대역인지 검사
- * @param {string} ip - IPv4 또는 IPv6 주소
+ * @param {string} ip - IPv4 또는 IPv6 주소 (URL hostname처럼 대괄호로 감싸도 된다)
  * @returns {boolean}
  */
 export function isPrivateIP(ip) {
-  // IPv4 사설 대역
-  if (/^10\./.test(ip)) return true;
-  if (/^172\.(1[6-9]|2\d|3[01])\./.test(ip)) return true;
-  if (/^192\.168\./.test(ip)) return true;
-  if (/^169\.254\./.test(ip)) return true;
-  if (/^0\./.test(ip)) return true;
-  if (/^127\./.test(ip)) return true;
-
-  // IPv6 사설 대역
-  if (ip === '::1') return true;
-  if (/^fe80:/i.test(ip)) return true; // 링크-로컬
-  if (/^fc00:/i.test(ip)) return true; // ULA (fc00::/7)
-  if (/^fd/i.test(ip)) return true; // ULA (fd00::/8)
-  // IPv4-mapped IPv6 (::ffff:x.x.x.x)
-  const mapped = ip.match(/^::ffff:(\d+\.\d+\.\d+\.\d+)$/i);
-  if (mapped) return isPrivateIP(mapped[1]);
-
-  return false;
+  const bare = String(ip).replace(/^\[|\]$/g, '');
+  const family = net.isIP(bare);
+  if (family === 0) return false; // IP 형식이 아니면 호스트 이름이다
+  return BLOCKED_RANGES.check(bare, family === 6 ? 'ipv6' : 'ipv4');
 }
 
 /**
@@ -82,8 +97,9 @@ export async function resolvesToPrivateIP(hostname) {
     if (/^\d+\.\d+\.\d+\.\d+$/.test(hostname) || hostname.includes(':')) {
       return isPrivateIP(hostname);
     }
-    const { address } = await dns.lookup(hostname);
-    return isPrivateIP(address);
+    // 호스트가 여러 주소를 가지면 하나라도 내부 대역일 때 차단한다
+    const addresses = await dns.lookup(hostname, { all: true });
+    return addresses.length === 0 || addresses.some(({ address }) => isPrivateIP(address));
   } catch {
     return true; // DNS 해석 실패 시 안전하게 차단
   }

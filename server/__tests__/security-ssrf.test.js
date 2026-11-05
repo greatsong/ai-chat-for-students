@@ -105,6 +105,34 @@ describe('isInternalUrl', () => {
   });
 });
 
+// ── 대괄호 IPv6·추가 대역 (URL hostname은 대괄호를 포함하고 mapped 주소를 16진수로 정규화한다) ──
+
+describe('URL 파서를 거친 내부 주소', () => {
+  it.each([
+    ['http://[::ffff:127.0.0.1]/'],
+    ['http://[::ffff:a9fe:a9fe]/'],
+    ['http://[fd12:3456::1]/'],
+    ['http://[fe80::1]/'],
+    ['http://[::]/'],
+    ['http://2130706433/'],
+    ['http://0x7f.0.0.1/'],
+    ['http://100.64.0.1/'],
+  ])('%s 차단', (url) => {
+    expect(isInternalUrl(url)).toBe(true);
+  });
+
+  it('대괄호 IPv6도 2차 검증에서 차단한다', async () => {
+    expect(await resolvesToPrivateIP('[::ffff:7f00:1]')).toBe(true);
+    expect(await resolvesToPrivateIP('[fd12::1]')).toBe(true);
+  });
+
+  it('공인 주소는 통과한다', () => {
+    expect(isInternalUrl('http://8.8.8.8/')).toBe(false);
+    expect(isInternalUrl('http://[2001:4860:4860::8888]/')).toBe(false);
+    expect(isInternalUrl('https://example.com/')).toBe(false);
+  });
+});
+
 // ── resolvesToPrivateIP ──
 
 describe('resolvesToPrivateIP', () => {

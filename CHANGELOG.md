@@ -1,5 +1,26 @@
 # Changelog
 
+## [Unreleased] - 2026-11-05 — 개인정보 보호 보강
+
+상세 분석은 [docs/SECURITY-PII-2026-11.md](docs/SECURITY-PII-2026-11.md)에 있다.
+
+- **프런트 보안 헤더 추가.** `vercel.json`에 CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy`, `Permissions-Policy`를 넣었다. 기존 CSP는 API 응답에만 있어 화면에는 적용되지 않았다. 외부 이미지 요청을 막아 대화 내용이 이미지 주소로 빠져나가는 경로를 닫는다
+- **공유한 대화 삭제 수정.** 운영 DB는 외래 키를 강제해 공유 이력이 있는 대화를 지우면 메시지만 지워지고 500이 났다. 공유 토큰·메시지·대화를 한 트랜잭션으로 지운다
+- **로그아웃 시 메모리 비우기.** 로그아웃하면 전체 새로고침으로 이전 사용자의 대화가 화면에 남지 않게 했다. 로그아웃은 IP 공용 로그인 한도에서 제외했다
+- **교사 시절 대화 보호.** `conversations.owner_role`에 작성 당시 역할을 저장한다. 교사를 해제해도 그때 대화는 관리자 열람 대상이 되지 않는다
+- **마크다운 이미지를 링크로 표시.** 외부 이미지를 불러오지 않는다
+- **세션 폐기.** `users.token_version`과 `POST /api/auth/logout`을 추가했다. 로그아웃과 교사 해제 시 이전 토큰이 즉시 무효가 된다. 기존 토큰은 그대로 유효하다
+- **Google 로그인 검증 강화.** `GOOGLE_CLIENT_ID`가 없으면 거부하고, `email_verified`와 학교 계정의 `hd`를 확인한다. JWT 알고리즘을 HS256으로 고정했다
+- **비활성 교사 차단.** `requireActive`가 학생뿐 아니라 교사도 막는다. 관리자는 잠금 사고를 막기 위해 통과한다
+- **관리자 열람 기록.** 학생 대화 열람과 CSV 내보내기를 내용 없이 감사 로그로 남긴다
+- **CSV 수식 무력화와 쿼리 검증.** 학생이 정한 제목이 엑셀에서 수식으로 실행되지 않게 했다
+- **응답·로그 최소화.** 설정 응답의 `api_keys`, 학생 수정 응답의 `google_id`, Claude 로그의 첨부 파일명, 삭제 로그의 이메일을 뺐다. STT·TTS·이미지 오류는 프로덕션에서 제공사 원문을 내보내지 않는다. 마지막 오류 처리기를 추가해 스택과 요청 본문이 응답·로그에 남지 않게 했다
+- **SSRF 차단 보완.** 대괄호 IPv6(`[::ffff:7f00:1]`, `[fd12::1]` 등)와 CGNAT 대역이 빠져 있던 문제를 `net.BlockList`로 고쳤다
+- **API 키 복호화.** `ENCRYPTION_KEY` 도입 전 값을 읽을 수 있게 했고, 복호화 실패 시 암호문을 키로 사용하지 않고 환경변수로 넘어간다
+- **OpenAI 코드 실행 저장 끔.** Responses API 호출에 `store: false`를 넣었다
+- **학년도 파기 도구.** `server/scripts/purge-school-year.mjs`를 추가했다. 기본은 건수만 출력한다
+- **앱 구성 분리.** `server/app.js`로 미들웨어·라우트 구성을 옮겨 권한 테스트가 운영과 같은 순서로 동작한다. `server/__tests__/security-routes.integration.test.js`에서 라우트 권한을 HTTP로 검사한다
+
 ## [Unreleased] - 2026-11-05 — Gemini 4 Argon · GPT-6.1 Terra · GPT-6 Luna · Solar Mini 4
 
 - **Gemini 4 Argon(`gemini-4-argon`) 추가.** 2026-10-13 GA. 유료 티어 전용이며 단가는 11월 30일까지 $2/$10, 12월 1일부터 $4/$20(100만 토큰당)이다. Opus 5.5처럼 학생 제한 모델에 넣어 교사와 개별 허용 학생만 사용한다. 실측(2026-11-05, 스트리밍) 결과 기본 설정의 첫 토큰이 2.0초였고 `thinkingLevel: 'low'`는 8.9초로 오히려 느려 기본값을 사용한다

@@ -2,8 +2,9 @@ import crypto from 'crypto';
 import { Router } from 'express';
 import jwt from 'jsonwebtoken';
 import { queryOne, run, getSetting } from '../db/database.js';
-import { authenticate, invalidateUserCache } from '../middleware/auth.js';
+import { authenticate, invalidateUserCache, JWT_ALGORITHM } from '../middleware/auth.js';
 import { validate, googleAuthSchema } from '../middleware/validate.js';
+import { checkGoogleClaims, isSchoolAccount } from '../utils/googleIdentity.js';
 
 const router = Router();
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -38,16 +39,16 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
     }
 
     const payload = await response.json();
-    const { sub: googleId, email, name, picture, aud } = payload;
+    const { sub: googleId, email, name, picture } = payload;
 
     if (!googleId || !email) {
       return res.status(401).json({ error: 'Google 토큰에서 사용자 정보를 추출할 수 없습니다.' });
     }
 
-    // audience(aud) 검증 — 다른 앱에서 발급된 토큰 차단
-    const expectedClientId = process.env.GOOGLE_CLIENT_ID;
-    if (expectedClientId && aud !== expectedClientId) {
-      return res.status(401).json({ error: '유효하지 않은 토큰 대상(audience)입니다.' });
+    // aud·이메일 검증 — 다른 앱에서 발급된 토큰과 미검증 이메일 차단
+    const claims = checkGoogleClaims(payload, process.env.GOOGLE_CLIENT_ID);
+    if (!claims.ok) {
+      return res.status(claims.status).json({ error: claims.error });
     }
 
     // 역할 판별 소스 3곳: 환경변수, DB settings, DB users 테이블
@@ -60,9 +61,8 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
       dbTeacherEmails.map((e) => e.toLowerCase()).includes(emailLower);
     const isTeacherEmail = isEnvTeacherEmail || isDbTeacherEmail;
 
-    // 이메일 도메인 제한: @danggok.hs.kr 또는 관리자/교사 이메일만 허용
-    const isAllowedDomain = email.endsWith('@danggok.hs.kr');
-    if (!isAllowedDomain && !isAdminEmail && !isTeacherEmail) {
+    // 이메일 도메인 제한: 학교 Workspace 계정 또는 관리자/교사 이메일만 허용
+    if (!isSchoolAccount(payload) && !isAdminEmail && !isTeacherEmail) {
       return res.status(403).json({ error: '@danggok.hs.kr 이메일만 사용할 수 있습니다.' });
     }
 
@@ -149,9 +149,11 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
     }
 
     // 5. JWT 발급
-    const token = jwt.sign({ userId: user.id, role: user.role, email: user.email }, JWT_SECRET, {
-      expiresIn: '7d',
-    });
+    const token = jwt.sign(
+      { userId: user.id, role: user.role, email: user.email, tv: user.token_version ?? 0 },
+      JWT_SECRET,
+      { algorithm: JWT_ALGORITHM, expiresIn: '7d' },
+    );
 
     // 6. 응답
     res.json({
@@ -192,6 +194,23 @@ router.get('/me', authenticate, (req, res) => {
       privacy_agreed_at: user.privacy_agreed_at || null,
     },
   });
+});
+
+/**
+ * POST /api/auth/logout
+ * 이 사용자에게 발급한 모든 토큰을 폐기한다(다른 기기 포함).
+ */
+router.post('/logout', authenticate, async (req, res) => {
+  try {
+    await run('UPDATE users SET token_version = COALESCE(token_version, 0) + 1 WHERE id = ?', [
+      req.user.id,
+    ]);
+    invalidateUserCache(req.user.id);
+    res.json({ message: '로그아웃되었습니다.' });
+  } catch (err) {
+    console.error('로그아웃 오류:', err);
+    res.status(500).json({ error: '로그아웃 처리 중 오류가 발생했습니다.' });
+  }
 });
 
 export default router;

@@ -88,8 +88,20 @@ const useAuthStore = create((set, get) => ({
    * 로그아웃
    */
   logout: () => {
+    // 서버 세션 폐기는 실패해도 화면 로그아웃을 막지 않는다
+    const token = get().token;
+    if (token) {
+      fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${token}` },
+        keepalive: true,
+      }).catch(() => {});
+    }
     localStorage.removeItem('token');
     set({ user: null, token: null, isAuthenticated: false });
+    // 공용 PC에서 다음 사용자에게 이전 대화가 보이지 않도록 전체 새로고침으로 메모리 상태를 비운다.
+    // keepalive 요청은 페이지가 바뀌어도 끝까지 전송된다.
+    window.location.replace('/login');
   },
 
   /**

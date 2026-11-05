@@ -22,15 +22,25 @@ export const logger = {
 };
 
 /**
+ * 사용자에게 보낼 오류 문구. 프로덕션에서는 제공사 오류 원문을 내보내지 않는다.
+ * 제공사 오류에는 키 일부나 내부 식별자가 들어 있을 수 있다.
+ */
+export function publicErrorMessage(error, fallback) {
+  return isProduction ? fallback : error?.message || fallback;
+}
+
+/**
  * 관리자 작업 감사 로그
  * API 키 변경, 교사 역할 부여, 대화 삭제 등 민감한 작업을 기록
  */
 export function auditLog(action, userId, details = {}) {
-  console.log(JSON.stringify({
-    level: 'audit',
-    action,
-    userId,
-    ...details,
-    ts: new Date().toISOString(),
-  }));
+  console.log(
+    JSON.stringify({
+      level: 'audit',
+      action,
+      userId,
+      ...details,
+      ts: new Date().toISOString(),
+    }),
+  );
 }
