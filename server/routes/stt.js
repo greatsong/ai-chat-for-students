@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate, sttSchema } from '../middleware/validate.js';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { transcribeAudio } from '../providers/openai.js';
+import { publicErrorMessage } from '../utils/logger.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -53,7 +54,7 @@ router.post('/transcribe', authenticate, validate(sttSchema), async (req, res) =
     res.json({ text: result.text });
   } catch (error) {
     console.error('STT 변환 오류:', error);
-    res.status(500).json({ error: error.message || '음성 인식 중 오류가 발생했습니다.' });
+    res.status(500).json({ error: publicErrorMessage(error, '음성 인식 중 오류가 발생했습니다.') });
   }
 });
 

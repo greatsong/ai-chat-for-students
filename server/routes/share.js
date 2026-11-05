@@ -26,10 +26,12 @@ const router = Router();
 // 토큰 유효기간 (분). 짧게 유지 — 재발급은 버튼 한 번이면 되므로 엄격해도 불편 없음.
 const TTL_MINUTES = parseInt(process.env.SHARE_TOKEN_TTL_MINUTES, 10) || 10;
 
-// 조회 엔드포인트가 CORS 허용할 오리진 (평가 앱). 콤마 구분 env, 기본은 프로덕션+로컬.
-const ALLOWED_ORIGINS = (
-  process.env.SHARE_ALLOWED_ORIGINS || 'https://pro-of-ai.vercel.app,http://localhost:5173'
-)
+// 조회 엔드포인트가 CORS 허용할 오리진 (평가 앱). 콤마 구분 env. 로컬 오리진은 개발 환경에서만 기본 허용.
+const DEFAULT_ORIGINS =
+  process.env.NODE_ENV === 'production'
+    ? 'https://pro-of-ai.vercel.app'
+    : 'https://pro-of-ai.vercel.app,http://localhost:5173';
+const ALLOWED_ORIGINS = (process.env.SHARE_ALLOWED_ORIGINS || DEFAULT_ORIGINS)
   .split(',')
   .map((s) => s.trim())
   .filter(Boolean);

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import rateLimit from 'express-rate-limit';
 import { authenticate, requireActive } from '../middleware/auth.js';
 import { validate, chatSchema } from '../middleware/validate.js';
-import { queryOne, queryAll, run, getSetting } from '../db/database.js';
+import { queryOne, queryAll, run, getSetting, markStaffConversation } from '../db/database.js';
 import crypto from 'crypto';
 import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
@@ -117,8 +117,8 @@ router.post(
         convId = crypto.randomUUID();
         const title = (message || '').slice(0, 50) || '새 대화';
         await run(
-          'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-          [convId, userId, title, provider, model || 'claude-sonnet-5-5', now, now],
+          'INSERT INTO conversations (id, user_id, title, provider, model, owner_role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+          [convId, userId, title, provider, model || 'claude-sonnet-5-5', req.user.role, now, now],
         );
       } else {
         // 대화 소유권 확인
@@ -129,6 +129,7 @@ router.post(
         if (!conv) {
           return res.status(404).json({ error: '대화를 찾을 수 없습니다.' });
         }
+        await markStaffConversation(convId, req.user);
       }
 
       // 5. 교사/관리자: URL 내용 자동 가져오기 (백그라운드, 응답 차단하지 않음)

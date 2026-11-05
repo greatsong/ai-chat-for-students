@@ -3,6 +3,7 @@ import { authenticate } from '../middleware/auth.js';
 import { validate, ttsSchema } from '../middleware/validate.js';
 import { queryOne, run, getSetting } from '../db/database.js';
 import { generateSpeech } from '../providers/openai.js';
+import { publicErrorMessage } from '../utils/logger.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -53,7 +54,7 @@ router.post('/generate', authenticate, validate(ttsSchema), async (req, res) => 
     res.json({ audioUrl });
   } catch (error) {
     console.error('TTS 생성 오류:', error);
-    res.status(500).json({ error: error.message || 'TTS 생성 중 오류가 발생했습니다.' });
+    res.status(500).json({ error: publicErrorMessage(error, 'TTS 생성 중 오류가 발생했습니다.') });
   }
 });
 

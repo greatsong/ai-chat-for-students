@@ -86,7 +86,6 @@ export function buildMessages(history) {
           files.map((f) => ({
             type: f.type,
             mimeType: f.mimeType,
-            name: f.name,
             dataLen: f.data?.length || 0,
           })),
         );

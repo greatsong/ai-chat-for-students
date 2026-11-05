@@ -96,7 +96,10 @@ const upload = multer({
     if (TEXT_FILE_EXTENSIONS.includes(ext)) {
       return cb(null, true);
     }
-    cb(new Error('허용되지 않는 파일 형식입니다.'));
+    const error = new Error('허용되지 않는 파일 형식입니다.');
+    error.status = 400;
+    error.publicMessage = error.message;
+    cb(error);
   },
 });
 

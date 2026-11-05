@@ -165,6 +165,8 @@ async function streamWithCodeInterpreter({
       input,
       max_output_tokens: 16384,
       stream: true,
+      // Responses API는 기본값이 저장(30일)이다. 이어 쓰기(previous_response_id)를 사용하지 않으므로 끈다.
+      store: false,
       tools: [{ type: 'code_interpreter', container: { type: 'auto' } }],
     };
     const cieEffort = OPENAI_REASONING_EFFORT[createParams.model];

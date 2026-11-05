@@ -1,5 +1,6 @@
 import { useEffect, useState, useMemo } from 'react';
 import ReactMarkdown from 'react-markdown';
+import MarkdownImageLink from '../../components/chat/MarkdownImageLink';
 import remarkGfm from 'remark-gfm';
 import useTeacherStore from '../../stores/teacherStore';
 
@@ -373,7 +374,10 @@ export default function ConversationsPage() {
                       </div>
                       {/* 내용 */}
                       <div className="prose prose-sm max-w-none text-sm text-gray-800 break-words [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_code]:break-all">
-                        <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                        <ReactMarkdown
+                          remarkPlugins={[remarkGfm]}
+                          components={{ img: MarkdownImageLink }}
+                        >
                           {msg.content || ''}
                         </ReactMarkdown>
                       </div>

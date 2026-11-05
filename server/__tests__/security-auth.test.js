@@ -1,6 +1,6 @@
 /**
  * 보안 테스트: 인증/권한 미들웨어
- * - requireActive: 비활성 학생 차단, 교사/관리자 통과
+ * - requireActive: 비활성 학생·교사 차단, 관리자 통과
  * - requireTeacher: 교사/관리자만 통과
  * - requireAdmin: 관리자만 통과
  */
@@ -67,11 +67,24 @@ describe('requireActive 미들웨어', () => {
     expect(res.statusCode).toBeNull();
   });
 
-  it('교사는 is_active 값과 무관하게 통과한다', () => {
+  it('비활성 교사(is_active=0)도 403으로 차단된다', () => {
     const { req, res, next } = mockReqResNext({
       id: 'teacher-1',
       role: 'teacher',
       is_active: 0,
+    });
+
+    requireActive(req, res, next);
+
+    expect(res.statusCode).toBe(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('활성 교사는 통과한다', () => {
+    const { req, res, next } = mockReqResNext({
+      id: 'teacher-2',
+      role: 'teacher',
+      is_active: 1,
     });
 
     requireActive(req, res, next);

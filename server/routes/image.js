@@ -1,9 +1,10 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { validate, imageGenerateSchema } from '../middleware/validate.js';
-import { queryOne, run, getSetting } from '../db/database.js';
+import { queryOne, run, getSetting, markStaffConversation } from '../db/database.js';
 import { generateImage as geminiGenerateImage } from '../providers/gemini.js';
 import { generateImage as openaiGenerateImage, IMAGE_MODEL } from '../providers/openai.js';
+import { publicErrorMessage } from '../utils/logger.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -53,6 +54,7 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
         userId,
       ]);
       if (!conv) convId = null;
+      else await markStaffConversation(convId, req.user);
     }
 
     // 대화가 없으면 자동 생성 (빈 채팅에서 바로 이미지 생성한 경우 영속화)
@@ -61,8 +63,17 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
       const title = `🎨 ${prompt}`.slice(0, 50);
       const defaultModels = { openai: 'gpt-6.1-sol', gemini: 'gemini-3.8-flash' };
       await run(
-        'INSERT INTO conversations (id, user_id, title, provider, model, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
-        [convId, userId, title, provider, defaultModels[provider] || 'gpt-6.1-sol', now, now],
+        'INSERT INTO conversations (id, user_id, title, provider, model, owner_role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+        [
+          convId,
+          userId,
+          title,
+          provider,
+          defaultModels[provider] || 'gpt-6.1-sol',
+          req.user.role,
+          now,
+          now,
+        ],
       );
     }
 
@@ -119,7 +130,9 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
       });
     }
 
-    res.status(500).json({ error: msg || '이미지 생성 중 오류가 발생했습니다.' });
+    res
+      .status(500)
+      .json({ error: publicErrorMessage(error, '이미지 생성 중 오류가 발생했습니다.') });
   }
 });
 

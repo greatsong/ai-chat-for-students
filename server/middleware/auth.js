@@ -7,6 +7,9 @@ if (!JWT_SECRET) {
   process.exit(1);
 }
 
+// 서명·검증 알고리즘 고정
+export const JWT_ALGORITHM = 'HS256';
+
 // 사용자 캐시: DB 조회를 줄이기 위해 5분 TTL로 캐싱
 const userCache = new Map();
 const USER_CACHE_TTL = 5 * 60 * 1000; // 5분
@@ -65,11 +68,16 @@ export async function authenticate(req, res, next) {
   const token = authHeader.split(' ')[1];
 
   try {
-    const decoded = jwt.verify(token, JWT_SECRET);
+    const decoded = jwt.verify(token, JWT_SECRET, { algorithms: [JWT_ALGORITHM] });
     const user = await getCachedUser(decoded.userId);
 
     if (!user) {
       return res.status(401).json({ error: '사용자를 찾을 수 없습니다.' });
+    }
+
+    // 로그아웃·교사 해제로 버전이 올라가면 이전에 발급한 토큰은 즉시 무효가 된다.
+    if ((decoded.tv ?? 0) !== (user.token_version ?? 0)) {
+      return res.status(401).json({ error: '세션이 종료되었습니다. 다시 로그인해주세요.' });
     }
 
     req.user = user;
@@ -85,11 +93,11 @@ export async function authenticate(req, res, next) {
 /**
  * 활성 사용자 확인 미들웨어
  * authenticate 미들웨어 이후에 사용해야 함
- * 비활성 학생(is_active=0)의 API 접근을 차단
- * 교사/관리자는 항상 통과
+ * 비활성 학생·교사(is_active=0)의 API 접근을 차단
+ * 관리자는 잠금 사고를 막기 위해 항상 통과
  */
 export function requireActive(req, res, next) {
-  if (req.user.role === 'student' && !req.user.is_active) {
+  if (req.user.role !== 'admin' && !req.user.is_active) {
     return res.status(403).json({ error: '교사 승인 후 사용할 수 있습니다.' });
   }
   next();
