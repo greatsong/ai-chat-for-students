@@ -175,9 +175,9 @@ export async function initDatabase() {
     enabled_models: {
       // claude-opus-5-5는 학생 기본 노출에서 제외(카탈로그엔 있어 교사 웹에서 재추가 가능). 비용·속도 대비 Sonnet으로 충분.
       claude: ['claude-sonnet-5-5'],
-      gemini: ['gemini-3.8-flash', 'gemini-3.7-flash', 'gemini-3.1-pro-preview'],
-      openai: ['gpt-6.1-sol', 'gpt-5.6-terra', 'gpt-5.6-luna'],
-      solar: ['solar-pro4', 'solar-open2'],
+      gemini: ['gemini-3.8-flash', 'gemini-4-argon', 'gemini-3.1-pro-preview'],
+      openai: ['gpt-6.1-sol', 'gpt-6.1-terra', 'gpt-6-luna'],
+      solar: ['solar-pro4', 'solar-mini4'],
     },
     image_generation_enabled: false,
     tts_enabled: false,
@@ -195,7 +195,7 @@ export async function initDatabase() {
     code_execution_max_role: 'teacher',
     // 학생 제한 모델 — enabled_models에 켜져 있어도 학생에게는 차단(교사·관리자·premium_models 예외 학생만 사용).
     // 상황에 따라 전체 학생에게 열려면 설정 페이지에서 잠금 해제.
-    student_restricted_models: ['claude-opus-5-5'],
+    student_restricted_models: ['claude-opus-5-5', 'gemini-4-argon'],
   };
 
   for (const [key, value] of Object.entries(defaultSettings)) {
@@ -305,28 +305,6 @@ export async function initDatabase() {
     } catch (e) {
       console.warn(`Sonnet 5.5·GPT-6.1 Sol 교체 마이그레이션 스킵 (${key}):`, e.message);
     }
-  }
-
-  // 마이그레이션 (2026-07): Solar Open2 활성화 (기존 pro3와 함께 선택 가능)
-  try {
-    const row = await client.execute({
-      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
-      args: [],
-    });
-    if (row.rows.length > 0) {
-      const models = JSON.parse(row.rows[0].value);
-      if (!models.solar) models.solar = [];
-      if (!models.solar.includes('solar-open2')) {
-        models.solar.push('solar-open2');
-        await client.execute({
-          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
-          args: [JSON.stringify(models)],
-        });
-        console.log('마이그레이션: Solar Open2 활성화 완료');
-      }
-    }
-  } catch (e) {
-    console.warn('Solar Open2 마이그레이션 스킵:', e.message);
   }
 
   // 마이그레이션 (2026-07): 카탈로그에서 은퇴한 구형 모델을 enabled_models에서 제거.
@@ -479,37 +457,6 @@ export async function initDatabase() {
     console.warn('Solar Pro 4 교체 마이그레이션 스킵:', e.message);
   }
 
-  // 마이그레이션 (2026-08): Gemini 3.7 Flash 활성화 + 구형 3.5 Flash 제거.
-  // 3.7-flash가 최신 GA(2026-08-13)로 카탈로그 1순위가 되고 3.5-flash는 카탈로그에서 은퇴.
-  try {
-    const row = await client.execute({
-      sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
-      args: [],
-    });
-    if (row.rows.length > 0) {
-      const models = JSON.parse(row.rows[0].value);
-      if (!models.gemini) models.gemini = [];
-      let changed = false;
-      if (!models.gemini.includes('gemini-3.7-flash')) {
-        models.gemini.unshift('gemini-3.7-flash');
-        changed = true;
-      }
-      if (models.gemini.includes('gemini-3.5-flash')) {
-        models.gemini = models.gemini.filter((id) => id !== 'gemini-3.5-flash');
-        changed = true;
-      }
-      if (changed) {
-        await client.execute({
-          sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
-          args: [JSON.stringify(models)],
-        });
-        console.log('마이그레이션: Gemini 3.7 Flash 활성화 및 3.5 Flash 제거 완료');
-      }
-    }
-  } catch (e) {
-    console.warn('Gemini 3.7 Flash 마이그레이션 스킵:', e.message);
-  }
-
   // 마이그레이션 (2026-09): Gemini 3.8 Flash 활성화 + 구형 3.6 Flash 제거.
   // 3.8-flash가 최신 GA(2026-09-02)로 카탈로그 1순위가 되고 3.6-flash는 카탈로그에서 은퇴.
   try {
@@ -539,6 +486,97 @@ export async function initDatabase() {
     }
   } catch (e) {
     console.warn('Gemini 3.8 Flash 마이그레이션 스킵:', e.message);
+  }
+
+  // 마이그레이션 (2026-11): 지원 종료·자동 라우팅된 모델을 후속 모델로 교체.
+  //   gemini-3.7-flash → 3.8 Flash (2026-10-08부터 Google이 3.8로 자동 라우팅)
+  //   solar-open2 → solar-mini4 (Upstage API가 '더 이상 지원하지 않는 모델'로 거부)
+  //   gpt-5.6-terra → gpt-6.1-terra ($2/$12 → $1/$5), gpt-5.6-luna → gpt-6-luna ($0.10/$0.50)
+  // 'Gemini 3.7 Flash 활성화'·'Solar Open2 활성화'(매 기동마다 구형을 다시 넣음)를 대체한다.
+  // 같은 자리에서 바꿔 교사가 정한 순서를 유지하고, 후속 모델이 이미 있으면 구형만 뺀다.
+  // student_restricted_models도 함께 바꿔 학생 잠금 설정을 유지한다. 구형이 없으면 변경 없음(멱등).
+  const retiredModelSwaps = [
+    { provider: 'gemini', from: 'gemini-3.7-flash', to: 'gemini-3.8-flash' },
+    { provider: 'solar', from: 'solar-open2', to: 'solar-mini4' },
+    { provider: 'openai', from: 'gpt-5.6-terra', to: 'gpt-6.1-terra' },
+    { provider: 'openai', from: 'gpt-5.6-luna', to: 'gpt-6-luna' },
+  ];
+  for (const key of ['enabled_models', 'student_restricted_models']) {
+    try {
+      const row = await client.execute({
+        sql: 'SELECT value FROM settings WHERE key = ?',
+        args: [key],
+      });
+      if (row.rows.length === 0) continue;
+      let value = JSON.parse(row.rows[0].value);
+      const swappedIds = [];
+      for (const { provider, from, to } of retiredModelSwaps) {
+        const list = key === 'enabled_models' ? value[provider] : value;
+        if (!Array.isArray(list) || !list.includes(from)) continue;
+        const next = list.includes(to)
+          ? list.filter((id) => id !== from)
+          : list.map((id) => (id === from ? to : id));
+        value = key === 'enabled_models' ? { ...value, [provider]: next } : next;
+        swappedIds.push(`${from} → ${to}`);
+      }
+      if (swappedIds.length === 0) continue;
+      await client.execute({
+        sql: 'UPDATE settings SET value = ? WHERE key = ?',
+        args: [JSON.stringify(value), key],
+      });
+      console.log(`마이그레이션: ${key}에서 ${swappedIds.join(', ')} 교체 완료`);
+    } catch (e) {
+      console.warn(`2026-11 모델 교체 마이그레이션 스킵 (${key}):`, e.message);
+    }
+  }
+
+  // 마이그레이션 (2026-11): Gemini 4 Argon 추가 + 학생 잠금 (1회성).
+  // Argon은 유료 티어 전용이고 단가가 높아($2/$10, 2026-12-01부터 $4/$20) Opus처럼 학생에게는 잠근다.
+  // 아래 플래그로 1번만 수행하므로, 이후 교사가 웹에서 빼거나 잠금을 풀면 그 설정이 유지된다.
+  try {
+    const flag = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'gemini_argon_added'",
+      args: [],
+    });
+    if (flag.rows.length === 0) {
+      const row = await client.execute({
+        sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
+        args: [],
+      });
+      if (row.rows.length > 0) {
+        const models = JSON.parse(row.rows[0].value);
+        const gemini = Array.isArray(models.gemini) ? models.gemini : [];
+        if (!gemini.includes('gemini-4-argon')) {
+          const flashIndex = gemini.indexOf('gemini-3.8-flash');
+          const next = [...gemini];
+          next.splice(flashIndex + 1, 0, 'gemini-4-argon');
+          await client.execute({
+            sql: "UPDATE settings SET value = ? WHERE key = 'enabled_models'",
+            args: [JSON.stringify({ ...models, gemini: next })],
+          });
+        }
+      }
+      const restrictedRow = await client.execute({
+        sql: "SELECT value FROM settings WHERE key = 'student_restricted_models'",
+        args: [],
+      });
+      if (restrictedRow.rows.length > 0) {
+        const restricted = JSON.parse(restrictedRow.rows[0].value);
+        if (Array.isArray(restricted) && !restricted.includes('gemini-4-argon')) {
+          await client.execute({
+            sql: "UPDATE settings SET value = ? WHERE key = 'student_restricted_models'",
+            args: [JSON.stringify([...restricted, 'gemini-4-argon'])],
+          });
+        }
+      }
+      await client.execute({
+        sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+        args: ['gemini_argon_added', JSON.stringify(true)],
+      });
+      console.log('마이그레이션: Gemini 4 Argon 추가 및 학생 잠금 완료');
+    }
+  } catch (e) {
+    console.warn('Gemini 4 Argon 추가 마이그레이션 스킵:', e.message);
   }
 
   console.log('Turso 데이터베이스 초기화 완료');

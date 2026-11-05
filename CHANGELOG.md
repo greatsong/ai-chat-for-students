@@ -1,5 +1,16 @@
 # Changelog
 
+## [Unreleased] - 2026-11-05 — Gemini 4 Argon · GPT-6.1 Terra · GPT-6 Luna · Solar Mini 4
+
+- **Gemini 4 Argon(`gemini-4-argon`) 추가.** 2026-10-13 GA. 유료 티어 전용이며 단가는 11월 30일까지 $2/$10, 12월 1일부터 $4/$20(100만 토큰당)이다. Opus 5.5처럼 학생 제한 모델에 넣어 교사와 개별 허용 학생만 사용한다. 실측(2026-11-05, 스트리밍) 결과 기본 설정의 첫 토큰이 2.0초였고 `thinkingLevel: 'low'`는 8.9초로 오히려 느려 기본값을 사용한다
+- **Gemini 3.7 Flash 제거.** Google이 2026-10-08부터 3.7 Flash 요청을 3.8 Flash로 자동 라우팅한다
+- **Gemini 이미지 모델을 `gemini-nano-banana-2.1`로 교체.** `gemini-3.1-flash-image`는 2026-10-06에 지원 중단이 예고되었다
+- **Solar Open2를 `solar-mini4`로 교체.** Upstage API가 `solar-open2` 요청을 '더 이상 지원하지 않는 모델'로 거부한다
+- **GPT-5.6 Terra·Luna를 `gpt-6.1-terra`($1/$5)·`gpt-6-luna`($0.10/$0.50)로 교체.** 두 모델 모두 컨텍스트는 1.05M이다. `reasoning_effort`는 `minimal`을 지원하지 않아(400) 기존과 같은 `low`를 사용한다
+- **DB 마이그레이션.** `enabled_models`와 `student_restricted_models`의 구형 모델을 같은 자리에서 후속 모델로 바꾼다. 후속 모델이 이미 있으면 구형만 뺀다. Argon 추가와 학생 잠금은 `gemini_argon_added` 플래그로 한 번만 수행해 교사가 이후 바꾼 설정을 유지한다. 매 기동마다 구형을 다시 넣던 'Gemini 3.7 Flash 활성화'·'Solar Open2 활성화' 마이그레이션은 삭제했다
+- **회귀 테스트.** `server/__tests__/model-migration-2026-11.test.js`에서 임시 파일 DB로 `initDatabase()`를 실행해 교체 결과와 재기동 시 유지 여부를 검사한다
+- **참고: 프로덕션 Gemini 장애.** 2026-10-01 이후 프로덕션 Gemini 응답이 0건이다. 같은 코드에 로컬 `GOOGLE_API_KEY`를 넣거나 Vertex AI로 호출하면 정상이고 Google의 호출 방식 변경도 없어, Railway에 설정된 키 문제로 판단했다. 이 변경과 별개로 교사 설정 화면에서 유효한 Google API 키를 입력해야 한다
+
 ## [Unreleased] - 2026-09-30 — Claude Sonnet 5.5 · GPT-6.1 Sol
 
 - **Claude Sonnet 5를 `claude-sonnet-5-5`로 교체하고 Claude 기본 모델로 지정.** 가격($2/$10), 컨텍스트(1M), 토크나이저는 Sonnet 5와 같다

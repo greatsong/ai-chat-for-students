@@ -179,13 +179,13 @@ export async function streamChat({
  * Gemini 이미지 생성
  * @param {Object} params
  * @param {string} params.prompt - 이미지 생성 프롬프트
- * @param {string} params.model - 모델 ID (기본: gemini-3.1-flash-image)
+ * @param {string} params.model - 모델 ID (기본: gemini-nano-banana-2.1)
  * @returns {{ imageData: string, mimeType: string }}
  */
 export async function generateImage({ prompt, model }) {
   const client = await getClient();
   const imageModel = client.getGenerativeModel({
-    model: model || 'gemini-3.1-flash-image',
+    model: model || 'gemini-nano-banana-2.1',
   });
 
   const result = await withRetry(() =>

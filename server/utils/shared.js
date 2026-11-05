@@ -14,11 +14,11 @@ export const PROVIDERS = {
     company: 'Google',
     models: [
       { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tier: 'standard' },
-      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', tier: 'standard' },
+      { id: 'gemini-4-argon', name: 'Gemini 4 Argon', tier: 'advanced' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: true, codeExecution: true, imageGeneration: true },
-    imageModel: 'gemini-3.1-flash-image',
+    imageModel: 'gemini-nano-banana-2.1',
   },
   openai: {
     name: 'ChatGPT',
@@ -27,8 +27,8 @@ export const PROVIDERS = {
     // gpt-6.1-sol·gpt-5.6 계열은 서버에서 reasoning을 none/low로 강제해 지연을 줄인다(openai.js 참고).
     models: [
       { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol (고성능)', tier: 'advanced' },
-      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra (균형)', tier: 'standard' },
-      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna (빠름·저비용)', tier: 'standard' },
+      { id: 'gpt-6.1-terra', name: 'GPT-6.1 Terra (균형)', tier: 'standard' },
+      { id: 'gpt-6-luna', name: 'GPT-6 Luna (빠름·저비용)', tier: 'standard' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: true },
     imageModel: 'gpt-image-2.5-flare',
@@ -36,11 +36,9 @@ export const PROVIDERS = {
   solar: {
     name: 'Solar',
     company: 'Upstage',
-    // solar-open2는 추론 모델이라 첫 토큰까지 침묵이 길다(수십초~2분). 한국어 품질은 최상급이나
-    // 실시간 채팅에선 응답이 느리게 시작될 수 있음 — 옵션으로만 제공(기본값 아님).
     models: [
       { id: 'solar-pro4', name: 'Solar Pro 4', tier: 'standard' },
-      { id: 'solar-open2', name: 'Solar Open2 (한국어 특화·느림)', tier: 'standard' },
+      { id: 'solar-mini4', name: 'Solar Mini 4 (빠름)', tier: 'standard' },
     ],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },
   },
