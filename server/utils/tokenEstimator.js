@@ -31,8 +31,10 @@ const CONTEXT_LIMITS = {
     default: 128_000,
     'gpt-6.1-sol': 1_050_000, // GPT-6.1 Sol: 1.05M (2026-09-29 출시)
     'gpt-5.6-sol': 1_050_000, // legacy: 과거 로그 호환용 유지 (2026-09 카탈로그 은퇴)
-    'gpt-5.6-terra': 1_050_000, // GPT-5.6 시리즈: 1.05M (2026-07 출시)
-    'gpt-5.6-luna': 1_050_000,
+    'gpt-6.1-terra': 1_050_000, // GPT-6.1 Terra: 1.05M (2026-10-14 출시)
+    'gpt-6-luna': 1_050_000, // GPT-6 Luna: 1.05M (2026-09-15 출시)
+    'gpt-5.6-terra': 1_050_000, // legacy: 과거 로그 호환용 유지 (2026-11 카탈로그 은퇴)
+    'gpt-5.6-luna': 1_050_000, // legacy: 과거 로그 호환용 유지 (2026-11 카탈로그 은퇴)
     'gpt-5.5': 1_000_000, // legacy: 과거 로그 호환용 유지 (2026-09 카탈로그 은퇴)
     'gpt-5.5-pro': 1_000_000,
     'gpt-5.4': 272_000, // legacy: 기본 272K (1M은 명시적 설정 필요)
@@ -43,8 +45,9 @@ const CONTEXT_LIMITS = {
   },
   gemini: {
     default: 1_000_000,
+    'gemini-4-argon': 1_000_000, // Gemini 4 Argon: 1M (2026-10-13 GA)
     'gemini-3.8-flash': 1_000_000, // Gemini 3.8 Flash: 1M (2026-09-02 GA)
-    'gemini-3.7-flash': 1_000_000, // Gemini 3.7 Flash: 1M (2026-08 GA)
+    'gemini-3.7-flash': 1_000_000, // legacy: 2026-10-08부터 3.8 Flash로 자동 라우팅
     'gemini-3.6-flash': 1_000_000, // Gemini 3.6 Flash: 1M (2026-07 GA)
     'gemini-3.5-flash': 1_000_000, // Gemini 3.5 Flash: 1M (2026-05 GA)
     'gemini-3.1-pro-preview': 1_000_000,
@@ -57,7 +60,8 @@ const CONTEXT_LIMITS = {
     default: 128_000,
     'solar-pro4': 524_288, // Solar Pro 4: 524K (2026-08 출시)
     'solar-pro3': 128_000, // legacy: 과거 로그 호환용 유지
-    'solar-open2': 128_000,
+    'solar-mini4': 524_288, // Solar Mini 4: 524K (2026-09 출시)
+    'solar-open2': 128_000, // legacy: API 지원 종료(2026-11 확인)
     'solar-pro': 32_000,
   },
 };

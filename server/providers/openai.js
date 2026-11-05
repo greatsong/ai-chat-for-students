@@ -11,10 +11,13 @@ let client = null;
 //   6.1 Sol = 'low' — 'none'·'minimal'을 지원하지 않아(보내면 400) 최소값인 low를 쓴다
 //   5.6 Sol = 'none' (추론 완전 off) — 2026-09 카탈로그 은퇴, 기존 대화 호환용으로 유지
 //   Terra/Luna = 'low' (최소 추론) — 속도 우선, 품질 소폭 유지
+//   6.1 Terra·6 Luna도 'low' ('minimal'은 400). 5.6 Terra·Luna는 2026-11 카탈로그 은퇴, 기존 대화 호환용
 // Chat Completions는 reasoning_effort, Responses API는 reasoning:{effort} 로 전달한다.
 const OPENAI_REASONING_EFFORT = {
   'gpt-6.1-sol': 'low',
   'gpt-5.6-sol': 'none',
+  'gpt-6.1-terra': 'low',
+  'gpt-6-luna': 'low',
   'gpt-5.6-terra': 'low',
   'gpt-5.6-luna': 'low',
 };

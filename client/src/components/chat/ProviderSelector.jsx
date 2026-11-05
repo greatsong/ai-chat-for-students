@@ -17,7 +17,7 @@ const PROVIDERS = {
     company: 'Google',
     models: [
       { id: 'gemini-3.8-flash', name: 'Gemini 3.8 Flash', tier: 'standard' },
-      { id: 'gemini-3.7-flash', name: 'Gemini 3.7 Flash', tier: 'standard' },
+      { id: 'gemini-4-argon', name: 'Gemini 4 Argon', tier: 'advanced' },
       { id: 'gemini-3.1-pro-preview', name: 'Gemini 3.1 Pro', tier: 'advanced' },
     ],
     features: { vision: true, webSearch: true, codeExecution: true, imageGeneration: true },
@@ -27,8 +27,8 @@ const PROVIDERS = {
     company: 'OpenAI',
     models: [
       { id: 'gpt-6.1-sol', name: 'GPT-6.1 Sol (고성능)', tier: 'advanced' },
-      { id: 'gpt-5.6-terra', name: 'GPT-5.6 Terra (균형)', tier: 'standard' },
-      { id: 'gpt-5.6-luna', name: 'GPT-5.6 Luna (빠름·저비용)', tier: 'standard' },
+      { id: 'gpt-6.1-terra', name: 'GPT-6.1 Terra (균형)', tier: 'standard' },
+      { id: 'gpt-6-luna', name: 'GPT-6 Luna (빠름·저비용)', tier: 'standard' },
     ],
     features: { vision: true, webSearch: false, codeExecution: true, imageGeneration: true },
   },
@@ -37,7 +37,7 @@ const PROVIDERS = {
     company: 'Upstage',
     models: [
       { id: 'solar-pro4', name: 'Solar Pro 4', tier: 'standard' },
-      { id: 'solar-open2', name: 'Solar Open2 (한국어 특화·느림)', tier: 'standard' },
+      { id: 'solar-mini4', name: 'Solar Mini 4 (빠름)', tier: 'standard' },
     ],
     features: { vision: false, webSearch: false, codeExecution: false, imageGeneration: false },
   },
