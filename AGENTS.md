@@ -50,6 +50,7 @@ cd server && railway up      # 반드시 server/ 디렉토리에서 실행!
 - URL: https://talented-compassion-production.up.railway.app
 - **주의**: 프로젝트 루트가 아닌 `server/` 디렉토리에서 `railway up` 실행해야 함
 - GitHub 자동 배포 아님 — 수동 `railway up` 필요
+- 시작 명령·빌더·재시작 정책은 `.railway/railway.ts`에서 관리하고 `railway config apply`로 반영한다. 절차는 `docs/CI-CD.md` 참고
 - 서비스 링크 안 되어 있으면: `railway link --project talented-compassion` → `railway service talented-compassion`
 
 ## 코딩 컨벤션
