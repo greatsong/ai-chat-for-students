@@ -103,12 +103,27 @@ npx vercel --prod --force
 | 프로젝트    | `talented-compassion`                                 |
 | URL         | https://talented-compassion-production.up.railway.app |
 | 시작 명령   | `node index.js`                                       |
+| 빌더        | `NIXPACKS`                                            |
+| 재시작 정책 | `ON_FAILURE`, 최대 10회                               |
 | 배포 트리거 | 수동 (`railway up`)                                   |
 
 ```bash
 # 반드시 server/ 디렉토리에서 실행
 cd server && railway up
 ```
+
+#### 서비스 설정 변경
+
+시작 명령, 빌더, 재시작 정책은 `.railway/railway.ts`에서 관리한다. `server/railway.json`은 Railway의 Config as Code 폐기(2026-12-01 종료)에 따라 제거했다. 이 파일을 고쳐도 `railway up`만으로는 반영되지 않으며, `railway config apply`를 실행해야 한다.
+
+```bash
+# 저장소 루트에서 실행. SDK는 Node 22 이상이 필요해 의존성에 넣지 않았다
+npm install --no-save --ignore-scripts railway@3.16.0
+railway config plan    # 변경 내용을 확인한다. 플랫폼은 바뀌지 않는다
+railway config apply   # 운영 서비스 설정을 변경한다
+```
+
+환경변수는 이 파일이 관리하지 않으므로 지금처럼 Railway에서 관리한다.
 
 ## 환경변수 관리
 

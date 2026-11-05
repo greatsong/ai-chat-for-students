@@ -51,6 +51,7 @@ cd server && railway up
 
 - 프로젝트: `danggok-ai` / 서비스: `talented-compassion`
 - Frontend(`vercel.json`)가 `/api/*`를 Railway 도메인으로 rewrite
+- 서비스 설정(시작 명령·빌더·재시작 정책)은 `.railway/railway.ts`에서 관리한다. 고친 뒤 `railway config apply`가 필요하다. [docs/CI-CD.md](docs/CI-CD.md) 참고
 
 > Render는 사용하지 않음. 과거 Render Blueprint(`render.yaml`)는 제거됨.
 > Render 대시보드에 잔존하는 서비스가 있다면 일시정지/삭제해야 알림 메일이 멈춤.

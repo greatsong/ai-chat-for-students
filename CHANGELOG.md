@@ -1,5 +1,9 @@
 # Changelog
 
+## [Unreleased] - 2026-11-06 — Railway 설정 방식 전환
+
+- **`server/railway.json`을 `.railway/railway.ts`로 교체.** Railway가 Config as Code를 폐기해 기존 파일은 2026-12-01까지만 동작한다. 서비스에 저장된 값은 시작 명령·재시작 정책이 비어 있고 빌더가 `RAILPACK`이라, 기존 동작인 `node index.js`, `ON_FAILURE`(최대 10회), `NIXPACKS`를 새 파일에 명시했다. 환경변수는 관리 대상에서 제외했다
+
 ## [Unreleased] - 2026-11-05 — 개인정보 보호 보강
 
 상세 분석은 [docs/SECURITY-PII-2026-11.md](docs/SECURITY-PII-2026-11.md)에 있다.
