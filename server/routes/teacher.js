@@ -31,6 +31,7 @@ import { auditLog } from '../utils/logger.js';
 import { clearKeyCache } from '../utils/apiKeys.js';
 import { SETTINGS_VALID_KEYS } from '../utils/settingsKeys.js';
 import { csvCell } from '../utils/csv.js';
+import { kstDate, kstDateDaysAgo } from '../utils/date.js';
 
 const router = Router();
 
@@ -73,15 +74,11 @@ router.use(authenticate);
 
 // ──────────────────────────────────────────
 // GET /api/teacher/public-settings
-// 모든 인증된 사용자가 접근 가능한 공개 설정 (TTS/STT 활성화 상태 등)
+// 모든 인증된 사용자가 접근 가능한 공개 설정 (모델 노출 상태 등)
 // ──────────────────────────────────────────
 router.get('/public-settings', async (req, res) => {
   try {
     const publicKeys = [
-      'tts_enabled',
-      'stt_enabled',
-      'tts_default_voice',
-      'tts_default_model',
       'enabled_providers',
       'enabled_models',
       'available_models',
@@ -113,9 +110,7 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
         COALESCE(SUM(input_tokens), 0) AS totalInputTokens,
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
         COALESCE(SUM(request_count), 0) AS totalRequests,
-        COALESCE(SUM(image_count), 0) AS totalImages,
-        COALESCE(SUM(tts_count), 0) AS totalTts,
-        COALESCE(SUM(stt_count), 0) AS totalStt
+        COALESCE(SUM(image_count), 0) AS totalImages
       FROM usage_daily
       WHERE user_id = ?
     `,
@@ -123,9 +118,7 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
     );
 
     // 일별 사용량 (최근 30일)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+    const thirtyDaysAgoStr = kstDateDaysAgo(30);
 
     const daily = await queryAll(
       `
@@ -150,8 +143,6 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
         totalOutputTokens: 0,
         totalRequests: 0,
         totalImages: 0,
-        totalTts: 0,
-        totalStt: 0,
       },
       daily,
     });
@@ -167,7 +158,7 @@ router.get('/my-usage', requireTeacher, async (req, res) => {
 // ──────────────────────────────────────────
 router.get('/students', requireAdmin, async (req, res) => {
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = kstDate();
 
     const users = await queryAll(
       `
@@ -583,20 +574,16 @@ router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (r
     // 기간 계산
     let dateFilter;
     const isAll = period === 'all';
-    const today = new Date().toISOString().slice(0, 10);
+    const today = kstDate();
 
     if (isAll) {
       dateFilter = '2000-01-01'; // 사실상 전체 기간
     } else if (period === 'today') {
       dateFilter = today;
     } else if (period === 'week') {
-      const d = new Date();
-      d.setDate(d.getDate() - 7);
-      dateFilter = d.toISOString().slice(0, 10);
+      dateFilter = kstDateDaysAgo(7);
     } else if (period === 'month') {
-      const d = new Date();
-      d.setDate(d.getDate() - 30);
-      dateFilter = d.toISOString().slice(0, 10);
+      dateFilter = kstDateDaysAgo(30);
     } else {
       dateFilter = today;
     }
@@ -609,8 +596,6 @@ router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (r
         COALESCE(SUM(output_tokens), 0) AS totalOutputTokens,
         COALESCE(SUM(request_count), 0) AS totalRequests,
         COALESCE(SUM(image_count), 0) AS totalImages,
-        COALESCE(SUM(tts_count), 0) AS totalTts,
-        COALESCE(SUM(stt_count), 0) AS totalStt,
         COUNT(DISTINCT user_id) AS activeStudents
       FROM usage_daily
       WHERE date >= ?
@@ -654,9 +639,7 @@ router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (r
     );
 
     // 일별 사용량 (최근 30일)
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const thirtyDaysAgoStr = thirtyDaysAgo.toISOString().slice(0, 10);
+    const thirtyDaysAgoStr = kstDateDaysAgo(30);
 
     const daily = await queryAll(
       `
@@ -680,8 +663,6 @@ router.get('/usage', requireAdmin, validate(usageQuerySchema, 'query'), async (r
         totalOutputTokens: 0,
         totalRequests: 0,
         totalImages: 0,
-        totalTts: 0,
-        totalStt: 0,
         activeStudents: 0,
       },
       byStudent,

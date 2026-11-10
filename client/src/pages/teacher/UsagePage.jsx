@@ -3,8 +3,8 @@ import useTeacherStore from '../../stores/teacherStore';
 
 const PERIODS = [
   { value: 'today', label: '오늘' },
-  { value: 'week', label: '이번 주' },
-  { value: 'month', label: '이번 달' },
+  { value: 'week', label: '최근 7일' },
+  { value: 'month', label: '최근 30일' },
   { value: 'all', label: '전체' },
 ];
 
@@ -115,26 +115,6 @@ export default function UsagePage() {
           <div className="text-xs text-gray-400 mt-1">장</div>
         </div>
       </div>
-
-      {/* TTS/STT 사용량 */}
-      {(summary.totalTts > 0 || summary.totalStt > 0) && (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-          <div className="bg-white rounded-xl border border-teal-200 p-4">
-            <div className="text-xs text-teal-500 uppercase tracking-wide mb-1">TTS (읽기)</div>
-            <div className="text-2xl font-bold text-gray-800">
-              {(summary.totalTts || 0).toLocaleString()}
-            </div>
-            <div className="text-xs text-gray-400 mt-1">회</div>
-          </div>
-          <div className="bg-white rounded-xl border border-teal-200 p-4">
-            <div className="text-xs text-teal-500 uppercase tracking-wide mb-1">STT (음성입력)</div>
-            <div className="text-2xl font-bold text-gray-800">
-              {(summary.totalStt || 0).toLocaleString()}
-            </div>
-            <div className="text-xs text-gray-400 mt-1">회</div>
-          </div>
-        </div>
-      )}
 
       {/* 일별 사용량 차트 */}
       {usage?.daily && usage.daily.length > 0 && (

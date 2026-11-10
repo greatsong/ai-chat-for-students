@@ -147,19 +147,6 @@ export const shareRedeemSchema = z.object({
 
 // ── 미디어 관련 ──
 
-// TTS 요청
-export const ttsSchema = z.object({
-  text: z.string().min(1).max(4096),
-  voice: z.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional().default('alloy'),
-  model: z.enum(['tts-1', 'tts-1-hd']).optional().default('tts-1'),
-});
-
-// STT 요청
-export const sttSchema = z.object({
-  audio: z.string().min(1),
-  mimeType: z.string().max(100).optional().default('audio/webm'),
-});
-
 // 이미지 생성 요청
 export const imageGenerateSchema = z.object({
   prompt: z.string().min(1).max(10000),

@@ -35,8 +35,6 @@ export default function ChatPage() {
   const deleteConversation = useChatStore((s) => s.deleteConversation);
   const sendMessage = useChatStore((s) => s.sendMessage);
   const generateImage = useChatStore((s) => s.generateImage);
-  const speakMessage = useChatStore((s) => s.speakMessage);
-  const transcribeAudio = useChatStore((s) => s.transcribeAudio);
   const setProvider = useChatStore((s) => s.setProvider);
   const setModel = useChatStore((s) => s.setModel);
   const loadConversations = useChatStore((s) => s.loadConversations);
@@ -64,12 +62,21 @@ export default function ChatPage() {
     }
   }, [isAuthenticated, navigate]);
 
-  // 공개 설정 로드 (TTS/STT 상태)
+  // 공개 설정 로드 (프로바이더·모델 노출 상태)
   useEffect(() => {
     apiGet('/teacher/public-settings')
       .then(setPublicSettings)
       .catch(() => {});
   }, []);
+
+  // 관리자가 끈 프로바이더가 선택되어 있으면 켜진 첫 프로바이더로 옮긴다.
+  // 그대로 두면 학생이 보낸 메시지가 모두 "비활성화된 프로바이더" 오류로 끝난다.
+  useEffect(() => {
+    const enabled = publicSettings.enabled_providers;
+    if (Array.isArray(enabled) && enabled.length > 0 && !enabled.includes(selectedProvider)) {
+      setProvider?.(enabled[0]);
+    }
+  }, [publicSettings.enabled_providers, selectedProvider, setProvider]);
 
   // 대화 목록 로드
   const loadConversationsRef = useRef(loadConversations);
@@ -152,29 +159,11 @@ export default function ChatPage() {
     [generateImage],
   );
 
-  // TTS 음성 합성
-  const handleSpeak = useCallback(
-    (text) => {
-      return speakMessage?.(
-        text,
-        publicSettings.tts_default_voice,
-        publicSettings.tts_default_model,
-      );
-    },
-    [speakMessage, publicSettings.tts_default_voice, publicSettings.tts_default_model],
-  );
-
-  // STT 음성 인식
-  const handleTranscribe = useCallback(
-    async (audioBase64, mimeType) => {
-      return transcribeAudio?.(audioBase64, mimeType);
-    },
-    [transcribeAudio],
-  );
-
   const isTeacher = user?.role === 'teacher' || user?.role === 'admin';
 
-  const hasActiveConversation = !!activeConversationId && messages.length > 0;
+  // 메시지가 있으면 대화 화면을 보여 준다. 대화 ID를 조건에 넣으면 새 대화의 첫 메시지가
+  // 서버에서 거절될 때(한도 초과 등) 환영 화면으로 돌아가 오류 안내가 가려진다.
+  const hasActiveConversation = messages.length > 0;
 
   return (
     <div className="flex h-screen bg-gray-50 overflow-hidden">
@@ -317,12 +306,17 @@ export default function ChatPage() {
                   </span>
                 </div>
               )}
-              <MessageList
-                messages={messages}
-                isStreaming={isStreaming}
-                ttsEnabled={isTeacher || !!publicSettings.tts_enabled}
-                onSpeak={handleSpeak}
-              />
+              {fileNotice?.kind === 'upload_failed' && fileNotice.files?.length > 0 && (
+                <div className="mx-4 mt-2 px-3 py-2 rounded-lg text-xs flex items-start gap-2 bg-amber-50 border border-amber-200 text-amber-800">
+                  <span className="text-base leading-none mt-0.5">📎</span>
+                  <span>
+                    첨부 파일 {fileNotice.files.length}개를 올리지 못해 빼고 보냈어요 (
+                    {fileNotice.files.map((f) => f.name).join(', ')}). 형식과 크기(10MB 이하)를
+                    확인해 주세요.
+                  </span>
+                </div>
+              )}
+              <MessageList messages={messages} isStreaming={isStreaming} />
             </>
           ) : (
             <WelcomeScreen
@@ -337,11 +331,9 @@ export default function ChatPage() {
         <MessageInput
           onSend={handleSendMessage}
           onGenerateImage={handleGenerateImage}
-          onTranscribe={handleTranscribe}
           disabled={false}
           isStreaming={isStreaming}
           isTeacher={isTeacher}
-          sttEnabled={false}
         />
       </main>
     </div>

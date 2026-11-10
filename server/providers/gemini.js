@@ -52,7 +52,12 @@ export function buildMessages(history) {
       }
     }
 
-    parts.push({ text: msg.content || '' });
+    // 빈 text 파트는 Gemini가 거부할 수 있으므로 내용이 있을 때만 넣는다
+    if (msg.content && msg.content.trim()) {
+      parts.push({ text: msg.content });
+    } else if (parts.length === 0) {
+      parts.push({ text: ' ' });
+    }
 
     return {
       role: msg.role === 'assistant' ? 'model' : 'user',
@@ -80,6 +85,7 @@ export async function streamChat({
   onDone,
   onError,
   options = {},
+  signal,
 }) {
   try {
     const client = await getClient();
@@ -115,7 +121,7 @@ export async function streamChat({
       history: chatHistory,
     });
 
-    const result = await chat.sendMessageStream(lastMessage.parts);
+    const result = await chat.sendMessageStream(lastMessage.parts, { signal });
 
     let fullContent = '';
 
@@ -131,7 +137,9 @@ export async function streamChat({
     const response = await result.response;
     const usageMetadata = response.usageMetadata || {};
     const inputTokens = usageMetadata.promptTokenCount || 0;
-    const outputTokens = usageMetadata.candidatesTokenCount || 0;
+    // 생각(thinking) 토큰은 candidatesTokenCount에 들어가지 않지만 출력 토큰으로 과금된다
+    const outputTokens =
+      (usageMetadata.candidatesTokenCount || 0) + (usageMetadata.thoughtsTokenCount || 0);
 
     // 검색 결과 및 코드 실행 결과 확인
     let searchResults = null;

@@ -226,113 +226,9 @@ function FileAttachments({ files }) {
   );
 }
 
-// TTS 스피커 버튼
-function TtsButton({ text, onSpeak }) {
-  const [state, setState] = useState('idle'); // idle | loading | playing
-  const audioRef = useRef(null);
-
-  // 언마운트 시 오디오 리소스 정리 및 blob URL 해제
-  useEffect(() => {
-    return () => {
-      if (audioRef.current) {
-        audioRef.current.pause();
-        if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
-          URL.revokeObjectURL(audioRef.current.src);
-        }
-        audioRef.current = null;
-      }
-    };
-  }, []);
-
-  const cleanupAudio = () => {
-    if (audioRef.current) {
-      if (audioRef.current.src && audioRef.current.src.startsWith('blob:')) {
-        URL.revokeObjectURL(audioRef.current.src);
-      }
-      audioRef.current = null;
-    }
-  };
-
-  const handleClick = async () => {
-    if (state === 'playing') {
-      audioRef.current?.pause();
-      cleanupAudio();
-      setState('idle');
-      return;
-    }
-
-    setState('loading');
-    try {
-      const audio = await onSpeak(text);
-      audioRef.current = audio;
-      setState('playing');
-      audio.onended = () => {
-        cleanupAudio();
-        setState('idle');
-      };
-      audio.onerror = () => {
-        cleanupAudio();
-        setState('idle');
-      };
-    } catch {
-      setState('idle');
-    }
-  };
-
-  return (
-    <button
-      onClick={handleClick}
-      className={`p-1 rounded-md transition-colors ${
-        state === 'playing'
-          ? 'text-blue-600 bg-blue-100'
-          : state === 'loading'
-            ? 'text-gray-400 animate-pulse'
-            : 'text-gray-400 hover:text-blue-600 hover:bg-gray-200'
-      }`}
-      title={state === 'playing' ? '정지' : '읽어주기'}
-    >
-      {state === 'loading' ? (
-        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
-          <circle
-            className="opacity-25"
-            cx="12"
-            cy="12"
-            r="10"
-            stroke="currentColor"
-            strokeWidth="4"
-          />
-          <path
-            className="opacity-75"
-            fill="currentColor"
-            d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-          />
-        </svg>
-      ) : state === 'playing' ? (
-        <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 24 24">
-          <rect x="6" y="6" width="12" height="12" rx="1" />
-        </svg>
-      ) : (
-        <svg
-          className="w-4 h-4"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
-          strokeWidth={2}
-        >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            d="M15.536 8.464a5 5 0 010 7.072M17.95 6.05a8 8 0 010 11.9M11 5L6 9H2v6h4l5 4V5z"
-          />
-        </svg>
-      )}
-    </button>
-  );
-}
-
 // 개별 메시지 컴포넌트 — React.memo로 불필요한 재렌더링 방지
 const MessageBubble = memo(
-  function MessageBubble({ message, imagePrompt = '', ttsEnabled, onSpeak }) {
+  function MessageBubble({ message, imagePrompt = '' }) {
     const isUser = message.role === 'user';
     const timeStr = message.created_at
       ? new Date(message.created_at).toLocaleTimeString('ko-KR', {
@@ -431,12 +327,9 @@ const MessageBubble = memo(
             </div>
           )}
 
-          {/* 시간 + TTS 버튼 */}
+          {/* 시간 */}
           <div className={`flex items-center gap-2 mt-1 ${isUser ? 'flex-row-reverse' : ''}`}>
             {timeStr && <span className="text-xs text-gray-400">{timeStr}</span>}
-            {!isUser && ttsEnabled && onSpeak && message.content?.trim() && (
-              <TtsButton text={message.content} onSpeak={onSpeak} />
-            )}
           </div>
         </div>
       </div>
@@ -449,20 +342,14 @@ const MessageBubble = memo(
       prevProps.message.role === nextProps.message.role &&
       prevProps.message.errorNote === nextProps.message.errorNote &&
       prevProps.message.image_url === nextProps.message.image_url &&
-      prevProps.imagePrompt === nextProps.imagePrompt &&
-      prevProps.ttsEnabled === nextProps.ttsEnabled &&
-      prevProps.onSpeak === nextProps.onSpeak
+      prevProps.message.files === nextProps.message.files &&
+      prevProps.message.isFriendlyError === nextProps.message.isFriendlyError &&
+      prevProps.imagePrompt === nextProps.imagePrompt
     );
   },
 );
 
-export default function MessageList({
-  messages = [],
-  isStreaming = false,
-  streamingContent = '',
-  ttsEnabled = false,
-  onSpeak,
-}) {
+export default function MessageList({ messages = [], isStreaming = false, streamingContent = '' }) {
   const bottomRef = useRef(null);
   const containerRef = useRef(null);
   // 사용자가 위로 스크롤하면 자동 스크롤을 일시 중단. 다시 바닥 근처로 오면 재개.
@@ -511,8 +398,6 @@ export default function MessageList({
               key={msg.id || msg.temp_id || `msg-${index}`}
               message={msg}
               imagePrompt={imagePrompt}
-              ttsEnabled={ttsEnabled}
-              onSpeak={onSpeak}
             />
           );
         })}

@@ -9,8 +9,6 @@ import chatRoutes from './routes/chat.js';
 import conversationRoutes from './routes/conversations.js';
 import uploadRoutes from './routes/upload.js';
 import imageRoutes from './routes/image.js';
-import ttsRoutes from './routes/tts.js';
-import sttRoutes from './routes/stt.js';
 import teacherRoutes from './routes/teacher.js';
 import shareRoutes from './routes/share.js';
 
@@ -100,8 +98,9 @@ export function createApp() {
     standardHeaders: true,
     legacyHeaders: false,
     validate: false,
-    // 로그아웃은 토큰이 있어야 동작한다. 학교 NAT의 IP 공용 한도 때문에 세션 폐기가 실패하면 안 된다.
-    skip: (req) => req.path === '/logout',
+    // 로그아웃과 내 정보 조회(/me)는 토큰이 있어야 동작한다. 학교 NAT에서는 모든 학생이 IP 하나를
+    // 같이 쓰므로, 여기에 IP 한도를 걸면 수업 시작 때 /me가 429를 받아 학생들이 한꺼번에 로그아웃된다.
+    skip: (req) => req.path === '/logout' || req.path === '/me',
     message: { error: '로그인 시도가 너무 많습니다. 1분 후 다시 시도해주세요.' },
   });
 
@@ -116,7 +115,7 @@ export function createApp() {
     message: { error: '파일 업로드가 너무 많습니다. 잠시 후 다시 시도해주세요.' },
   });
 
-  // 업로드/TTS/STT 라우트용 추가 파서 — 전역(20MB)으로 충분하지만 명시성을 위해 유지
+  // 업로드·이미지 라우트용 추가 파서 — 전역(20MB)으로 충분하지만 명시성을 위해 유지
   const largeBodyParser = express.json({ limit: '20mb' });
 
   // 라우트 마운트 (Rate Limiter + requireActive 적용)
@@ -125,8 +124,6 @@ export function createApp() {
   app.use('/api/conversations', authenticate, requireActive, conversationRoutes);
   app.use('/api/upload', authenticate, requireActive, largeBodyParser, uploadLimiter, uploadRoutes);
   app.use('/api/image', authenticate, requireActive, largeBodyParser, uploadLimiter, imageRoutes);
-  app.use('/api/tts', authenticate, requireActive, largeBodyParser, uploadLimiter, ttsRoutes);
-  app.use('/api/stt', authenticate, requireActive, largeBodyParser, uploadLimiter, sttRoutes);
   app.use('/api/teacher', teacherRoutes);
   // 공유: 발급(POST)은 라우트 내부에서 authenticate, 조회(GET)는 공개.
   // 따라서 여기서는 전역 authenticate 를 걸지 않는다.

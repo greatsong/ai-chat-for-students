@@ -1,6 +1,5 @@
 import OpenAI from 'openai';
 import { getApiKey } from '../utils/apiKeys.js';
-import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let client = null;
@@ -56,7 +55,15 @@ export function buildMessages(history) {
  * @param {Function} params.onDone - 완료 콜백
  * @param {Function} params.onError - 에러 콜백
  */
-export async function streamChat({ messages, systemPrompt, model, onText, onDone, onError }) {
+export async function streamChat({
+  messages,
+  systemPrompt,
+  model,
+  onText,
+  onDone,
+  onError,
+  signal,
+}) {
   try {
     const solar = await getClient();
 
@@ -67,12 +74,15 @@ export async function streamChat({ messages, systemPrompt, model, onText, onDone
     }
     allMessages.push(...messages);
 
-    const stream = await solar.chat.completions.create({
-      model: model || 'solar-pro4',
-      messages: allMessages,
-      stream: true,
-      stream_options: { include_usage: true },
-    });
+    const stream = await solar.chat.completions.create(
+      {
+        model: model || 'solar-pro4',
+        messages: allMessages,
+        stream: true,
+        stream_options: { include_usage: true },
+      },
+      { signal },
+    );
 
     let fullContent = '';
     let inputTokens = 0;

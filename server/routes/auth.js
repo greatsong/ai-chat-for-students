@@ -129,9 +129,13 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
       );
       const classroomId = firstClassroom ? firstClassroom.id : null;
 
+      // 관리자가 설정 화면에서 정한 기본 일일 한도를 새 사용자에게 적용한다
+      const defaultLimit = Number(await getSetting('default_daily_limit'));
+      const dailyLimit = Number.isInteger(defaultLimit) && defaultLimit > 0 ? defaultLimit : 100000;
+
       const userId = crypto.randomUUID();
       await run(
-        'INSERT INTO users (id, google_id, email, name, avatar, role, classroom_id, is_active, privacy_agreed_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+        'INSERT INTO users (id, google_id, email, name, avatar, role, classroom_id, is_active, privacy_agreed_at, daily_limit) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
         [
           userId,
           googleId,
@@ -142,6 +146,7 @@ router.post('/google', validate(googleAuthSchema), async (req, res) => {
           classroomId,
           isActive,
           new Date().toISOString(),
+          dailyLimit,
         ],
       );
 

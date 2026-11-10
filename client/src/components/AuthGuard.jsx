@@ -1,6 +1,6 @@
-import { useEffect } from "react";
-import { Navigate } from "react-router-dom";
-import useAuthStore from "../stores/authStore";
+import { useEffect } from 'react';
+import { Navigate } from 'react-router-dom';
+import useAuthStore from '../stores/authStore';
 
 /**
  * 인증 라우트 가드
@@ -10,7 +10,7 @@ import useAuthStore from "../stores/authStore";
  * - requireTeacher: 교사 권한 필요 시
  */
 export default function AuthGuard({ children, requireTeacher = false }) {
-  const { user, isAuthenticated, isLoading, checkAuth } = useAuthStore();
+  const { user, isAuthenticated, isLoading, authError, checkAuth } = useAuthStore();
 
   useEffect(() => {
     checkAuth();
@@ -52,11 +52,13 @@ export default function AuthGuard({ children, requireTeacher = false }) {
         <div
           className="absolute rounded-full"
           style={{
-            width: "300px", height: "300px",
-            top: "50%", left: "50%",
-            transform: "translate(-50%, -50%)",
-            background: "radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%)",
-            animation: "warpGlow 2s ease-in-out infinite",
+            width: '300px',
+            height: '300px',
+            top: '50%',
+            left: '50%',
+            transform: 'translate(-50%, -50%)',
+            background: 'radial-gradient(circle, rgba(99,102,241,0.3) 0%, transparent 70%)',
+            animation: 'warpGlow 2s ease-in-out infinite',
           }}
         />
 
@@ -74,9 +76,9 @@ export default function AuthGuard({ children, requireTeacher = false }) {
                   width: `${size}px`,
                   height: isStreak ? `${size * 6}px` : `${size}px`,
                   background: isStreak
-                    ? "linear-gradient(to bottom, transparent, white, transparent)"
-                    : "white",
-                  animation: `${isStreak ? "starStreak" : "starStream"} ${0.5 + (i % 6) * 0.25}s linear infinite`,
+                    ? 'linear-gradient(to bottom, transparent, white, transparent)'
+                    : 'white',
+                  animation: `${isStreak ? 'starStreak' : 'starStream'} ${0.5 + (i % 6) * 0.25}s linear infinite`,
                   animationDelay: `${(i * 0.07) % 2}s`,
                   opacity: 0.3 + (i % 4) * 0.2,
                 }}
@@ -85,12 +87,11 @@ export default function AuthGuard({ children, requireTeacher = false }) {
           })}
         </div>
 
-
         {/* 로켓 */}
         <div className="text-center relative z-10">
           <div
             className="text-6xl inline-block"
-            style={{ animation: "rocketVibrate 0.1s ease-in-out infinite" }}
+            style={{ animation: 'rocketVibrate 0.1s ease-in-out infinite' }}
           >
             &#x1F680;
           </div>
@@ -103,8 +104,8 @@ export default function AuthGuard({ children, requireTeacher = false }) {
                 className="absolute bg-white/25 rounded-full"
                 style={{
                   top: `${5 + i * 10}%`,
-                  right: "-40px",
-                  height: "1px",
+                  right: '-40px',
+                  height: '1px',
                   animation: `speedLine ${0.25 + (i % 4) * 0.07}s linear infinite`,
                   animationDelay: `${i * 0.12}s`,
                 }}
@@ -127,13 +128,31 @@ export default function AuthGuard({ children, requireTeacher = false }) {
     );
   }
 
+  // 일시적인 연결 오류 — 토큰은 그대로 두고 다시 시도할 수 있게 한다
+  if (authError && !isAuthenticated) {
+    return (
+      <div className="flex items-center justify-center min-h-screen bg-gray-50">
+        <div className="w-full max-w-sm p-8 bg-white rounded-2xl shadow-lg text-center">
+          <h2 className="text-lg font-semibold text-gray-900">연결이 잠시 원활하지 않습니다</h2>
+          <p className="mt-2 text-sm text-gray-500">{authError}</p>
+          <button
+            onClick={() => checkAuth()}
+            className="mt-6 w-full rounded-lg bg-indigo-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-indigo-700 transition-colors cursor-pointer"
+          >
+            다시 시도
+          </button>
+        </div>
+      </div>
+    );
+  }
+
   // 미인증
   if (!isAuthenticated || !user) {
     return <Navigate to="/login" replace />;
   }
 
   // 교사 권한 체크 (admin도 교사 권한 포함)
-  if (requireTeacher && user.role !== "teacher" && user.role !== "admin") {
+  if (requireTeacher && user.role !== 'teacher' && user.role !== 'admin') {
     return <Navigate to="/chat" replace />;
   }
 
@@ -173,7 +192,7 @@ export default function AuthGuard({ children, requireTeacher = false }) {
             <button
               onClick={() => {
                 useAuthStore.getState().logout();
-                window.location.href = "/login";
+                window.location.href = '/login';
               }}
               className="w-full rounded-lg border border-gray-300 px-4 py-2.5 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors cursor-pointer"
             >

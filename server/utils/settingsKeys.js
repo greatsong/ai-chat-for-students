@@ -13,10 +13,6 @@ export const SETTINGS_VALID_KEYS = [
   'image_models',
   'system_prompt',
   'default_daily_limit',
-  'tts_enabled',
-  'stt_enabled',
-  'tts_default_voice',
-  'tts_default_model',
   // 코드 실행 도구 — codeExecutionGate가 읽고 database.js에 기본값이 정의된 키.
   'code_execution_claude',
   'code_execution_openai',

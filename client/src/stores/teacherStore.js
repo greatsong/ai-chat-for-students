@@ -1,6 +1,10 @@
 import { create } from 'zustand';
 import { apiGet, apiPatch, apiPost, apiPut, apiDelete } from '../lib/api.js';
 
+// 같은 종류의 요청이 겹치면 마지막 요청의 응답만 반영한다.
+// (검색어를 바꾸는 동안 늦게 도착한 이전 페이지 응답이 목록을 덮어쓰던 문제)
+const _requestSeq = { conversations: 0, messages: 0, usage: 0 };
+
 const useTeacherStore = create((set, get) => ({
   // State
   students: [],
@@ -66,6 +70,7 @@ const useTeacherStore = create((set, get) => ({
   // ── 대화 열람 (관리자 전용) ──
 
   loadConversations: async (filters = {}) => {
+    const seq = ++_requestSeq.conversations;
     set({ isLoading: true, error: null });
     try {
       const params = new URLSearchParams();
@@ -76,28 +81,34 @@ const useTeacherStore = create((set, get) => ({
 
       const query = params.toString();
       const data = await apiGet(`/teacher/conversations${query ? '?' + query : ''}`);
+      if (seq !== _requestSeq.conversations) return;
       set({
         conversations: data.conversations,
         conversationPagination: data.pagination,
         isLoading: false,
       });
     } catch (error) {
+      if (seq !== _requestSeq.conversations) return;
       set({ isLoading: false, error: error.message });
       console.error('대화 목록 로드 실패:', error);
     }
   },
 
   loadConversationMessages: async (conversationId) => {
-    set({ isLoading: true, error: null });
+    const seq = ++_requestSeq.messages;
+    // 이전에 연 대화가 남아 있으면 불러오기에 실패했을 때 다른 학생의 대화가 보인다. 먼저 비운다.
+    set({ isLoading: true, error: null, conversationMessages: [] });
     try {
       const data = await apiGet(`/teacher/conversations/${conversationId}/messages`);
+      if (seq !== _requestSeq.messages) return null;
       // 메모리 보호: 최대 500개 메시지만 유지
       const messages = data.messages?.slice(-500) || [];
       set({ conversationMessages: messages, isLoading: false });
       return data;
     } catch (error) {
-      set({ isLoading: false, error: error.message });
+      if (seq === _requestSeq.messages) set({ isLoading: false, error: error.message });
       console.error('메시지 로드 실패:', error);
+      return null;
     }
   },
 
@@ -122,11 +133,14 @@ const useTeacherStore = create((set, get) => ({
   // ── 전체 사용량 (관리자 전용) ──
 
   loadUsage: async (period = 'today') => {
+    const seq = ++_requestSeq.usage;
     set({ isLoading: true, error: null });
     try {
       const data = await apiGet(`/teacher/usage?period=${period}`);
+      if (seq !== _requestSeq.usage) return;
       set({ usage: data, isLoading: false });
     } catch (error) {
+      if (seq !== _requestSeq.usage) return;
       set({ isLoading: false, error: error.message });
       console.error('사용량 로드 실패:', error);
     }

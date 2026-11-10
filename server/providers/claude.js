@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getApiKey } from '../utils/apiKeys.js';
-import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let anthropic = null;
@@ -193,6 +192,7 @@ export async function streamChat({
   onDone,
   onError,
   options = {},
+  signal,
 }) {
   try {
     // 디버그: 메시지 구조 확인 (base64 데이터는 길이만 표시)
@@ -262,13 +262,17 @@ export async function streamChat({
     const client = await getClient();
     // 거절 폴백은 beta 엔드포인트로만 보낼 수 있다. 같은 스트림 안에서 폴백 모델이
     // 이어서 답하므로 text 이벤트 처리는 그대로 둔다.
+    // signal: 학생이 연결을 끊으면 chat 라우트가 abort해 생성을 멈춘다(비용 절감)
     const stream = REFUSAL_FALLBACK_MODELS.has(modelId)
-      ? client.beta.messages.stream({
-          ...streamParams,
-          betas: ['server-side-fallback-2026-07-01'],
-          fallbacks: 'default',
-        })
-      : client.messages.stream(streamParams);
+      ? client.beta.messages.stream(
+          {
+            ...streamParams,
+            betas: ['server-side-fallback-2026-07-01'],
+            fallbacks: 'default',
+          },
+          { signal },
+        )
+      : client.messages.stream(streamParams, { signal });
 
     let fullContent = '';
 

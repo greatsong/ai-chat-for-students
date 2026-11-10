@@ -167,11 +167,20 @@ export async function fetchUrlContent(url, maxLength = 8000) {
 
   // 크기 제한 텍스트 읽기 헬퍼 (Content-Length가 없는 chunked 응답 대응)
   const MAX_RESPONSE_BYTES = 2 * 1024 * 1024; // 응답 본문 최대 2MB
+  // 본문을 조금씩 읽다가 한도에 닿으면 멈춘다. 전부 받은 뒤 자르면 끝없이 보내는 서버에 메모리가 계속 늘어난다.
   async function safeText(resp) {
-    const buf = await resp.arrayBuffer();
-    if (buf.byteLength > MAX_RESPONSE_BYTES) {
-      return new TextDecoder().decode(buf.slice(0, MAX_RESPONSE_BYTES));
+    if (!resp.body) return '';
+    const reader = resp.body.getReader();
+    const chunks = [];
+    let total = 0;
+    while (total < MAX_RESPONSE_BYTES) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      chunks.push(value);
+      total += value.byteLength;
     }
+    reader.cancel().catch(() => {});
+    const buf = Buffer.concat(chunks).subarray(0, MAX_RESPONSE_BYTES);
     return new TextDecoder().decode(buf);
   }
 
@@ -224,7 +233,6 @@ export async function fetchUrlContent(url, maxLength = 8000) {
         },
         redirect: 'manual',
       });
-      clearTimeout(timeout);
 
       if (!safeRedirect.ok) {
         return { url, error: `HTTP ${safeRedirect.status}`, content: null };
@@ -254,8 +262,6 @@ export async function fetchUrlContent(url, maxLength = 8000) {
         text2 = text2.slice(0, maxLength) + '\n\n... (내용이 잘렸습니다)';
       return { url, content: text2, type: 'html' };
     }
-
-    clearTimeout(timeout);
 
     if (!response.ok) {
       return { url, error: `HTTP ${response.status}`, content: null };
