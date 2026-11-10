@@ -44,6 +44,9 @@ export const chatSchema = z
           content: z.string().optional().nullable(),
           data: z.string().optional().nullable(),
           size: z.number().optional(),
+          // 첨부 수명 정책: 이후 턴에서 원본 대신 보낼 요약
+          summary: z.string().max(4000).optional(),
+          pages: z.number().int().optional(),
         }),
       )
       .max(10)

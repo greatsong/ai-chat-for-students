@@ -11,6 +11,9 @@ import { apiGet } from '../lib/api';
 import useChatStore from '../stores/chatStore';
 import useAuthStore from '../stores/authStore';
 
+// 질문 한 번의 입력 토큰이 이 값 이상이면 새 대화를 권하는 안내를 띄운다
+const HEAVY_INPUT_TOKENS = 30000;
+
 export default function ChatPage() {
   const navigate = useNavigate();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -40,6 +43,8 @@ export default function ChatPage() {
   const loadConversations = useChatStore((s) => s.loadConversations);
   const contextTrimmed = useChatStore((s) => s.contextTrimmed);
   const fileNotice = useChatStore((s) => s.fileNotice);
+  const attachmentNotice = useChatStore((s) => s.attachmentNotice);
+  const lastUsage = useChatStore((s) => s.lastUsage);
 
   // 모델·프로바이더 허용 목록은 /teacher/public-settings에서 가져온다 (authStore에는 settings가 없음)
   const enabledProviders = publicSettings.enabled_providers || [
@@ -316,7 +321,29 @@ export default function ChatPage() {
                   </span>
                 </div>
               )}
+              {attachmentNotice?.count > 0 && (
+                <div className="mx-4 mt-2 px-3 py-2 rounded-lg text-xs flex items-start gap-2 bg-blue-50 border border-blue-200 text-blue-700">
+                  <span className="text-base leading-none mt-0.5">📎</span>
+                  <span>
+                    앞서 올린 파일 {attachmentNotice.count}개는 요약만 AI에게 전달했어요. 파일
+                    내용을 다시 자세히 물으려면 파일 이름을 함께 적어 주세요.
+                  </span>
+                </div>
+              )}
               <MessageList messages={messages} isStreaming={isStreaming} />
+              {lastUsage && !isStreaming && (
+                <div
+                  className={`mx-4 mb-1 px-3 py-1.5 rounded-lg text-xs ${
+                    lastUsage.input >= HEAVY_INPUT_TOKENS
+                      ? 'bg-amber-50 border border-amber-200 text-amber-800'
+                      : 'text-gray-400 text-right'
+                  }`}
+                >
+                  {lastUsage.input >= HEAVY_INPUT_TOKENS
+                    ? `이 대화는 질문 한 번에 약 ${lastUsage.input.toLocaleString()}토큰을 사용합니다. 새 대화를 시작하면 사용량이 줄어듭니다.`
+                    : `이번 답변 사용량: 입력 ${lastUsage.input.toLocaleString()} · 출력 ${lastUsage.output.toLocaleString()} 토큰`}
+                </div>
+              )}
             </>
           ) : (
             <WelcomeScreen

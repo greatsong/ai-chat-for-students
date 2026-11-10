@@ -1,5 +1,6 @@
 import { create } from 'zustand';
 import { apiGet, apiPost, apiDelete, apiStreamPost, apiUploadFile } from '../lib/api.js';
+import { resizeImageForUpload } from '../lib/imageResize.js';
 
 let _tempIdCounter = 0;
 let _loadConversationsPromise = null;
@@ -36,7 +37,9 @@ const useChatStore = create((set, get) => ({
   selectedProvider: 'claude',
   selectedModel: 'claude-sonnet-5-5',
   contextTrimmed: null, // { trimmedCount, totalMessages, usedMessages }
-  fileNotice: null, // { kind: 'sampled', files: [{name, originalChars}] }
+  fileNotice: null, // { kind: 'sampled' | 'upload_failed', files: [{name, originalChars}] }
+  attachmentNotice: null, // { count } — 앞서 올린 첨부를 요약으로 바꿔 보낸 개수
+  lastUsage: null, // { input, output } — 마지막 답변의 사용량 (학생 화면 안내용)
 
   // Actions
 
@@ -73,6 +76,8 @@ const useChatStore = create((set, get) => ({
         isStreaming: false,
         contextTrimmed: null,
         fileNotice: null,
+        attachmentNotice: null,
+        lastUsage: null,
         currentConversation: data.conversation,
         messages: data.messages,
         selectedProvider: data.conversation.provider || 'claude',
@@ -96,6 +101,8 @@ const useChatStore = create((set, get) => ({
       isStreaming: false,
       contextTrimmed: null,
       fileNotice: null,
+      attachmentNotice: null,
+      lastUsage: null,
       selectedProvider: provider || selectedProvider || 'claude',
       selectedModel: model || selectedModel || 'claude-sonnet-5-5',
     });
@@ -133,6 +140,7 @@ const useChatStore = create((set, get) => ({
       isStreaming: true,
       contextTrimmed: null,
       fileNotice: null,
+      attachmentNotice: null,
     });
 
     // 이 스트림의 답변 말풍선만 고친다 (마지막 메시지를 고치면 대화를 옮겼을 때 엉뚱한 말풍선이 바뀐다)
@@ -154,7 +162,10 @@ const useChatStore = create((set, get) => ({
     // 2. 파일 업로드 — 하나가 실패해도 나머지는 보낸다. 실패한 파일은 안내한다.
     let uploadedFiles = [];
     if (rawFiles.length > 0) {
-      const results = await Promise.allSettled(rawFiles.map((file) => apiUploadFile(file)));
+      // 사진은 업로드 전에 긴 변 1,568px로 줄인다 (요청·DB 용량 절감, Claude 5MB 거부 방지)
+      const results = await Promise.allSettled(
+        rawFiles.map(async (file) => apiUploadFile(await resizeImageForUpload(file))),
+      );
       const failed = [];
       results.forEach((r, i) => {
         if (r.status === 'fulfilled' && r.value?.content && r.value.type !== 'unsupported') {
@@ -164,6 +175,8 @@ const useChatStore = create((set, get) => ({
             mimeType: r.value.mimeType,
             data: r.value.content,
             size: r.value.size,
+            ...(r.value.summary ? { summary: r.value.summary } : {}),
+            ...(r.value.pages ? { pages: r.value.pages } : {}),
           });
         } else {
           failed.push(rawFiles[i].name);
@@ -232,6 +245,8 @@ const useChatStore = create((set, get) => ({
 
           if (chunk.type === 'context_trimmed') {
             set({ contextTrimmed: chunk });
+          } else if (chunk.type === 'attachments_summarized') {
+            set({ attachmentNotice: { count: chunk.count } });
           } else if (chunk.type === 'text') {
             patchAssistant((m) => ({ content: m.content + chunk.content }));
           } else if (chunk.type === 'done') {
@@ -240,6 +255,9 @@ const useChatStore = create((set, get) => ({
               input_tokens: chunk.usage?.input || 0,
               output_tokens: chunk.usage?.output || 0,
             }));
+            set({
+              lastUsage: { input: chunk.usage?.input || 0, output: chunk.usage?.output || 0 },
+            });
             finish();
           } else if (chunk.type === 'files_sampled') {
             // 큰 텍스트 파일이 자동 샘플링됨 — 학생에게 친근한 안내 배너

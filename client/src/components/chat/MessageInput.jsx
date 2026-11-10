@@ -5,6 +5,8 @@ const LINE_HEIGHT = 24; // approximate line height in px
 
 // 서버(upload.js·shared.js)가 받는 형식과 맞춘다. 여기서 걸러야 업로드 실패로 첨부가 조용히 빠지지 않는다.
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// 사진은 업로드 전에 긴 변 1,568px로 줄이므로(lib/imageResize.js) 원본은 더 커도 받는다
+const MAX_IMAGE_SIZE = 30 * 1024 * 1024;
 const MAX_ATTACHMENTS = 10; // 서버 chatSchema의 첨부 개수 한도
 const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 const TEXT_EXTENSIONS = [
@@ -133,8 +135,11 @@ export default function MessageInput({
         rejected.push(`${f.name}: 지원하지 않는 형식입니다 (이미지는 JPG·PNG·GIF·WEBP).`);
         return false;
       }
-      if (f.size > MAX_FILE_SIZE) {
-        rejected.push(`${f.name}: 10MB를 넘어 첨부할 수 없습니다.`);
+      const isResizableImage = IMAGE_TYPES.includes(f.type) && f.type !== 'image/gif';
+      if (f.size > (isResizableImage ? MAX_IMAGE_SIZE : MAX_FILE_SIZE)) {
+        rejected.push(
+          `${f.name}: ${isResizableImage ? '30MB' : '10MB'}를 넘어 첨부할 수 없습니다.`,
+        );
         return false;
       }
       return true;

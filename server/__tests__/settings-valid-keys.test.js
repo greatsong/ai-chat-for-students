@@ -18,6 +18,7 @@ const CLIENT_SAVED_KEYS = [
   'image_models',
   'system_prompt',
   'default_daily_limit',
+  'student_input_budget',
   'code_execution_claude',
   'code_execution_openai',
   'code_execution_max_role',

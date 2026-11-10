@@ -86,6 +86,7 @@ export default function SettingsPage() {
   const [imageModels, setImageModels] = useState({});
   const [systemPrompt, setSystemPrompt] = useState('');
   const [dailyLimit, setDailyLimit] = useState(100000);
+  const [inputBudget, setInputBudget] = useState(60000);
   // 코드 실행 도구 (kill switch + DB 토글 + role 게이트 중 DB 토글/role 부분)
   const [codeExecClaude, setCodeExecClaude] = useState(false);
   const [codeExecOpenai, setCodeExecOpenai] = useState(false);
@@ -121,6 +122,7 @@ export default function SettingsPage() {
     );
     setSystemPrompt(settings.system_prompt || '');
     setDailyLimit(settings.default_daily_limit || 100000);
+    setInputBudget(settings.student_input_budget || 60000);
     setCodeExecClaude(settings.code_execution_claude === true);
     setCodeExecOpenai(settings.code_execution_openai === true);
     setCodeExecMaxRole(settings.code_execution_max_role || 'teacher');
@@ -286,6 +288,8 @@ export default function SettingsPage() {
         image_models: imageModels,
         system_prompt: systemPrompt,
         default_daily_limit: dailyLimit,
+        // 0이나 너무 작은 값은 대화가 거의 잘리므로 최소 8,000으로 저장한다
+        student_input_budget: Math.max(inputBudget || 0, 8000),
         code_execution_claude: codeExecClaude,
         code_execution_openai: codeExecOpenai,
         code_execution_max_role: codeExecMaxRole,
@@ -730,6 +734,32 @@ export default function SettingsPage() {
               ? `약 ${(dailyLimit / 1000).toFixed(0)}K 토큰`
               : `${dailyLimit} 토큰`}{' '}
             (개별 학생의 한도는 학생 관리에서 변경 가능)
+          </div>
+        </section>
+
+        {/* ── 학생 요청 입력 상한 ── */}
+        <section className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">학생 요청 입력 상한</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            학생이 질문할 때 대화 기록과 첨부를 합쳐 AI에게 보내는 최대 토큰 수입니다. 넘으면 오래된
+            대화를 요약해 보냅니다. 교사·관리자에게는 적용되지 않습니다.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={inputBudget === 0 ? '' : String(inputBudget)}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, '');
+                setInputBudget(digits ? parseInt(digits, 10) : 0);
+              }}
+              placeholder="60000"
+              className="w-48 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <span className="text-sm text-gray-500">토큰</span>
+          </div>
+          <div className="mt-2 text-xs text-gray-400">
+            기본값 60,000 · 최소 8,000 (값이 작을수록 비용은 줄고 AI가 참고하는 대화는 짧아집니다)
           </div>
         </section>
 

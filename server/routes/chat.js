@@ -8,6 +8,7 @@ import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
 import { trimHistoryByTokens, estimateTokens } from '../utils/tokenEstimator.js';
 import { kstDate } from '../utils/date.js';
+import { applyAttachmentPolicy } from '../utils/attachmentPolicy.js';
 import { summarizeMessages } from '../utils/summarizer.js';
 import { sampleLargeTextFiles, buildSamplingNotice } from '../utils/largeFileSampler.js';
 import { isCodeExecutionEnabled } from '../utils/codeExecutionGate.js';
@@ -197,10 +198,20 @@ router.post(
         history.shift();
       }
 
-      // 토큰 기반 히스토리 트리밍 — 컨텍스트 윈도우 초과 방지
+      // 첨부 수명 정책 — 원본은 첨부한 턴과 다음 턴까지만, 그 뒤는 요약으로 보낸다(DB 원본은 그대로)
+      const attachmentResult = applyAttachmentPolicy(history);
+      const policyHistory = attachmentResult.history;
+
+      // 토큰 기반 히스토리 트리밍 — 학생은 고정 상한(기본 60,000), 교사·관리자는 모델 한도
       const selectedModel = model || providerModule.buildMessages.defaultModel;
+      const isStudent = req.user.role === 'student';
+      const studentBudget = isStudent
+        ? Number(await getSetting('student_input_budget')) || 60000
+        : undefined;
       const { trimmedHistory, trimmedCount, totalEstimatedTokens, droppedMessages } =
-        trimHistoryByTokens(history, provider, selectedModel);
+        trimHistoryByTokens(policyHistory, provider, selectedModel, {
+          maxInputTokens: studentBudget,
+        });
 
       // 트리밍된 메시지를 AI로 요약 (맥락 유지)
       let conversationSummary = null;
@@ -261,6 +272,16 @@ router.post(
       if (conversationSummary) {
         const summaryBlock = `[이전 대화 요약]\n${conversationSummary}\n\n위 내용은 이전 대화를 요약한 것입니다. 이 맥락을 참고하여 현재 대화를 이어가세요.`;
         systemPrompt = systemPrompt ? `${systemPrompt}\n\n${summaryBlock}` : summaryBlock;
+      }
+
+      // 앞서 올린 첨부를 요약으로 바꿔 보냈음을 알린다
+      if (attachmentResult.summarizedCount > 0) {
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'attachments_summarized',
+            count: attachmentResult.summarizedCount,
+          })}\n\n`,
+        );
       }
 
       // 큰 텍스트 파일이 샘플링된 경우 안내 추가 (코드로만 분석 가능함을 AI에게 알림)
