@@ -3,14 +3,50 @@ import { useState, useRef, useEffect, useCallback } from 'react';
 const MAX_ROWS = 6;
 const LINE_HEIGHT = 24; // approximate line height in px
 
+// 서버(upload.js·shared.js)가 받는 형식과 맞춘다. 여기서 걸러야 업로드 실패로 첨부가 조용히 빠지지 않는다.
+const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
+// 사진은 업로드 전에 긴 변 1,568px로 줄이므로(lib/imageResize.js) 원본은 더 커도 받는다
+const MAX_IMAGE_SIZE = 30 * 1024 * 1024;
+const MAX_ATTACHMENTS = 10; // 서버 chatSchema의 첨부 개수 한도
+const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+const TEXT_EXTENSIONS = [
+  '.txt',
+  '.md',
+  '.csv',
+  '.json',
+  '.xml',
+  '.yaml',
+  '.yml',
+  '.js',
+  '.jsx',
+  '.ts',
+  '.tsx',
+  '.py',
+  '.java',
+  '.c',
+  '.cpp',
+  '.h',
+  '.html',
+  '.css',
+  '.scss',
+  '.sql',
+  '.sh',
+  '.ipynb',
+];
+const ACCEPT = [...IMAGE_TYPES, '.pdf', ...TEXT_EXTENSIONS].join(',');
+
+function isSupportedFile(file) {
+  if (IMAGE_TYPES.includes(file.type) || file.type === 'application/pdf') return true;
+  const dot = file.name.lastIndexOf('.');
+  return dot >= 0 && TEXT_EXTENSIONS.includes(file.name.slice(dot).toLowerCase());
+}
+
 export default function MessageInput({
   onSend,
   onGenerateImage,
-  onTranscribe,
   disabled = false,
   isStreaming = false,
   isTeacher = false,
-  sttEnabled = false,
 }) {
   const [message, setMessage] = useState('');
   const [attachments, setAttachments] = useState([]);
@@ -18,14 +54,20 @@ export default function MessageInput({
   const [showImageGen, setShowImageGen] = useState(false);
   const [imagePrompt, setImagePrompt] = useState('');
   const [imageProvider, setImageProvider] = useState('openai');
-  const [isRecording, setIsRecording] = useState(false);
-  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [previewUrls, setPreviewUrls] = useState([]);
   const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
-  const mediaRecorderRef = useRef(null);
-  const audioChunksRef = useRef([]);
-  const blobUrlsRef = useRef([]);
   const timeoutIdsRef = useRef([]);
+
+  // 이미지 미리보기 URL은 첨부 목록이 바뀔 때만 만들고, 바뀌거나 사라지면 해제한다.
+  // 렌더링마다 만들면 글자를 칠 때마다 이미지가 다시 로드되고 URL이 쌓인다.
+  useEffect(() => {
+    const urls = attachments.map((file) =>
+      IMAGE_TYPES.includes(file.type) ? URL.createObjectURL(file) : null,
+    );
+    setPreviewUrls(urls);
+    return () => urls.forEach((url) => url && URL.revokeObjectURL(url));
+  }, [attachments]);
 
   // 자동 리사이즈
   useEffect(() => {
@@ -43,24 +85,9 @@ export default function MessageInput({
     }
   }, [disabled]);
 
-  // 언마운트 시 리소스 정리 (MediaRecorder, blob URLs, timeouts)
+  // 언마운트 시 timeout 정리
   useEffect(() => {
     return () => {
-      // MediaRecorder 스트림 정리
-      if (mediaRecorderRef.current) {
-        try {
-          if (mediaRecorderRef.current.state !== 'inactive') {
-            mediaRecorderRef.current.stop();
-          }
-          mediaRecorderRef.current.stream?.getTracks().forEach((t) => t.stop());
-        } catch {
-          // 이미 정리된 경우 무시
-        }
-      }
-      // Blob URL 해제
-      blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-      blobUrlsRef.current = [];
-      // Timeout 정리
       timeoutIdsRef.current.forEach((id) => clearTimeout(id));
       timeoutIdsRef.current = [];
     };
@@ -74,9 +101,6 @@ export default function MessageInput({
     onSend?.(trimmed, attachments);
     setMessage('');
     setAttachments([]);
-    // 첨부 해제 시 blob URL 정리
-    blobUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
-    blobUrlsRef.current = [];
 
     // 리사이즈 초기화
     const tid = setTimeout(() => {
@@ -105,16 +129,30 @@ export default function MessageInput({
   };
 
   const addFiles = (files) => {
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const rejected = [];
     const validFiles = files.filter((f) => {
-      if (f.size > maxSize) {
-        alert(`${f.name}은(는) 10MB를 초과하여 첨부할 수 없습니다.`);
+      if (!isSupportedFile(f)) {
+        rejected.push(`${f.name}: 지원하지 않는 형식입니다 (이미지는 JPG·PNG·GIF·WEBP).`);
+        return false;
+      }
+      const isResizableImage = IMAGE_TYPES.includes(f.type) && f.type !== 'image/gif';
+      if (f.size > (isResizableImage ? MAX_IMAGE_SIZE : MAX_FILE_SIZE)) {
+        rejected.push(
+          `${f.name}: ${isResizableImage ? '30MB' : '10MB'}를 넘어 첨부할 수 없습니다.`,
+        );
         return false;
       }
       return true;
     });
 
-    setAttachments((prev) => [...prev, ...validFiles]);
+    setAttachments((prev) => {
+      const room = MAX_ATTACHMENTS - prev.length;
+      if (validFiles.length > room) {
+        rejected.push(`첨부는 한 번에 ${MAX_ATTACHMENTS}개까지 가능합니다.`);
+      }
+      return [...prev, ...validFiles.slice(0, Math.max(room, 0))];
+    });
+    if (rejected.length > 0) alert(rejected.join('\n'));
   };
 
   const removeAttachment = (index) => {
@@ -146,69 +184,12 @@ export default function MessageInput({
   const handlePaste = (e) => {
     const items = Array.from(e.clipboardData?.items || []);
     const imageFiles = items
-      .filter((item) => item.type.startsWith('image/'))
+      .filter((item) => IMAGE_TYPES.includes(item.type))
       .map((item) => item.getAsFile())
       .filter(Boolean);
     if (imageFiles.length > 0) {
       e.preventDefault();
       addFiles(imageFiles);
-    }
-  };
-
-  // STT 녹음 시작/중지
-  const handleToggleRecording = async () => {
-    if (isRecording) {
-      // 녹음 중지
-      mediaRecorderRef.current?.stop();
-      return;
-    }
-
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const mimeType = MediaRecorder.isTypeSupported('audio/webm;codecs=opus')
-        ? 'audio/webm;codecs=opus'
-        : MediaRecorder.isTypeSupported('audio/mp4')
-          ? 'audio/mp4'
-          : 'audio/webm';
-
-      const mediaRecorder = new MediaRecorder(stream, { mimeType });
-      mediaRecorderRef.current = mediaRecorder;
-      audioChunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (e) => {
-        if (e.data.size > 0) audioChunksRef.current.push(e.data);
-      };
-
-      mediaRecorder.onstop = async () => {
-        stream.getTracks().forEach((t) => t.stop());
-        setIsRecording(false);
-
-        const blob = new Blob(audioChunksRef.current, { type: mimeType });
-        if (blob.size === 0) return;
-
-        setIsTranscribing(true);
-        try {
-          const reader = new FileReader();
-          const base64 = await new Promise((resolve, reject) => {
-            reader.onloadend = () => resolve(reader.result.split(',')[1]);
-            reader.onerror = reject;
-            reader.readAsDataURL(blob);
-          });
-
-          const text = await onTranscribe?.(base64, mimeType.split(';')[0]);
-          if (text) setMessage((prev) => prev + (prev ? ' ' : '') + text);
-        } catch (err) {
-          console.error('STT 실패:', err);
-        } finally {
-          setIsTranscribing(false);
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-    } catch (err) {
-      console.error('마이크 접근 실패:', err);
-      alert('마이크 접근 권한이 필요합니다.');
     }
   };
 
@@ -261,13 +242,9 @@ export default function MessageInput({
               className="flex items-center gap-2 px-3 py-1.5 bg-gray-100 rounded-lg text-sm group"
             >
               {/* 이미지 프리뷰 */}
-              {file.type.startsWith('image/') ? (
+              {previewUrls[index] ? (
                 <img
-                  src={(() => {
-                    const url = URL.createObjectURL(file);
-                    blobUrlsRef.current.push(url);
-                    return url;
-                  })()}
+                  src={previewUrls[index]}
                   alt={file.name}
                   className="w-8 h-8 rounded object-cover"
                 />
@@ -411,7 +388,7 @@ export default function MessageInput({
           multiple
           onChange={handleFileSelect}
           className="hidden"
-          accept="image/*,.pdf,.txt,.md,.csv,.json,.xml,.yaml,.yml,.js,.jsx,.ts,.tsx,.py,.java,.c,.cpp,.h,.html,.css,.scss,.sql,.sh,.ipynb"
+          accept={ACCEPT}
         />
 
         {/* 텍스트 입력 */}
@@ -427,54 +404,6 @@ export default function MessageInput({
           className="flex-1 resize-none rounded-xl border border-gray-300 px-4 py-2.5 text-sm text-gray-800 placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent disabled:bg-gray-100 disabled:cursor-not-allowed transition-colors"
           style={{ lineHeight: LINE_HEIGHT + 'px' }}
         />
-
-        {/* STT 마이크 버튼 */}
-        {sttEnabled && onTranscribe && (
-          <button
-            onClick={handleToggleRecording}
-            disabled={disabled || isTranscribing}
-            className={`flex-shrink-0 p-2.5 rounded-lg transition-colors disabled:opacity-50 ${
-              isRecording
-                ? 'text-red-600 bg-red-100 animate-pulse'
-                : isTranscribing
-                  ? 'text-gray-400'
-                  : 'text-gray-400 hover:text-red-600 hover:bg-red-50'
-            }`}
-            title={isRecording ? '녹음 중지' : isTranscribing ? '변환 중...' : '음성 입력'}
-          >
-            {isTranscribing ? (
-              <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
-                <circle
-                  className="opacity-25"
-                  cx="12"
-                  cy="12"
-                  r="10"
-                  stroke="currentColor"
-                  strokeWidth="4"
-                />
-                <path
-                  className="opacity-75"
-                  fill="currentColor"
-                  d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
-                />
-              </svg>
-            ) : (
-              <svg
-                className="w-5 h-5"
-                fill="none"
-                viewBox="0 0 24 24"
-                stroke="currentColor"
-                strokeWidth={2}
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4M12 15a3 3 0 003-3V5a3 3 0 00-6 0v7a3 3 0 003 3z"
-                />
-              </svg>
-            )}
-          </button>
-        )}
 
         {/* 전송 버튼 */}
         <button

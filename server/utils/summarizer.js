@@ -13,7 +13,8 @@ const providers = { claude, gemini, openai, solar };
 // 요약에 사용할 경량 모델 (빠르고 저렴)
 const SUMMARY_MODELS = {
   claude: 'claude-haiku-4-5-20251001',
-  openai: 'gpt-4o-mini',
+  // gpt-4o-mini는 2027-01-14 종료 예정이라 카탈로그의 저비용 모델로 바꾼다
+  openai: 'gpt-6-luna',
   gemini: 'gemini-3.8-flash',
   solar: 'solar-pro4',
 };

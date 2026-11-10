@@ -44,6 +44,9 @@ export const chatSchema = z
           content: z.string().optional().nullable(),
           data: z.string().optional().nullable(),
           size: z.number().optional(),
+          // 첨부 수명 정책: 이후 턴에서 원본 대신 보낼 요약
+          summary: z.string().max(4000).optional(),
+          pages: z.number().int().optional(),
         }),
       )
       .max(10)
@@ -146,19 +149,6 @@ export const shareRedeemSchema = z.object({
 });
 
 // ── 미디어 관련 ──
-
-// TTS 요청
-export const ttsSchema = z.object({
-  text: z.string().min(1).max(4096),
-  voice: z.enum(['alloy', 'echo', 'fable', 'onyx', 'nova', 'shimmer']).optional().default('alloy'),
-  model: z.enum(['tts-1', 'tts-1-hd']).optional().default('tts-1'),
-});
-
-// STT 요청
-export const sttSchema = z.object({
-  audio: z.string().min(1),
-  mimeType: z.string().max(100).optional().default('audio/webm'),
-});
 
 // 이미지 생성 요청
 export const imageGenerateSchema = z.object({

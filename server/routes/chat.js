@@ -6,7 +6,9 @@ import { queryOne, queryAll, run, getSetting, markStaffConversation } from '../d
 import crypto from 'crypto';
 import { PROVIDERS } from '../utils/shared.js';
 import { fetchUrlsFromMessage } from '../utils/fetchUrl.js';
-import { trimHistoryByTokens } from '../utils/tokenEstimator.js';
+import { trimHistoryByTokens, estimateTokens } from '../utils/tokenEstimator.js';
+import { kstDate } from '../utils/date.js';
+import { applyAttachmentPolicy } from '../utils/attachmentPolicy.js';
 import { summarizeMessages } from '../utils/summarizer.js';
 import { sampleLargeTextFiles, buildSamplingNotice } from '../utils/largeFileSampler.js';
 import { isCodeExecutionEnabled } from '../utils/codeExecutionGate.js';
@@ -20,9 +22,20 @@ import * as solar from '../providers/solar.js';
 
 const router = Router();
 
-const providers = { claude, gemini, openai, solar };
+/** 채팅 사용량을 한 번에 더한다. 같은 날·같은 프로바이더 행이 있으면 누적한다. */
+async function recordUsage(userId, date, provider, inputTokens, outputTokens) {
+  await run(
+    `INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count)
+     VALUES (?, ?, ?, ?, ?, ?, 1)
+     ON CONFLICT(user_id, date, provider) DO UPDATE SET
+       input_tokens = input_tokens + excluded.input_tokens,
+       output_tokens = output_tokens + excluded.output_tokens,
+       request_count = request_count + 1`,
+    [crypto.randomUUID(), userId, date, provider, inputTokens || 0, outputTokens || 0],
+  );
+}
 
-const NOW = "datetime('now')";
+const providers = { claude, gemini, openai, solar };
 
 // AI 컨텍스트에 전달할 최대 메시지 수
 const MAX_HISTORY_MESSAGES = 50;
@@ -92,8 +105,8 @@ router.post(
         }
       }
 
-      // 3. 일일 사용량 확인 (atomic upsert로 race condition 방지)
-      const today = new Date().toISOString().split('T')[0];
+      // 3. 일일 사용량 확인 (atomic upsert로 race condition 방지). 날짜는 한국 시간 기준
+      const today = kstDate();
       const dailyLimit = req.user.daily_limit || 100000;
 
       const usage = await queryOne(
@@ -179,11 +192,26 @@ router.post(
       );
       // DESC로 가져온 후 시간순으로 다시 정렬
       history.reverse();
+      // 최근 N개로 자르면 맨 앞이 답변(assistant)일 수 있다. AI API는 사용자 메시지로 시작해야 하므로
+      // 여기서 조용히 뺀다. 토큰 트리밍에 맡기면 50개를 넘는 대화마다 매 턴 요약 호출이 일어난다.
+      while (history.length > 1 && history[0].role === 'assistant') {
+        history.shift();
+      }
 
-      // 토큰 기반 히스토리 트리밍 — 컨텍스트 윈도우 초과 방지
+      // 첨부 수명 정책 — 원본은 첨부한 턴과 다음 턴까지만, 그 뒤는 요약으로 보낸다(DB 원본은 그대로)
+      const attachmentResult = applyAttachmentPolicy(history);
+      const policyHistory = attachmentResult.history;
+
+      // 토큰 기반 히스토리 트리밍 — 학생은 고정 상한(기본 60,000), 교사·관리자는 모델 한도
       const selectedModel = model || providerModule.buildMessages.defaultModel;
+      const isStudent = req.user.role === 'student';
+      const studentBudget = isStudent
+        ? Number(await getSetting('student_input_budget')) || 60000
+        : undefined;
       const { trimmedHistory, trimmedCount, totalEstimatedTokens, droppedMessages } =
-        trimHistoryByTokens(history, provider, selectedModel);
+        trimHistoryByTokens(policyHistory, provider, selectedModel, {
+          maxInputTokens: studentBudget,
+        });
 
       // 트리밍된 메시지를 AI로 요약 (맥락 유지)
       let conversationSummary = null;
@@ -246,6 +274,16 @@ router.post(
         systemPrompt = systemPrompt ? `${systemPrompt}\n\n${summaryBlock}` : summaryBlock;
       }
 
+      // 앞서 올린 첨부를 요약으로 바꿔 보냈음을 알린다
+      if (attachmentResult.summarizedCount > 0) {
+        res.write(
+          `data: ${JSON.stringify({
+            type: 'attachments_summarized',
+            count: attachmentResult.summarizedCount,
+          })}\n\n`,
+        );
+      }
+
       // 큰 텍스트 파일이 샘플링된 경우 안내 추가 (코드로만 분석 가능함을 AI에게 알림)
       const samplingNotice = buildSamplingNotice(currentSampledFiles);
       if (samplingNotice) {
@@ -292,53 +330,98 @@ router.post(
         ? parseInt(process.env.STREAM_IDLE_TIMEOUT_CODE_MS, 10) || 300000
         : parseInt(process.env.STREAM_IDLE_TIMEOUT_MS, 10) || 120000;
 
-      const result = await new Promise((resolve, reject) => {
-        // settle-once 가드: onDone/onError/타임아웃 중 정확히 한 번만 종료되도록 보장
-        let settled = false;
-        let idleTimer;
-        const clearIdle = () => {
-          if (idleTimer) clearTimeout(idleTimer);
-        };
-        const resetIdle = () => {
-          clearIdle();
-          idleTimer = setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            reject(new Error('AI 응답이 지연되어 시간 초과되었습니다. 다시 시도해주세요.'));
-          }, streamIdleMs);
-        };
-        resetIdle();
-
-        providerModule.streamChat({
-          messages: providerMessages,
-          systemPrompt,
-          model,
-          options,
-          onText: (text) => {
-            resetIdle();
-            res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
-          },
-          onDone: (doneResult) => {
-            if (settled) return;
-            settled = true;
-            clearIdle();
-            res.write(
-              `data: ${JSON.stringify({
-                type: 'done',
-                usage: { input: doneResult.inputTokens, output: doneResult.outputTokens },
-              })}\n\n`,
-            );
-            res.end();
-            resolve(doneResult);
-          },
-          onError: (error) => {
-            if (settled) return;
-            settled = true;
-            clearIdle();
-            reject(error);
-          },
-        });
+      // 학생이 탭을 닫거나 응답이 멈추면 AI 호출을 끊는다. 끊지 않으면 생성이 끝까지 이어져 비용만 나간다.
+      const abortController = new AbortController();
+      let partialContent = '';
+      let clientGone = false;
+      res.on('close', () => {
+        if (!res.writableEnded) {
+          clientGone = true;
+          abortController.abort();
+        }
       });
+
+      let result;
+      try {
+        result = await new Promise((resolve, reject) => {
+          // settle-once 가드: onDone/onError/타임아웃 중 정확히 한 번만 종료되도록 보장
+          let settled = false;
+          let idleTimer;
+          const clearIdle = () => {
+            if (idleTimer) clearTimeout(idleTimer);
+          };
+          const resetIdle = () => {
+            clearIdle();
+            idleTimer = setTimeout(() => {
+              if (settled) return;
+              settled = true;
+              abortController.abort();
+              reject(new Error('AI 응답이 지연되어 시간 초과되었습니다. 다시 시도해주세요.'));
+            }, streamIdleMs);
+          };
+          resetIdle();
+
+          providerModule.streamChat({
+            messages: providerMessages,
+            systemPrompt,
+            model,
+            options,
+            signal: abortController.signal,
+            onText: (text) => {
+              resetIdle();
+              partialContent += text;
+              if (!clientGone) {
+                res.write(`data: ${JSON.stringify({ type: 'text', content: text })}\n\n`);
+              }
+            },
+            onDone: (doneResult) => {
+              if (settled) return;
+              settled = true;
+              clearIdle();
+              res.write(
+                `data: ${JSON.stringify({
+                  type: 'done',
+                  usage: { input: doneResult.inputTokens, output: doneResult.outputTokens },
+                })}\n\n`,
+              );
+              res.end();
+              resolve(doneResult);
+            },
+            onError: (error) => {
+              if (settled) return;
+              settled = true;
+              clearIdle();
+              reject(error);
+            },
+          });
+        });
+      } catch (streamError) {
+        // 중간에 끊긴 답변도 저장한다. 저장하지 않으면 다음 요청에서 사용자 메시지가 연달아 쌓이고,
+        // 이미 생성된 출력 토큰이 사용량에서 빠진다. 입력 토큰은 알 수 없어 추정한 출력만 집계한다.
+        if (partialContent.trim()) {
+          const outputEstimate = estimateTokens(partialContent);
+          await run(
+            'INSERT INTO messages (id, conversation_id, role, content, input_tokens, output_tokens, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)',
+            [
+              crypto.randomUUID(),
+              convId,
+              'assistant',
+              partialContent,
+              0,
+              outputEstimate,
+              new Date().toISOString(),
+            ],
+          ).catch((e) => console.error('[chat] 중단된 답변 저장 실패:', e.message));
+          await recordUsage(userId, today, provider, 0, outputEstimate).catch((e) =>
+            console.error('[chat] 중단된 답변 사용량 기록 실패:', e.message),
+          );
+        }
+        if (clientGone) {
+          console.log(`[chat] 클라이언트 연결 종료로 AI 호출 중단: userId=${userId}`);
+          return;
+        }
+        throw streamError;
+      }
 
       // 10. 어시스턴트 메시지 저장
       const assistantMsgId = crypto.randomUUID();
@@ -356,16 +439,8 @@ router.post(
         ],
       );
 
-      // 11. 일일 사용량 업데이트 (INSERT OR로 atomic upsert — race condition 방지)
-      await run(
-        `INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count)
-       VALUES (?, ?, ?, ?, ?, ?, 1)
-       ON CONFLICT(user_id, date, provider) DO UPDATE SET
-         input_tokens = input_tokens + excluded.input_tokens,
-         output_tokens = output_tokens + excluded.output_tokens,
-         request_count = request_count + 1`,
-        [crypto.randomUUID(), userId, today, provider, result.inputTokens, result.outputTokens],
-      );
+      // 11. 일일 사용량 업데이트 (atomic upsert — race condition 방지)
+      await recordUsage(userId, today, provider, result.inputTokens, result.outputTokens);
 
       // 12. 첫 번째 메시지인 경우 대화 제목 업데이트
       const messageCount = await queryOne(
@@ -388,7 +463,10 @@ router.post(
           ? 'AI 응답 중 오류가 발생했습니다.'
           : error.message || 'AI 응답 중 오류가 발생했습니다.';
 
-      // SSE 헤더가 이미 전송된 경우 에러 이벤트 전송
+      // SSE 헤더가 이미 전송된 경우 에러 이벤트 전송 (이미 끝난 응답에는 쓰지 않는다)
+      if (res.writableEnded || res.destroyed) {
+        return;
+      }
       if (res.headersSent) {
         res.write(`data: ${JSON.stringify({ type: 'error', message: safeMessage })}\n\n`);
         res.end();

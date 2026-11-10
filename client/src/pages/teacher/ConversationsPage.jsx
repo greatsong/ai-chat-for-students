@@ -28,20 +28,29 @@ export default function ConversationsPage() {
     loadStudents();
   }, [loadStudents]);
 
-  useEffect(() => {
-    setPage(1);
-    loadConversations({ userId: selectedUserId, search, page: 1 });
-  }, [selectedUserId, search, loadConversations]);
+  // 학생·검색어가 바뀌면 1페이지로 돌아간다. 이 값들과 페이지를 한 effect에서 읽어
+  // 같은 커밋 안에서 이전 페이지 요청이 함께 나가지 않게 한다. 검색어 입력은 잠깐 기다렸다가 요청한다.
+  const [filterKey, setFilterKey] = useState('');
+  const currentFilterKey = `${selectedUserId || ''}|${search}`;
+  if (filterKey !== currentFilterKey) {
+    setFilterKey(currentFilterKey);
+    if (page !== 1) setPage(1);
+  }
 
   useEffect(() => {
-    if (page > 1) {
+    const timer = setTimeout(() => {
       loadConversations({ userId: selectedUserId, search, page });
-    }
-  }, [page, selectedUserId, search, loadConversations]);
+    }, 250);
+    return () => clearTimeout(timer);
+  }, [selectedUserId, search, page, loadConversations]);
 
   const handleViewMessages = async (convId) => {
     setSelectedConvId(convId);
-    await loadConversationMessages(convId);
+    const data = await loadConversationMessages(convId);
+    if (!data) {
+      alert('대화를 불러오지 못했습니다. 이미 삭제되었을 수 있습니다.');
+      return;
+    }
     setShowMessageModal(true);
   };
 

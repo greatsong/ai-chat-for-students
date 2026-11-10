@@ -158,8 +158,13 @@ export function getInputTokenLimit(provider, model) {
  * @param {string} model
  * @returns {{ trimmedHistory: Array, trimmedCount: number, totalEstimatedTokens: number }}
  */
-export function trimHistoryByTokens(history, provider, model) {
-  const inputLimit = getInputTokenLimit(provider, model);
+export function trimHistoryByTokens(history, provider, model, { maxInputTokens } = {}) {
+  // maxInputTokens: 학생 요청 상한. 모델 한도(최대 100만 토큰)까지 채우면 첨부·긴 대화가 매 턴 과금된다.
+  const modelLimit = getInputTokenLimit(provider, model);
+  const inputLimit =
+    Number.isFinite(maxInputTokens) && maxInputTokens > 0
+      ? Math.min(modelLimit, maxInputTokens)
+      : modelLimit;
 
   // 마지막 메시지(현재 사용자 입력)는 반드시 포함
   if (history.length === 0) {

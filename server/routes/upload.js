@@ -12,6 +12,8 @@ import {
   PDF_MIME_TYPE,
   DEFAULTS,
 } from '../utils/shared.js';
+import { extractPdfText, isTextRichPdf } from '../utils/pdfText.js';
+import { buildAttachmentSummary } from '../utils/attachmentPolicy.js';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const UPLOADS_DIR = join(__dirname, '..', 'uploads');
@@ -155,10 +157,27 @@ router.post(
 
       let content = null;
       let responseType = fileType;
+      let pages;
 
       try {
-        if (fileType === 'image' || fileType === 'pdf') {
-          // 이미지와 PDF는 base64로 변환 (비동기)
+        if (fileType === 'pdf') {
+          // 글자 위주 PDF는 텍스트만 보낸다(토큰 절감, OpenAI에서도 읽힘). 스캔본은 원본을 보낸다.
+          const fileBuffer = await readFile(filePath);
+          let extracted = null;
+          try {
+            extracted = await extractPdfText(fileBuffer);
+          } catch (pdfError) {
+            console.warn('[upload] PDF 텍스트 추출 실패, 원본으로 보냄:', pdfError.message);
+          }
+          pages = extracted?.pages;
+          if (extracted && isTextRichPdf(extracted)) {
+            responseType = 'text';
+            content = `[PDF에서 추출한 텍스트, ${extracted.pages}쪽]\n${extracted.text}`;
+          } else {
+            content = fileBuffer.toString('base64');
+          }
+        } else if (fileType === 'image') {
+          // 이미지는 base64로 변환 (비동기)
           const fileBuffer = await readFile(filePath);
           content = fileBuffer.toString('base64');
         } else if (fileType === 'text') {
@@ -182,6 +201,17 @@ router.post(
         // 삭제 실패는 무시
       }
 
+      // 이후 턴에서 원본 대신 보낼 요약 (첨부 수명 정책)
+      const summary =
+        responseType === 'unsupported'
+          ? ''
+          : buildAttachmentSummary({
+              type: responseType,
+              name: originalname,
+              data: content,
+              pages,
+            });
+
       res.json({
         id: crypto.randomUUID(),
         name: originalname,
@@ -189,6 +219,8 @@ router.post(
         mimeType: mimetype,
         type: responseType,
         content,
+        summary,
+        ...(pages ? { pages } : {}),
       });
     } catch (error) {
       console.error('파일 업로드 오류:', error);

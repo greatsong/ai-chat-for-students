@@ -1,6 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { getApiKey } from '../utils/apiKeys.js';
-import { withRetry } from '../utils/retry.js';
 
 let cachedKey = null;
 let anthropic = null;
@@ -104,6 +103,47 @@ export function buildMessages(history) {
   });
 }
 
+/**
+ * 프롬프트 캐싱 지점을 마지막 메시지의 마지막 블록에 둔다. 설계: docs/DESIGN-attachment-tokens.md 3-5
+ * 이번 요청의 시스템 프롬프트·히스토리 전체가 캐시에 쓰이고, 5분 안에 이어지는 다음 질문은 같은 앞부분을
+ * 캐시 읽기 단가(기본 입력의 10%)로 처리한다. 원본 배열은 바꾸지 않는다.
+ * @param {Array} messages - Anthropic 포맷 메시지
+ * @returns {Array}
+ */
+export function withCacheBreakpoint(messages) {
+  if (!Array.isArray(messages) || messages.length === 0) return messages;
+  const lastIndex = messages.length - 1;
+  const last = messages[lastIndex];
+  const blocks =
+    typeof last.content === 'string'
+      ? [{ type: 'text', text: last.content || ' ' }]
+      : Array.isArray(last.content)
+        ? [...last.content]
+        : [];
+  if (blocks.length === 0) return messages;
+  blocks[blocks.length - 1] = {
+    ...blocks[blocks.length - 1],
+    cache_control: { type: 'ephemeral' },
+  };
+  const next = [...messages];
+  next[lastIndex] = { ...last, content: blocks };
+  return next;
+}
+
+/**
+ * 사용량을 기본 입력 단가 기준 토큰으로 환산한다. 캐시 쓰기는 1.25배, 캐시 읽기는 0.1배로 과금된다.
+ * 일일 한도와 사용량 화면이 실제 비용과 맞도록 이 값을 입력 토큰으로 기록한다.
+ * @param {{ input_tokens?: number, cache_creation_input_tokens?: number, cache_read_input_tokens?: number }} usage
+ * @returns {number}
+ */
+export function billableInputTokens(usage = {}) {
+  return Math.round(
+    (usage.input_tokens || 0) +
+      (usage.cache_creation_input_tokens || 0) * 1.25 +
+      (usage.cache_read_input_tokens || 0) * 0.1,
+  );
+}
+
 // 코드 실행 server_tool_use 블록 이름 (버전별)
 //   - 현재(_20250825+): bash_code_execution, text_editor_code_execution
 //   - 레거시(_20250522): code_execution
@@ -193,6 +233,7 @@ export async function streamChat({
   onDone,
   onError,
   options = {},
+  signal,
 }) {
   try {
     // 디버그: 메시지 구조 확인 (base64 데이터는 길이만 표시)
@@ -226,7 +267,7 @@ export async function streamChat({
     const streamParams = {
       model: model || 'claude-sonnet-5-5',
       max_tokens: 16384,
-      messages,
+      messages: withCacheBreakpoint(messages),
     };
 
     // Sonnet 5·Opus 5는 thinking 파라미터를 생략하면 adaptive thinking이 켜져
@@ -262,13 +303,17 @@ export async function streamChat({
     const client = await getClient();
     // 거절 폴백은 beta 엔드포인트로만 보낼 수 있다. 같은 스트림 안에서 폴백 모델이
     // 이어서 답하므로 text 이벤트 처리는 그대로 둔다.
+    // signal: 학생이 연결을 끊으면 chat 라우트가 abort해 생성을 멈춘다(비용 절감)
     const stream = REFUSAL_FALLBACK_MODELS.has(modelId)
-      ? client.beta.messages.stream({
-          ...streamParams,
-          betas: ['server-side-fallback-2026-07-01'],
-          fallbacks: 'default',
-        })
-      : client.messages.stream(streamParams);
+      ? client.beta.messages.stream(
+          {
+            ...streamParams,
+            betas: ['server-side-fallback-2026-07-01'],
+            fallbacks: 'default',
+          },
+          { signal },
+        )
+      : client.messages.stream(streamParams, { signal });
 
     let fullContent = '';
 
@@ -298,8 +343,13 @@ export async function streamChat({
         fullContent += notice;
         onText(notice);
       }
-      const inputTokens = message.usage?.input_tokens || 0;
+      const inputTokens = billableInputTokens(message.usage);
       const outputTokens = message.usage?.output_tokens || 0;
+      if (message.usage?.cache_read_input_tokens) {
+        console.log(
+          `[claude.streamChat] 캐시 읽기 ${message.usage.cache_read_input_tokens} 토큰 (환산 입력 ${inputTokens})`,
+        );
+      }
       onDone({ fullContent, inputTokens, outputTokens });
     });
 

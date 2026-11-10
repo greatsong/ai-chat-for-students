@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { authenticate } from '../middleware/auth.js';
 import { validate, imageGenerateSchema } from '../middleware/validate.js';
-import { queryOne, run, getSetting, markStaffConversation } from '../db/database.js';
+import { queryOne, run, markStaffConversation } from '../db/database.js';
 import { generateImage as geminiGenerateImage } from '../providers/gemini.js';
 import { generateImage as openaiGenerateImage, IMAGE_MODEL } from '../providers/openai.js';
 import { publicErrorMessage } from '../utils/logger.js';
+import { kstDate } from '../utils/date.js';
 import crypto from 'crypto';
 
 const router = Router();
@@ -94,24 +95,15 @@ router.post('/generate', authenticate, validate(imageGenerateSchema), async (req
     // 대화 updated_at 업데이트
     await run('UPDATE conversations SET updated_at = ? WHERE id = ?', [now, convId]);
 
-    // 6. 일일 사용량 업데이트 (image_count)
-    const today = new Date().toISOString().split('T')[0];
-    const existingUsage = await queryOne(
-      'SELECT id FROM usage_daily WHERE user_id = ? AND date = ? AND provider = ?',
-      [userId, today, provider],
+    // 6. 일일 사용량 업데이트 (image_count). 동시 요청에도 충돌하지 않도록 한 문장으로 누적한다
+    await run(
+      `INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count, image_count)
+       VALUES (?, ?, ?, ?, 0, 0, 1, 1)
+       ON CONFLICT(user_id, date, provider) DO UPDATE SET
+         image_count = image_count + 1,
+         request_count = request_count + 1`,
+      [crypto.randomUUID(), userId, kstDate(), provider],
     );
-
-    if (existingUsage) {
-      await run(
-        'UPDATE usage_daily SET image_count = image_count + 1, request_count = request_count + 1 WHERE user_id = ? AND date = ? AND provider = ?',
-        [userId, today, provider],
-      );
-    } else {
-      await run(
-        'INSERT INTO usage_daily (id, user_id, date, provider, input_tokens, output_tokens, request_count, image_count) VALUES (?, ?, ?, ?, 0, 0, 1, 1)',
-        [crypto.randomUUID(), userId, today, provider],
-      );
-    }
 
     res.json({ imageUrl, conversationId: convId, content: assistantContent });
   } catch (error) {

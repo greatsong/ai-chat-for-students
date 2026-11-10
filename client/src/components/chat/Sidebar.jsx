@@ -224,9 +224,9 @@ export default function Sidebar({
         {/* 사용자 정보 + 로그아웃 */}
         <div className="border-t border-indigo-800/30 px-4 py-3">
           <div className="flex items-center gap-3">
-            {user?.picture ? (
+            {user?.avatar ? (
               <img
-                src={user.picture}
+                src={user.avatar}
                 alt={user.name || ''}
                 className="w-8 h-8 rounded-full"
                 referrerPolicy="no-referrer"

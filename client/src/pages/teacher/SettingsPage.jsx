@@ -86,10 +86,7 @@ export default function SettingsPage() {
   const [imageModels, setImageModels] = useState({});
   const [systemPrompt, setSystemPrompt] = useState('');
   const [dailyLimit, setDailyLimit] = useState(100000);
-  const [ttsEnabled, setTtsEnabled] = useState(false);
-  const [sttEnabled, setSttEnabled] = useState(false);
-  const [ttsDefaultVoice, setTtsDefaultVoice] = useState('nova');
-  const [ttsDefaultModel, setTtsDefaultModel] = useState('tts-1');
+  const [inputBudget, setInputBudget] = useState(60000);
   // 코드 실행 도구 (kill switch + DB 토글 + role 게이트 중 DB 토글/role 부분)
   const [codeExecClaude, setCodeExecClaude] = useState(false);
   const [codeExecOpenai, setCodeExecOpenai] = useState(false);
@@ -125,10 +122,7 @@ export default function SettingsPage() {
     );
     setSystemPrompt(settings.system_prompt || '');
     setDailyLimit(settings.default_daily_limit || 100000);
-    setTtsEnabled(settings.tts_enabled || false);
-    setSttEnabled(settings.stt_enabled || false);
-    setTtsDefaultVoice(settings.tts_default_voice || 'nova');
-    setTtsDefaultModel(settings.tts_default_model || 'tts-1');
+    setInputBudget(settings.student_input_budget || 60000);
     setCodeExecClaude(settings.code_execution_claude === true);
     setCodeExecOpenai(settings.code_execution_openai === true);
     setCodeExecMaxRole(settings.code_execution_max_role || 'teacher');
@@ -294,10 +288,8 @@ export default function SettingsPage() {
         image_models: imageModels,
         system_prompt: systemPrompt,
         default_daily_limit: dailyLimit,
-        tts_enabled: ttsEnabled,
-        stt_enabled: sttEnabled,
-        tts_default_voice: ttsDefaultVoice,
-        tts_default_model: ttsDefaultModel,
+        // 0이나 너무 작은 값은 대화가 거의 잘리므로 최소 8,000으로 저장한다
+        student_input_budget: Math.max(inputBudget || 0, 8000),
         code_execution_claude: codeExecClaude,
         code_execution_openai: codeExecOpenai,
         code_execution_max_role: codeExecMaxRole,
@@ -597,74 +589,6 @@ export default function SettingsPage() {
           </div>
         </section>
 
-        {/* ── TTS (음성 읽기) ── */}
-        <section className="bg-white rounded-xl border-2 border-teal-200 p-5">
-          <h2 className="text-base font-semibold text-gray-800 mb-1 flex items-center gap-2">
-            <span>🔊</span> TTS (음성 읽기)
-          </h2>
-          <p className="text-xs text-gray-400 mb-4">
-            AI 응답을 음성으로 읽어줍니다. 교사는 항상 사용 가능합니다.
-          </p>
-
-          <div className="space-y-4">
-            {/* 음성/모델 선택 — 항상 표시 */}
-            <div className="flex flex-wrap gap-4">
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">기본 음성</label>
-                <select
-                  value={ttsDefaultVoice}
-                  onChange={(e) => setTtsDefaultVoice(e.target.value)}
-                  className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400"
-                >
-                  <option value="nova">nova (밝고 친근)</option>
-                  <option value="shimmer">shimmer (따뜻하고 부드러움)</option>
-                  <option value="alloy">alloy (중성적)</option>
-                  <option value="echo">echo (차분한 남성)</option>
-                  <option value="fable">fable (이야기 톤)</option>
-                  <option value="onyx">onyx (깊고 무게감)</option>
-                </select>
-              </div>
-              <div>
-                <label className="text-xs text-gray-500 mb-1 block">모델</label>
-                <select
-                  value={ttsDefaultModel}
-                  onChange={(e) => setTtsDefaultModel(e.target.value)}
-                  className="px-2.5 py-1.5 text-xs border border-gray-200 rounded-lg focus:outline-none focus:ring-1 focus:ring-teal-400"
-                >
-                  <option value="tts-1">tts-1 (빠름)</option>
-                  <option value="tts-1-hd">tts-1-hd (고품질)</option>
-                </select>
-              </div>
-            </div>
-
-            {/* 학생 허용 토글 */}
-            <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-              <label className="flex items-center gap-3 cursor-pointer">
-                <div className="relative">
-                  <input
-                    type="checkbox"
-                    checked={ttsEnabled}
-                    onChange={() => setTtsEnabled(!ttsEnabled)}
-                    className="sr-only"
-                  />
-                  <div
-                    className={`w-10 h-5 rounded-full transition-colors ${ttsEnabled ? 'bg-teal-600' : 'bg-gray-300'}`}
-                  >
-                    <div
-                      className={`w-4 h-4 rounded-full bg-white shadow-sm transform transition-transform mt-0.5 ${ttsEnabled ? 'translate-x-5.5 ml-0.5' : 'translate-x-0.5'}`}
-                    />
-                  </div>
-                </div>
-                <span className="text-sm text-gray-600">학생에게도 TTS 허용</span>
-              </label>
-            </div>
-
-            <div className="text-xs text-gray-400 bg-teal-50 px-3 py-2 rounded-lg">
-              비용: 약 3~10원/회 (OpenAI API 키 필요)
-            </div>
-          </div>
-        </section>
-
         {/* ── 코드 실행 도구 ── */}
         <section className="bg-white rounded-xl border border-gray-200 p-5">
           <h2 className="text-base font-semibold text-gray-800 mb-1">코드 실행 도구</h2>
@@ -810,6 +734,32 @@ export default function SettingsPage() {
               ? `약 ${(dailyLimit / 1000).toFixed(0)}K 토큰`
               : `${dailyLimit} 토큰`}{' '}
             (개별 학생의 한도는 학생 관리에서 변경 가능)
+          </div>
+        </section>
+
+        {/* ── 학생 요청 입력 상한 ── */}
+        <section className="bg-white rounded-xl border border-gray-200 p-5">
+          <h2 className="text-base font-semibold text-gray-800 mb-1">학생 요청 입력 상한</h2>
+          <p className="text-xs text-gray-400 mb-4">
+            학생이 질문할 때 대화 기록과 첨부를 합쳐 AI에게 보내는 최대 토큰 수입니다. 넘으면 오래된
+            대화를 요약해 보냅니다. 교사·관리자에게는 적용되지 않습니다.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              type="text"
+              inputMode="numeric"
+              value={inputBudget === 0 ? '' : String(inputBudget)}
+              onChange={(e) => {
+                const digits = e.target.value.replace(/[^0-9]/g, '');
+                setInputBudget(digits ? parseInt(digits, 10) : 0);
+              }}
+              placeholder="60000"
+              className="w-48 px-4 py-2.5 text-sm border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+            />
+            <span className="text-sm text-gray-500">토큰</span>
+          </div>
+          <div className="mt-2 text-xs text-gray-400">
+            기본값 60,000 · 최소 8,000 (값이 작을수록 비용은 줄고 AI가 참고하는 대화는 짧아집니다)
           </div>
         </section>
 

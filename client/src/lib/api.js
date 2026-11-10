@@ -28,7 +28,9 @@ async function handleResponse(response) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.error || `요청 실패 (${response.status})`);
+    const error = new Error(errorData.error || `요청 실패 (${response.status})`);
+    error.status = response.status;
+    throw error;
   }
 
   return response.json();
@@ -210,7 +212,9 @@ export async function apiStreamPost(path, body, onChunk, options = {}) {
 
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.error || `요청 실패 (${response.status})`);
+      const error = new Error(errorData.error || `요청 실패 (${response.status})`);
+      error.status = response.status;
+      throw error;
     }
 
     reader = response.body.getReader();

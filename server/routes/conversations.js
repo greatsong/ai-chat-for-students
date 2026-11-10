@@ -10,7 +10,7 @@ import crypto from 'crypto';
 
 const router = Router();
 
-// GET /api/conversations - 사용자의 대화 목록 조회 (최신순, 최대 50개)
+// GET /api/conversations - 사용자의 대화 목록 조회 (최신순, 최대 200개)
 router.get('/', async (req, res) => {
   try {
     const userId = req.user.id;
@@ -24,7 +24,7 @@ router.get('/', async (req, res) => {
       WHERE c.user_id = ?
       GROUP BY c.id, c.title, c.provider, c.model, c.created_at, c.updated_at
       ORDER BY c.updated_at DESC
-      LIMIT 50`,
+      LIMIT 200`,
       [userId],
     );
 

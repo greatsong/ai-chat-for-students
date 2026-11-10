@@ -147,7 +147,7 @@ export async function initDatabase() {
     )
   `);
 
-  // TTS/STT 사용량 컬럼 추가 (마이그레이션)
+  // TTS/STT 사용량 컬럼 추가 (마이그레이션). 음성 기능은 2026-11에 제거했지만 지난 기록 보존을 위해 컬럼은 둔다
   for (const col of ['tts_count', 'stt_count']) {
     try {
       await client.execute(`ALTER TABLE usage_daily ADD COLUMN ${col} INTEGER DEFAULT 0`);
@@ -199,13 +199,11 @@ export async function initDatabase() {
       solar: ['solar-pro4', 'solar-mini4'],
     },
     image_generation_enabled: false,
-    tts_enabled: false,
-    stt_enabled: false,
-    tts_default_voice: 'nova',
-    tts_default_model: 'tts-1',
     system_prompt:
       '당신은 당곡고등학교 학생들의 학습을 돕는 AI 도우미입니다. 오직 수업 및 학습과 관련된 내용에 대해서만 답변해주세요. 상담, 개인적인 고민, 학습과 무관한 잡담 등에는 정중히 거절하고 학습 관련 질문을 하도록 안내해주세요. 학생들이 스스로 생각하고 탐구할 수 있도록 도와주되, 답을 바로 알려주기보다는 사고 과정을 안내해주세요.',
     default_daily_limit: 100000,
+    // 학생 요청 한 번에 AI에게 보내는 입력 토큰 상한. 넘으면 오래된 대화를 잘라 요약한다.
+    student_input_budget: 60000,
     teacher_emails: [],
     // 코드 실행 도구 — 모두 기본 OFF로 시작 (점진적 활성화)
     code_execution_claude: false,
@@ -224,13 +222,18 @@ export async function initDatabase() {
     });
   }
 
-  // 마이그레이션: 기존 enabled_models에 프로 모델 추가
+  // 마이그레이션: 기존 enabled_models에 프로 모델 추가 (1회성).
+  // 예전에는 매 기동마다 실행돼 교사가 빼도 재시작하면 다시 켜졌다. 플래그로 한 번만 실행한다.
   try {
+    const flag = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'gemini_pro_added'",
+      args: [],
+    });
     const row = await client.execute({
       sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
       args: [],
     });
-    if (row.rows.length > 0) {
+    if (flag.rows.length === 0 && row.rows.length > 0) {
       const models = JSON.parse(row.rows[0].value);
       // 주의: openai 'pro' 추론 모델(gpt-5.4-pro 등)은 미노출 정책 — 추가하지 않는다.
       const additions = {
@@ -252,6 +255,12 @@ export async function initDatabase() {
         });
         console.log('마이그레이션: 프로 모델 활성화 완료 (gemini pro)');
       }
+    }
+    if (flag.rows.length === 0) {
+      await client.execute({
+        sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+        args: ['gemini_pro_added', JSON.stringify(true)],
+      });
     }
   } catch (e) {
     console.warn('enabled_models 마이그레이션 스킵:', e.message);
@@ -478,7 +487,12 @@ export async function initDatabase() {
 
   // 마이그레이션 (2026-09): Gemini 3.8 Flash 활성화 + 구형 3.6 Flash 제거.
   // 3.8-flash가 최신 GA(2026-09-02)로 카탈로그 1순위가 되고 3.6-flash는 카탈로그에서 은퇴.
+  // 3.8 추가는 플래그로 한 번만 한다(교사가 뺀 설정이 재시작 때 되살아나지 않게). 3.6 제거는 멱등이라 매번 해도 된다.
   try {
+    const flag = await client.execute({
+      sql: "SELECT value FROM settings WHERE key = 'gemini_38_flash_added'",
+      args: [],
+    });
     const row = await client.execute({
       sql: "SELECT value FROM settings WHERE key = 'enabled_models'",
       args: [],
@@ -487,7 +501,7 @@ export async function initDatabase() {
       const models = JSON.parse(row.rows[0].value);
       if (!models.gemini) models.gemini = [];
       let changed = false;
-      if (!models.gemini.includes('gemini-3.8-flash')) {
+      if (flag.rows.length === 0 && !models.gemini.includes('gemini-3.8-flash')) {
         models.gemini.unshift('gemini-3.8-flash');
         changed = true;
       }
@@ -502,6 +516,12 @@ export async function initDatabase() {
         });
         console.log('마이그레이션: Gemini 3.8 Flash 활성화 및 3.6 Flash 제거 완료');
       }
+    }
+    if (flag.rows.length === 0) {
+      await client.execute({
+        sql: 'INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)',
+        args: ['gemini_38_flash_added', JSON.stringify(true)],
+      });
     }
   } catch (e) {
     console.warn('Gemini 3.8 Flash 마이그레이션 스킵:', e.message);

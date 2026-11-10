@@ -155,6 +155,7 @@ async function streamWithCodeInterpreter({
   onText,
   onDone,
   onError,
+  signal,
 }) {
   try {
     console.log('[openai.streamChat] 코드 인터프리터 활성화 (Responses API)');
@@ -173,7 +174,7 @@ async function streamWithCodeInterpreter({
     if (cieEffort) createParams.reasoning = { effort: cieEffort };
     if (systemPrompt) createParams.instructions = systemPrompt;
 
-    const stream = await openai.responses.create(createParams);
+    const stream = await openai.responses.create(createParams, { signal });
 
     let fullContent = '';
     let inputTokens = 0;
@@ -187,7 +188,8 @@ async function streamWithCodeInterpreter({
             fullContent += delta;
             onText(delta);
           }
-        } else if (event.type === 'response.completed') {
+        } else if (event.type === 'response.completed' || event.type === 'response.incomplete') {
+          // incomplete(출력 한도 도달)도 그때까지의 사용량과 코드 실행 결과를 담고 있다
           const resp = event.response || {};
           inputTokens = resp.usage?.input_tokens || 0;
           outputTokens = resp.usage?.output_tokens || 0;
@@ -196,8 +198,8 @@ async function streamWithCodeInterpreter({
             fullContent += toolOutput;
             onText(toolOutput);
           }
-        } else if (event.type === 'response.failed' || event.type === 'response.error') {
-          throw new Error(event.response?.error?.message || 'OpenAI 응답 실패');
+        } else if (event.type === 'response.failed' || event.type === 'error') {
+          throw new Error(event.response?.error?.message || event.message || 'OpenAI 응답 실패');
         }
       }
     } catch (streamError) {
@@ -230,6 +232,7 @@ export async function streamChat({
   onDone,
   onError,
   options = {},
+  signal,
 }) {
   try {
     const openai = await getClient();
@@ -244,6 +247,7 @@ export async function streamChat({
         onText,
         onDone,
         onError,
+        signal,
       });
     }
 
@@ -264,7 +268,7 @@ export async function streamChat({
     const effort = OPENAI_REASONING_EFFORT[createParams.model];
     if (effort) createParams.reasoning_effort = effort;
 
-    const stream = await openai.chat.completions.create(createParams);
+    const stream = await openai.chat.completions.create(createParams, { signal });
 
     let fullContent = '';
     let inputTokens = 0;
@@ -378,65 +382,4 @@ export async function generateImage({ prompt, model, size, quality }) {
     mimeType: 'image/png',
     model: usedModel,
   };
-}
-
-/**
- * OpenAI TTS (텍스트 → 음성)
- * @param {Object} params
- * @param {string} params.text - 읽을 텍스트
- * @param {string} params.voice - 음성 (alloy, echo, fable, onyx, nova, shimmer)
- * @param {string} params.model - 모델 (tts-1, tts-1-hd)
- * @returns {{ audioData: string, mimeType: string }}
- */
-export async function generateSpeech({ text, voice, model }) {
-  const openai = await getClient();
-
-  const response = await withRetry(() =>
-    openai.audio.speech.create({
-      model: model || 'tts-1',
-      voice: voice || 'alloy',
-      input: text.slice(0, 4096),
-      response_format: 'mp3',
-    }),
-  );
-
-  const buffer = Buffer.from(await response.arrayBuffer());
-  return {
-    audioData: buffer.toString('base64'),
-    mimeType: 'audio/mpeg',
-  };
-}
-
-// STT 모델. whisper-1은 2026-08-26 deprecated, 2027-02-26 셧다운 예정이라
-// 공식 권장 대체 모델인 gpt-transcribe로 교체했다.
-// gpt-transcribe는 기본 response_format(json)에서 { text } 를 반환하며,
-// 단수 `language` 대신 복수 `languages` 배열(힌트)을 받는다.
-export const STT_MODEL = 'gpt-transcribe';
-// 수업 환경 기준 언어 힌트 — 한국어 우선, 영어 병행(강제가 아닌 힌트)
-export const STT_LANGUAGE_HINTS = ['ko', 'en'];
-
-/**
- * OpenAI STT (음성 → 텍스트)
- * @param {Object} params
- * @param {Buffer} params.audioBuffer - 오디오 바이너리
- * @param {string} params.mimeType - MIME 타입
- * @returns {{ text: string }}
- */
-export async function transcribeAudio({ audioBuffer, mimeType }) {
-  const openai = await getClient();
-
-  const ext = mimeType?.includes('mp4') ? 'mp4' : 'webm';
-  const blob = new Blob([audioBuffer], { type: mimeType || 'audio/webm' });
-  // OpenAI SDK는 name 속성이 있는 Blob을 File처럼 인식
-  blob.name = `recording.${ext}`;
-
-  const transcription = await withRetry(() =>
-    openai.audio.transcriptions.create({
-      model: STT_MODEL,
-      file: blob,
-      languages: STT_LANGUAGE_HINTS,
-    }),
-  );
-
-  return { text: transcription.text };
 }

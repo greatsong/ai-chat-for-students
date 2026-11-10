@@ -152,8 +152,6 @@ const PROTECTED = [
   ['DELETE', `/api/conversations/${convA}`],
   ['POST', '/api/upload'],
   ['POST', '/api/image/generate'],
-  ['POST', '/api/tts/generate'],
-  ['POST', '/api/stt/transcribe'],
   ['POST', '/api/share'],
 ];
 
@@ -362,7 +360,7 @@ describe('관리자 응답 최소화', () => {
     expect(got.json).not.toHaveProperty('api_keys');
     const put = await api('PUT', '/api/teacher/settings', {
       token,
-      body: { key: 'tts_enabled', value: false },
+      body: { key: 'system_prompt', value: '테스트 프롬프트' },
     });
     expect(put.status).toBe(200);
     expect(put.json).not.toHaveProperty('api_keys');
@@ -482,11 +480,15 @@ describe('토큰 폐기', () => {
     expect(list.json.conversations.map((c) => c.id)).toContain(created.json.id);
   });
 
-  it('로그아웃은 IP 공용 로그인 한도(분당 100회)에서 제외된다', async () => {
+  it('로그아웃과 /me는 IP 공용 로그인 한도(분당 100회)에서 제외된다', async () => {
     const id = crypto.randomUUID();
     await seedUser(id, 'student');
+    const login = await api('POST', '/api/auth/google', { body: {} });
+    expect(login.headers.get('ratelimit-limit')).toBe('100');
+    // 학교 NAT에서 /me가 IP 한도에 걸리면 학생들이 한꺼번에 로그아웃된다
     const me = await api('GET', '/api/auth/me', { token: sign(id) });
-    expect(me.headers.get('ratelimit-limit')).toBe('100');
+    expect(me.status).toBe(200);
+    expect(me.headers.get('ratelimit-limit')).toBe('3000');
     const out = await api('POST', '/api/auth/logout', { token: sign(id) });
     expect(out.status).toBe(200);
     expect(out.headers.get('ratelimit-limit')).toBe('3000');
